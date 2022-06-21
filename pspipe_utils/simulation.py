@@ -2,6 +2,7 @@
 Some utility functions for the generation of simulations.
 """
 import numpy as np
+from mflike import theoryforge_MFLike as th_mflike
 from pixell import curvedsky
 
 
@@ -121,7 +122,6 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
       the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     """
 
-    from mflike import theoryforge_MFLike as th_mflike
     ThFo = th_mflike.TheoryForge_MFLike()
 
     frequencies = np.asarray(frequencies, dtype=float)
