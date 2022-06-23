@@ -4,10 +4,11 @@ Some utility functions for the generation of simulations.
 import numpy as np
 from mflike import theoryforge_MFLike as th_mflike
 from pixell import curvedsky
+from pspy import so_spectra
 
 
-def get_noise_matrix_spin0and2(noise_dir, survey, arrays, lmax, nsplits):
-
+def get_noise_matrix_spin0and2(f_name_tmp, survey, arrays, lmax, nsplits, input_type="Dl"):
+    
     """This function uses the measured noise power spectra
     and generate a three dimensional array of noise power spectra [n_arrays, n_arrays, lmax] for temperature
     and polarisation.
@@ -15,11 +16,12 @@ def get_noise_matrix_spin0and2(noise_dir, survey, arrays, lmax, nsplits):
     for the different array pairs.
     for example nl_array_t[0,0,:] =>  nl^{TT}_{ar_{0},ar_{0}),  nl_array_t[0,1,:] =>  nl^{TT}_{ar_{0},ar_{1})
     this allows to consider correlated noise between different arrays.
-
+    Note the the function return noise power spectra in "Cl", so apply an extra correction if the input is "Dl"
+    
     Parameters
     ----------
-    noise_data_dir : string
-      the folder containing the noise power spectra
+    f_name_tmp : string
+      a template name of the noise power spectra
     survey : string
       the survey to consider
     arrays: 1d array of string
@@ -29,32 +31,40 @@ def get_noise_matrix_spin0and2(noise_dir, survey, arrays, lmax, nsplits):
     n_splits: integer
       the number of data splits we want to simulate
       nl_per_split= nl * n_{splits}
-    """
+    input_type: str
+      "Cl" or "Dl"
 
+    """
+    
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 
     n_arrays = len(arrays)
     nl_array_t = np.zeros((n_arrays, n_arrays, lmax))
     nl_array_pol = np.zeros((n_arrays, n_arrays, lmax))
-
+    
     for c1, ar1 in enumerate(arrays):
         for c2, ar2 in enumerate(arrays):
-            if c1>c2 : continue
-
-            l, nl = so_spectra.read_ps("%s/mean_%sx%s_%s_noise.dat" % (noise_dir, ar1, ar2, survey), spectra=spectra)
+            if c1 > c2 : continue
+            
+            l, nl = so_spectra.read_ps(f_name_tmp.format(ar1, ar2, survey), spectra=spectra)
+            
             nl_t = nl["TT"][:lmax]
             nl_pol = (nl["EE"][:lmax] + nl["BB"][:lmax])/2
             l = l[:lmax]
 
-
-            nl_array_t[c1, c2, :] = nl_t * nsplits *  2 * np.pi / (l * (l + 1))
-            nl_array_pol[c1, c2, :] = nl_pol * nsplits *  2 * np.pi / (l * (l + 1))
+            nl_array_t[c1, c2, :] = nl_t * nsplits
+            nl_array_pol[c1, c2, :] = nl_pol * nsplits
+            
+            if input_type == "Dl":
+                nl_array_t[c1, c2, :]  *= 2 * np.pi / (l * (l + 1))
+                nl_array_pol[c1, c2, :]  *= 2 * np.pi / (l * (l + 1))
 
     for i in range(lmax):
-        nl_array_t[:,:,i] = fill_sym_mat(nl_array_t[:,:,i])
-        nl_array_pol[:,:,i] = fill_sym_mat(nl_array_pol[:,:,i])
+        nl_array_t[:, :, i] = fill_sym_mat(nl_array_t[:, :, i])
+        nl_array_pol[:, :, i] = fill_sym_mat(nl_array_pol[:, :, i])
 
     return l, nl_array_t, nl_array_pol
+
 
 
 
@@ -134,7 +144,6 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
     ThFo._init_foreground_model()
     fg_dict = ThFo._get_foreground_model(ell=ell, freqs_order=frequencies,  **fg_params)
 
-    # TODO: symetrise te and et
 
     # Let's add other foregrounds not available in mflike
     ell_0 = fg_norm["ell_0"]
@@ -219,3 +228,15 @@ def generate_noise_alms(nl_array_t, lmax, n_splits, ncomp, nl_array_pol=None, dt
             nlms["B", k] = curvedsky.rand_alm(nl_array_pol, lmax=lmax, dtype=dtype)
 
     return nlms
+
+
+
+def fill_sym_mat(mat):
+    """Make a upper diagonal or lower diagonal matrix symmetric
+
+    Parameters
+    ----------
+    mat : 2d array
+    the matrix we want symmetric
+    """
+    return mat + mat.T - np.diag(mat.diagonal())
