@@ -125,7 +125,7 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
                        "ee": ["radio", "dust"],
                        "bb": ["radio", "dust"],
                        "tb": ["radio", "dust"],
-                       "eb": [],
+                       "eb": []}
     fg_params: dict
       the foreground parameter values for instance
       fg_params = {
@@ -146,7 +146,7 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
           "a_psee": 0.05,
           "a_psbb": 0.05,
           "a_pste": 0,
-          "a_pstb": 0,
+          "a_pstb": 0}
 
     fg_norm: dict
       the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
