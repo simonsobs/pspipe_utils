@@ -109,7 +109,8 @@ def get_foreground_matrix(fg_dir, all_freqs, lmax):
 def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None):
 
     """This function computes the foreground power spectra for a given set of multipoles,
-    foreground components and parameters.
+    foreground components and parameters. It uses mflike, note that mflike do not
+    support foreground in tb, and bb therefore we include it here
 
     Parameters
     ----------
@@ -121,12 +122,31 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
       the foreground components, one per spectrum mode for instance
       fg_components = {"tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
                        "te": ["radio", "dust"],
-                       "ee": ["radio", "dust"]}
+                       "ee": ["radio", "dust"],
+                       "bb": ["radio", "dust"],
+                       "tb": ["radio", "dust"],
+                       "eb": [],
     fg_params: dict
       the foreground parameter values for instance
-      fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60, "a_p": 6.90, "beta_p": 2.08, "a_c": 4.90,
-                   "beta_c": 2.20, "a_s": 3.10, "a_gtt": 2.79, "a_gte": 0.36, "a_gee": 0.13,
-                   "a_psee": 0.05, "a_pste": 0, "xi": 0.1, "T_d": 9.60}
+      fg_params = {
+          "a_tSZ": 3.30,
+          "a_kSZ": 1.60,
+          "a_p": 6.90,
+          "beta_p": 2.08,
+          "a_c": 4.90,
+          "beta_c": 2.20,
+          "a_s": 3.10,
+          "xi": 0.1,
+          "T_d": 9.60,
+          "a_gtt": 2.79,
+          "a_gte": 0.36,
+          "a_gtb": 0.36,
+          "a_gee": 0.13,
+          "a_gbb": 0.13,
+          "a_psee": 0.05,
+          "a_psbb": 0.05,
+          "a_pste": 0,
+          "a_pstb": 0,
 
     fg_norm: dict
       the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
