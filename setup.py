@@ -12,7 +12,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.5",
     install_requires=[
-        "pixell>=0.16.0",
+        "pspy>=1.5.3",
         "mflike @ git+https://github.com/simonsobs/LAT_MFLike@master#egg=mflike",
     ],
 )
