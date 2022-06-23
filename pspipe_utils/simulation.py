@@ -193,7 +193,7 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
     )
     for c1, f1 in enumerate(frequencies):
         for c2, f2 in enumerate(frequencies):
-            for s in ["bb", "tb"]:
+            for s in ["eb", "bb", "tb"]:
                 fg_dict[s, "all", f1, f2] = np.zeros(len(ell))
                 for comp in fg_components[s]:
                     fg_dict[s, comp, f1, f2] = models[s, comp][c1, c2]
