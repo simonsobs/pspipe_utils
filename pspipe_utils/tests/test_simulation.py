@@ -14,6 +14,9 @@ class SimulationTest(unittest.TestCase):
             "tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
             "te": ["radio", "dust"],
             "ee": ["radio", "dust"],
+            "bb": ["radio", "dust"],
+            "tb": ["radio", "dust"],
+            "eb": [],
         }
         fg_params = {
             "a_tSZ": 3.30,
@@ -25,9 +28,13 @@ class SimulationTest(unittest.TestCase):
             "a_s": 3.10,
             "a_gtt": 2.79,
             "a_gte": 0.36,
+            "a_gtb": 0.36,
             "a_gee": 0.13,
+            "a_gbb": 0.13,
             "a_psee": 0.05,
+            "a_psbb": 0.05,
             "a_pste": 0,
+            "a_pstb": 0,
             "xi": 0.1,
             "T_d": 9.60,
         }
