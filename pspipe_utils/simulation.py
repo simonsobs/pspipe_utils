@@ -134,6 +134,42 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
     ThFo._init_foreground_model()
     fg_dict = ThFo._get_foreground_model(ell=ell, freqs_order=frequencies,  **fg_params)
 
+    # TODO: symetrise te and et
+
+    # Let's add other foregrounds not available in mflike
+    ell_0 = fg_norm["ell_0"]
+    nu_0 = fg_norm["nu_0"]
+
+    # Normalisation of radio sources
+    ell_clp = ell * (ell + 1.0)
+    ell_0clp = ell_0 * (ell_0 + 1.0)
+
+    models = {}
+    models["bb", "radio"] = fg_params["a_psbb"] * ThFo.radio(
+        {"nu": frequencies, "nu_0": nu_0, "beta": -0.5 - 2.0},
+        {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
+    )
+    models["bb", "dust"] = fg_params["a_gbb"] * ThFo.dust(
+        {"nu": frequencies, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
+        {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
+    )
+
+    models["tb", "radio"] = fg_params["a_pstb"] * ThFo.radio(
+        {"nu": frequencies, "nu_0": nu_0, "beta": -0.5 - 2.0},
+        {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
+    )
+    models["tb", "dust"] = fg_params["a_gtb"] * ThFo.dust(
+        {"nu": frequencies, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
+        {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
+    )
+    for c1, f1 in enumerate(frequencies):
+        for c2, f2 in enumerate(frequencies):
+            for s in ["bb", "tb"]:
+                fg_dict[s, "all", f1, f2] = np.zeros(len(ell))
+                for comp in fg_components[s]:
+                    fg_dict[s, comp, f1, f2] = models[s, comp][c1, c2]
+                    fg_dict[s, "all", f1, f2] += fg_dict[s, comp, f1, f2]
+
     return fg_dict
 
 def generate_noise_alms(nl_array_t, lmax, n_splits, ncomp, nl_array_pol=None, dtype=np.complex128):
