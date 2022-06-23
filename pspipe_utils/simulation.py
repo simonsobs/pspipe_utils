@@ -173,11 +173,11 @@ def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None
     # Add ET, BT, BE where ET[f1, f2] = TE[f2, f1]
     for c1, f1 in enumerate(frequencies):
         for c2, f2 in enumerate(frequencies):
-            for s in ["te", "tb", "be"]:
+            for s in ["te", "tb", "eb"]:
                 s_r = s[::-1]
                 fg_dict[s_r, "all", f1, f2] = np.zeros(len(ell))
                 for comp in fg_components[s]:
-                    fg_dict[s_r, comp, f1, f2] = models[s, comp][c2, c1]
+                    fg_dict[s_r, comp, f1, f2] = fg_dict[s, comp, f2, f1]
                     fg_dict[s_r, "all", f1, f2] += fg_dict[s, comp, f2, f1]
 
     return fg_dict
