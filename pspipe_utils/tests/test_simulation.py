@@ -16,6 +16,7 @@ class SimulationTest(unittest.TestCase):
             "ee": ["radio", "dust"],
             "bb": ["radio", "dust"],
             "tb": ["radio", "dust"],
+            "eb": [],
         }
         fg_params = {
             "a_tSZ": 3.30,
