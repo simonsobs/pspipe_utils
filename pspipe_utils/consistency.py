@@ -127,7 +127,7 @@ def get_chi2(spectra_vec, full_cov, proj_pattern, calib_vec = None, lrange = Non
     else:
         return res_spec @ np.linalg.inv(res_cov) @ res_spec
 
-def plot_residual(lb, res_spec, res_cov, mode, title, file_name):
+def plot_residual(lb, res_spec, res_cov, mode, title, file_name, lrange = None):
     """
     Plot the residual power spectrum and
     save it at a png file
@@ -143,15 +143,26 @@ def plot_residual(lb, res_spec, res_cov, mode, title, file_name):
     title: string
     fileName: string
     """
-
-    chi2 = res_spec @ np.linalg.inv(res_cov) @ res_spec
-
+    if lrange is not None:
+        chi2 = res_spec[lrange] @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ res_spec[lrange]
+        ndof = len(lb[lrange])
+    else:
+        chi2 = res_spec @ np.linalg.inv(res_cov) @ res_spec
+        ndof = len(lb)
     plt.figure(figsize = (8, 6))
     plt.axhline(0, color = "k", ls = "--")
     plt.errorbar(lb, res_spec, yerr = np.sqrt(res_cov.diagonal()),
                  ls = "None", marker = ".",
-                 label = f"Chi2 : {chi2:.1f}/{len(lb)}")
+                 label = f"Chi2 : {chi2:.1f}/{ndof}")
+
+    if lrange is not None:
+        xleft, xright = lb[lrange][0], lb[lrange][-1]
+        plt.axvspan(xmin = 0, xmax = xleft,
+                    color = "gray", alpha = 0.7)
+        plt.axvspan(xmin = xright, xmax = lb[-1],
+                    color = "gray", alpha = 0.7)
     plt.title(title)
+    plt.xlim(0, lb[-1])
     plt.xlabel(r"$\ell$")
     plt.ylabel(r"$\Delta D_\ell^\mathrm{%s}$" % mode)
     plt.tight_layout()
