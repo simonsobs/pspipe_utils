@@ -39,7 +39,7 @@ class SimulationTest(unittest.TestCase):
             "T_d": 9.60,
         }
 
-        from pspipe_utils.simulation import get_foreground_dict
+        from pspipe_utils.best_fits import get_foreground_dict
 
         fg_dict = get_foreground_dict(ell, frequencies, fg_components, fg_params)
         # Just check is the dict is correctly filled
