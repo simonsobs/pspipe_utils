@@ -141,7 +141,7 @@ def get_all_best_fit(spec_name_list,
                      fg_dict,
                      nu_eff,
                      spectra,
-                     nl_dict=None
+                     nl_dict=None,
                      bl_dict=None):
                                      
     """
