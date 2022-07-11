@@ -25,16 +25,17 @@ arrays["dr6"] = ["ar1", "ar2"]
 n_splits = {}
 n_splits["dr6"] = 2
 
-ra0, ra1, dec0, dec1, res = -30, 30, -10, 10, 1
+ra0, ra1, dec0, dec1, res = -30, 30, -10, 10, 2
 apo_type_survey = "Rectangle"
 template = so_map.car_template(ncomp, ra0, ra1, dec0, dec1, res)
 binary = so_map.car_template(1, ra0, ra1, dec0, dec1, res)
 binary.data[:] = 0
 binary.data[1:-1, 1:-1] = 1
 
-lmax = 4000
-lmax_sim = lmax + 1000
+lmax = 2500
+lmax_sim = lmax + 500
 bin_size = 40
+n_sims = 10
 
 binning_file = "%s/binning.dat" % test_dir
 pspy_utils.create_binning_file(bin_size=bin_size, n_bins=300, file_name=binning_file)
@@ -51,10 +52,10 @@ fg_components = {"tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
 
 fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60,"a_p": 6.90, "beta_p": 2.08, "a_c": 4.90,
              "beta_c": 2.20, "a_s": 3.10, "xi": 0.1,  "T_d": 9.60,  "a_gtt": 2.79,
-             "a_gte": 0.36, "a_pste": 0,
+             "a_gte": 0.36, "a_pste": 0.05,
              "a_gee": 0.13, "a_psee": 0.05,
              "a_gbb": 0.13, "a_psbb": 0.05,
-             "a_gtb": 0.36, "a_pstb": 0}
+             "a_gtb": 0.36, "a_pstb": 0.05}
 
 freq_list = []
 nu_eff, rms_uKarcmin_T, bl = {}, {}, {}
@@ -70,7 +71,7 @@ freq_list = list(dict.fromkeys(freq_list))
 
 for sv in surveys:
     for ar1, ar2 in combinations(arrays[sv], 2):
-        r = np.random.uniform(0, high=0.7)
+        r = 0.7 
         rms_uKarcmin_T[sv, f"{ar1}x{ar2}"] = r * np.sqrt(rms_uKarcmin_T[sv, f"{ar1}x{ar1}"] * rms_uKarcmin_T[sv, f"{ar2}x{ar2}"])
         rms_uKarcmin_T[sv, f"{ar2}x{ar1}"] = rms_uKarcmin_T[sv, f"{ar1}x{ar2}"]
 
@@ -101,6 +102,15 @@ for sv in surveys:
                                                    type,
                                                    lmax_sim,
                                                    spectra=spectra)
+            #if ar1 == ar2:
+                # include correlation for the cross component noise power spectrum
+            for spec in ["TE", "TB", "EB"]:
+                r = 0.7
+                s1, s2 = spec
+                nl_th[s1 + s2] = r * np.sqrt(nl_th[s1 + s1] * nl_th[s2 + s2] )
+                nl_th[s2 + s1] = nl_th[s1 + s2]
+
+            
             f_name = f"{test_dir}/mean_{ar1}x{ar2}_{sv}_noise.dat"
             so_spectra.write_ps(f_name, l_th, nl_th, type, spectra=spectra)
             
@@ -183,7 +193,6 @@ for sv in surveys:
                                                           n_splits[sv],
                                                           spectra)
 
-n_sims = 40
 ps_all = {}
 for iii in range(n_sims):
     t = time.time()
@@ -217,7 +226,8 @@ for iii in range(n_sims):
                     
                     ps_dict = {}
                     for spec in spectra:
-                        ps_dict[spec] = []
+                        ps_dict[spec, "auto"] = []
+                        ps_dict[spec, "cross"] = []
                     
                     for s1 in range(n_splits[sv1]):
                         for s2 in range(n_splits[sv2]):
@@ -236,21 +246,28 @@ for iii in range(n_sims):
                                                             spectra=spectra)
                                                             
                             for count, spec in enumerate(spectra):
-                                if (s1 == s2) & (sv1 == sv2): continue #discard the auto
-                                else: ps_dict[spec] += [ps[spec]]
+                                if (s1 == s2) & (sv1 == sv2): ps_dict[spec, "auto"] += [ps[spec]]
+                                else: ps_dict[spec, "cross"] += [ps[spec]]
 
-                    ps_dict_cross_mean = {}
+                    ps_dict_auto_mean, ps_dict_cross_mean, ps_dict_noise_mean = {}, {}, {}
                     for spec in spectra:
-                        ps_dict_cross_mean[spec] = np.mean(ps_dict[spec], axis=0)
+                        ps_dict_cross_mean[spec] = np.mean(ps_dict[spec, "cross"], axis=0)
                         if ar1 == ar2 and sv1 == sv2:
                             # Average TE / ET so that for same array same season TE = ET
-                            ps_dict_cross_mean[spec] = (np.mean(ps_dict[spec], axis=0) + np.mean(ps_dict[spec[::-1]], axis=0)) / 2.
+                            ps_dict_cross_mean[spec] = (np.mean(ps_dict[spec, "cross"], axis=0) + np.mean(ps_dict[spec[::-1], "cross"], axis=0)) / 2.
+                            
+                        if sv1 == sv2:
+                            ps_dict_auto_mean[spec] = np.mean(ps_dict[spec, "auto"], axis=0)
+                            ps_dict_noise_mean[spec] = (ps_dict_auto_mean[spec] - ps_dict_cross_mean[spec]) / n_splits[sv1]
+
                     spec_name = f"{sv1}&{ar1}x{sv2}&{ar2}"
                     if iii == 0:
-                        ps_all[spec_name] = []
-                         
-                    ps_all[spec_name] += [ps_dict_cross_mean]
-                    
+                        ps_all[spec_name, "cross"] = []
+                        ps_all[spec_name, "noise"] = []
+
+                    ps_all[spec_name, "cross"] += [ps_dict_cross_mean]
+                    ps_all[spec_name, "noise"] += [ps_dict_noise_mean]
+
     print("sim %05d/%05d took %.02f s to compute" % (iii, n_sims, time.time() - t))
 
 ##########################################################################
@@ -260,15 +277,19 @@ for iii in range(n_sims):
 
 l_cmb, cmb_dict = best_fits.cmb_dict_from_file(f_name_cmb, lmax, spectra)
 l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, freq_list, lmax, spectra)
-l_noise, nl_dict = best_fits.noise_dict_from_files(f_name_noise,  surveys, arrays, lmax, spectra, n_splits)
+l_noise, nl_dict = best_fits.noise_dict_from_files(f_name_noise,  surveys, arrays, lmax, spectra)
+
+f_name_beam = test_dir + "/beam_{}_{}.dat"
+l_beam, bl_dict = best_fits.beam_dict_from_files(f_name_beam, surveys, arrays, lmax)
+
 
 l_cmb, ps_all_th, nl_all_th = best_fits.get_all_best_fit(spec_name_list,
                                                          l_cmb,
                                                          cmb_dict,
                                                          fg_dict,
                                                          nu_eff,
-                                                         nl_dict,
-                                                         spectra)
+                                                         spectra,
+                                                         nl_dict=nl_dict)
 
 
 n_bins = len(lb)
@@ -277,14 +298,33 @@ for my_spec in spec_name_list:
     sv_a, ar_a = na.split("&")
     sv_b, ar_b = nb.split("&")
 
-    mean_a, _, mc_cov = so_cov.mc_cov_from_spectra_list(ps_all[my_spec], ps_all[my_spec], spectra=spectra)
+    for spec_type in ["cross", "noise"]:
+        mean_a, _, mc_cov = so_cov.mc_cov_from_spectra_list(ps_all[my_spec, spec_type], ps_all[my_spec, spec_type], spectra=spectra)
 
-    for spec in spectra:
-        mc_cov_select = so_cov.selectblock(mc_cov, spectra, n_bins, block=spec+spec)
-        std = np.sqrt(mc_cov_select.diagonal())
-        if spec == "TT":
-            plt.semilogy()
-        plt.errorbar(lb, mean_a[spec], std, fmt=".")
-        plt.plot(l_cmb, cmb_dict[spec])
-        plt.plot(l_cmb, ps_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec])
-        plt.show()
+        plt.figure(figsize=(18, 14))
+
+        for count, spec in enumerate(spectra):
+            mc_cov_select = so_cov.selectblock(mc_cov, spectra, n_bins, block=spec+spec)
+            std = np.sqrt(mc_cov_select.diagonal())
+            plt.subplot(3, 3, count + 1)
+            plt.errorbar(lb, mean_a[spec], std, fmt=".")
+
+            if spec_type=="cross":
+                if  spec == "TT":
+                    plt.semilogy()
+                plt.plot(l_cmb, cmb_dict[spec], label="CMB")
+                plt.plot(l_cmb, ps_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec], label="CMB+fg")
+                plt.xlabel("$\ell$", fontsize=16)
+                plt.ylabel("$D^{%s}_\ell$" % spec, fontsize=16)
+                plt.title(my_spec)
+                plt.legend(fontsize=14)
+            else:
+                plt.plot(l_cmb, nl_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec] / (bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]))
+                plt.xlabel("$\ell$", fontsize=14)
+                plt.ylabel("$DN^{%s}_\ell$" % spec, fontsize=16)
+                
+        plt.suptitle(my_spec)
+        plt.savefig(f"{test_dir}/spectra_{my_spec}_{spec_type}.png", bbox_inches="tight")
+        plt.clf()
+        plt.close()
+

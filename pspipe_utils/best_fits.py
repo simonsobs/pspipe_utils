@@ -140,8 +140,8 @@ def get_all_best_fit(spec_name_list,
                      cmb_dict,
                      fg_dict,
                      nu_eff,
-                     nl_dict,
                      spectra,
+                     nl_dict=None
                      bl_dict=None):
                                      
     """
@@ -180,17 +180,20 @@ def get_all_best_fit(spec_name_list,
             if bl_dict is not None:
                 ps_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec]  *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
             
-            if (sv_a == sv_b):
-                nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]  = nl_dict[sv_a, ar_a, ar_b][spec]
-            else:
-                nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]  = 0
-
             ps_all_th[f"{sv_b}&{ar_b}",f"{sv_a}&{ar_a}", spec]  = ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]
-            nl_all_th[f"{sv_b}&{ar_b}",f"{sv_a}&{ar_a}", spec]  = nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]
 
-    
-    return l_th, ps_all_th, nl_all_th
+            if nl_dict is not None:
+                if (sv_a == sv_b):
+                    nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]  = nl_dict[sv_a, ar_a, ar_b][spec]
+                else:
+                    nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]  = 0
 
+                nl_all_th[f"{sv_b}&{ar_b}",f"{sv_a}&{ar_a}", spec]  = nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]
+
+    if nl_dict is not None:
+        return l_th, ps_all_th, nl_all_th
+    else:
+        return l_th, ps_all_th
 
 def get_foreground_dict(ell, frequencies, fg_components, fg_params, fg_norm=None):
 
