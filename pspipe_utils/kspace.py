@@ -45,12 +45,11 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
         for spec2 in spectra:
             kspace_dict[f"{spec1}_to_{spec2}"] = np.zeros(n_bins)
         
-    elements = ["TT_to_TT", "TE_to_TE", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE"]
+    elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE"]
     for el in elements: kspace_dict[el] = []
     for i in range(n_sims):
         kspace_dict["TT_to_TT"] += [ps_sims["filter", "standard"][i]["TT"]/ps_sims["nofilter", "standard"][i]["TT"]]
-        kspace_dict["TE_to_TE"] += [ps_sims["filter", "standard"][i]["TE"]/ps_sims["nofilter", "standard"][i]["TE"]]
-
+        
         kspace_dict["EE_to_EE"] += [ps_sims["filter", "noB"][i]["EE"]/ps_sims["nofilter", "noB"][i]["EE"]]
         kspace_dict["BB_to_BB"] += [ps_sims["filter", "noE"][i]["BB"]/ps_sims["nofilter", "noE"][i]["BB"]]
         
@@ -61,9 +60,9 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
         std[el] = np.std(kspace_dict[el], axis=0)
         kspace_dict[el] = np.mean(kspace_dict[el], axis=0)
 
-    elements = [ "ET_to_ET", "TB_to_TB", "BT_to_BT"]
+    elements = ["TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT"]
     for el in elements:
-        kspace_dict[el] = kspace_dict["TE_to_TE"]
+        kspace_dict[el] = np.sqrt(kspace_dict["TT_to_TT"] * kspace_dict["EE_to_EE"])
         
     elements = ["EB_to_EB", "BE_to_BE"]
     for el in elements:
