@@ -1,7 +1,7 @@
 """
 Some utility functions for the kspace filter.
 """
-from pspy import so_spectra
+from pspy import so_spectra, so_map
 import numpy as np
 
 def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
@@ -81,7 +81,6 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
 
 def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
 
-
     """This function deconvolve the kspace filter transfer matrix
      
      since
@@ -115,3 +114,52 @@ def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
     ps = so_spectra.vec2spec_dict(n_bins, vec, spectra)
 
     return lb, ps
+
+
+def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=1e-4, ref=0.9):
+
+    """Filter the map in Fourier space using a predefined filter. Note that we mutliply the maps by a binary mask before
+    doing this operation in order to remove pathological pixels
+    We also include an option for removing the pixel window function
+
+    Parameters
+    ---------
+    map: ``so_map``
+        the map to be filtered
+    binary:  ``so_map``
+        a binary mask removing pathological pixels
+    filter: 2d array
+        a filter applied in fourier space
+    inv_pixwin: 2d array
+        the inverse of the pixel window function in fourier space
+    weighted_filter: boolean
+        wether to use weighted filter a la sigurd
+    tol, ref: floats
+        only in use in the case of the weighted filter, these arg
+        remove crazy pixels value in the weight applied
+
+    """
+
+    if weighted_filter == False:
+        if inv_pixwin is not None:
+            filter *= inv_pixwin
+            
+        map = so_map.fourier_convolution(map, filter, binary)
+
+    else:
+        map.data *= binary.data
+        one_mf = (1 - filter)
+        rhs    = enmap.ifft(one_mf * enmap.fft(map.data, normalize=True), normalize=True).real
+        div    = enmap.ifft(one_mf * enmap.fft(binary.data, normalize=True), normalize=True).real
+        del one_mf
+        div    = np.maximum(div, np.percentile(binary.data[::10, ::10], ref * 100) * tol)
+        map.data -= rhs / div
+        del rhs
+        del div
+    
+        if inv_pixwin_lxly is not None:
+            ft = enmap.fft(map.data, normalize=True)
+            ft  *= inv_pixwin_lxly
+            map.data = enmap.ifft(ft, normalize=True).real
+
+    return map

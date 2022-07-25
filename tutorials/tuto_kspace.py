@@ -48,7 +48,7 @@ fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60,"a_p": 6.90, "beta_p": 2.08, "a_c": 4.
 
 
 survey = "dr6"
-arrays = ["pa4_f150"]#, "pa4_f220", "pa5_f090", "pa5_f150", "pa6_f090", "pa6_f150"]
+arrays = ["pa4_f150", "pa4_f220", "pa5_f090", "pa5_f150", "pa6_f090", "pa6_f150"]
 nu_effs = {}
 nu_effs["dr6", "pa4_f150"] = 150
 nu_effs["dr6", "pa4_f220"] = 220
@@ -184,7 +184,9 @@ for iii in range(n_sims):
             my_binary = binary[ar].copy()
             #my_binary = so_window.create_apodization(my_binary, apo_type="C1", apo_radius_degree=0.5)
 
-            cmb_cut_filter = so_map.fourier_convolution(cmb_cut_filter, filter_std[ar], my_binary)
+
+            cmb_cut_filter = kspace.filter_map(cmb_cut_filter, filter_std[ar], my_binary)
+            #cmb_cut_filter = so_map.fourier_convolution(cmb_cut_filter, filter_std[ar], my_binary)
 
             alms_cut_filter = sph_tools.get_alms(cmb_cut_filter, window_tuple[ar], niter, lmax)
         
