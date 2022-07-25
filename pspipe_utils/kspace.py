@@ -163,3 +163,27 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
             map.data = enmap.ifft(ft, normalize=True).real
 
     return map
+
+
+def get_kspace_filter(template, filter_dict):
+
+    """build the kspace filter according to a dictionnary specifying the filter parameters
+    Parameters
+    ---------
+    template: ``so_map``
+        a template of the CAR map we want to filter
+    filter_dict: dict
+        a dictionnary that contains the filter properties
+        e.g filter_dict = {..., "type":"binary_cross","vk_mask":[-90, 90], "hk_mask":[-50, 50], ...}
+        
+    """
+
+    shape, wcs = template.data.shape, template.data.wcs
+    if filter_dict["type"] == "binary_cross":
+        filter = so_map_preprocessing.build_std_filter(shape, wcs, vk_mask=filter_dict["vk_mask"], hk_mask=filter_dict["hk_mask"], dtype=np.float64)
+    elif filter_dict["type"] == "gauss":
+        filter = so_map_preprocessing.build_sigurd_filter(shape, wcs, filter_dict["lbounds"], dtype=np.float64)
+    else:
+        print("you need to specify a valid filter type")
+
+    return filter
