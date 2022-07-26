@@ -1,7 +1,6 @@
 """
-Some utility functions for building list for mpi mpi.
+Some utility functions for building list for mpi.
 """
-
 
 def get_arrays_list(dict):
     """This function creates the lists over which mpi is done
@@ -12,7 +11,6 @@ def get_arrays_list(dict):
     dict : dict
         the global dictionnary file used in pspipe
     """
-
 
     surveys = dict["surveys"]
     sv_list, ar_list = [], []
@@ -25,7 +23,6 @@ def get_arrays_list(dict):
             n_arrays += 1
     return n_arrays, sv_list, ar_list
 
-
 def get_spectra_list(dict):
     """This function creates the lists over which mpi is done
     when we parallelized over each spectra
@@ -36,7 +33,6 @@ def get_spectra_list(dict):
         the global dictionnary file used in pspipe
 
     """
-
     surveys = dict["surveys"]
 
     sv1_list, ar1_list, sv2_list, ar2_list = [], [], [], []
