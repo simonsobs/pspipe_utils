@@ -44,7 +44,7 @@ def noise_matrix_from_files(f_name_tmp, survey, arrays, lmax, nsplits, spectra, 
         a template name of the noise power spectra
     survey : string
         the survey to consider
-    arrays: 1d array of string
+    arrays: list of string
         the arrays we consider
     lmax: integer
         the maximum multipole for the noise power spectra

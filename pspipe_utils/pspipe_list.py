@@ -54,7 +54,6 @@ def get_spectra_list(dict):
 
     return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
-
 def get_covariances_list(dict):
     """This function creates the lists over which mpi is done
     when we parallelized over each covariance element
@@ -83,8 +82,6 @@ def get_covariances_list(dict):
     
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-
-
 def get_spec_name_list(dict, char="&"):
     """This function creates a list with the name of all spectra we consider
      
@@ -111,3 +108,24 @@ def get_spec_name_list(dict, char="&"):
                     spec_name += [f"{sv1}{char}{ar1}x{sv2}{char}{ar2}" ]
 
     return spec_name
+
+def get_freq_list(dict):
+    """This function creates the list of all frequencies to consider
+     
+    Parameters
+    ----------
+    dict : dict
+        the global dictionnary file used in pspipe
+    """
+    surveys = dict["surveys"]
+
+    freq_list = []
+    for sv in surveys:
+        arrays = dict["arrays_%s" % sv]
+        for ar in arrays:
+            freq_list += [dict["nu_eff_%s_%s" % (sv, ar)]]
+
+    # remove doublons
+    freq_list = list(dict.fromkeys(freq_list))
+    
+    return freq_list
