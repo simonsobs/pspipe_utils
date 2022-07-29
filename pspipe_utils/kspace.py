@@ -142,9 +142,9 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
 
     if weighted_filter == False:
         if inv_pixwin is not None:
-            filter *= inv_pixwin
-            
-        map = so_map.fourier_convolution(map, filter, binary)
+            map = so_map.fourier_convolution(map, filter * inv_pixwin, binary)
+        else:
+            map = so_map.fourier_convolution(map, filter, binary)
 
     else:
         map.data *= binary.data
