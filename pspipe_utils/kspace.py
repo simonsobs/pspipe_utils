@@ -157,9 +157,9 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
         del rhs
         del div
     
-        if inv_pixwin_lxly is not None:
+        if inv_pixwin is not None:
             ft = enmap.fft(map.data, normalize=True)
-            ft  *= inv_pixwin_lxly
+            ft  *= inv_pixwin
             map.data = enmap.ifft(ft, normalize=True).real
 
     return map
