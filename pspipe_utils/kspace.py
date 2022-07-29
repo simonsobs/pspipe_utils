@@ -1,7 +1,7 @@
 """
 Some utility functions for the kspace filter.
 """
-from pspy import so_spectra, so_map
+from pspy import so_spectra, so_map, so_map_preprocessing
 import numpy as np
 
 def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
@@ -103,7 +103,6 @@ def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
         the spectra list ["TT","TE".....]
     """
 
-
     n_bins = len(lb)
 
     inv_kspace_mat = np.linalg.inv(kspace_filter_matrix)
@@ -126,10 +125,11 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
     ---------
     map: ``so_map``
         the map to be filtered
-    binary:  ``so_map``
-        a binary mask removing pathological pixels
     filter: 2d array
         a filter applied in fourier space
+    binary:  ``so_map``
+        a binary mask removing pathological pixels
+
     inv_pixwin: 2d array
         the inverse of the pixel window function in fourier space
     weighted_filter: boolean
