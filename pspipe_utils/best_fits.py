@@ -31,7 +31,7 @@ def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     return l_cmb, cmb_dict
     
     
-def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2):
+def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=None):
     """
     create a fg power spectrum dict from files
 
@@ -49,8 +49,13 @@ def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2):
       the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     lmin: integer
       the minimum multipole to consider
+    f_name_cmb: str
+      optionnaly include the cmb
     """
 
+    if f_name_cmb is not None:
+        l_cmb, cmb_dict = cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin)
+    
     fg_dict = {}
     for freq1 in nu_list:
         for freq2 in nu_list:
@@ -59,7 +64,9 @@ def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2):
             fg_dict[freq1, freq2] = {}
             for spec in spectra:
                 fg_dict[freq1, freq2][spec] = fg[spec][id_fg]
-    
+                if f_name_cmb is not None:
+                    fg_dict[freq1, freq2][spec] += cmb_dict[spec]
+        
     l_fg = l_fg[id_fg]
 
     return l_fg, fg_dict
