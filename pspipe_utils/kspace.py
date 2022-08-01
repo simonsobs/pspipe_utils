@@ -1,7 +1,7 @@
 """
 Some utility functions for the kspace filter.
 """
-from pspy import so_spectra, so_map, so_map_preprocessing
+from pspy import so_spectra, so_map, so_map_preprocessing, pspy_utils
 import numpy as np
 
 def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
@@ -78,6 +78,59 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
     else:
         return kspace_matrix
 
+
+def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dict, binning_file, lmax):
+    """This function compute the analytical kspace filter transfer matrices
+    
+    Parameters
+    ----------
+    surveys : list
+        a list of the survey
+    arrays: dict
+        a dictionnary with entry "survey" that list the
+        different arrays included in the given survey
+    templates: dict
+        a dictionnary with entry "survey" that contains
+        a so_map template corresponding to the given survey
+    filter_dict: dict
+        a dictionnary that contains the filter properties
+        e.g filter_dict = {..., "type":"binary_cross","vk_mask":[-90, 90], "hk_mask":[-50, 50], ...}
+    binning_file: data file
+      a binning file with format bin low, bin high, bin mean
+    lmax: int
+        the maximum multipole to consider
+    """
+    
+    _, _, lb, _ = pspy_utils.read_binning_file(binning_file, lmax)
+    n_bins = len(lb)
+    
+    transfer_func = {}
+    for id_sv1, sv1 in enumerate(surveys):
+        filter_sv1 = get_kspace_filter(templates[sv1], filter_dict[sv1])
+        _, kf_tf1 = so_map_preprocessing.analytical_tf(templates[sv1], filter_sv1, binning_file, lmax)
+
+        for id_sv2, sv2 in enumerate(surveys):
+            filter_sv2 = get_kspace_filter(templates[sv2], filter_dict[sv2])
+            _, kf_tf2 = so_map_preprocessing.analytical_tf(templates[sv2], filter_sv2, binning_file, lmax)
+
+            transfer_func[sv1, sv2] = np.minimum(kf_tf1, kf_tf2)
+
+
+    transfer_mat = {}
+    for id_sv1, sv1 in enumerate(surveys):
+        for id_ar1, ar1 in enumerate(arrays[sv1]):
+            for id_sv2, sv2 in enumerate(surveys):
+                for id_ar2, ar2 in enumerate(arrays[sv2]):
+                    # This ensures that we do not repeat redundant computations
+                    if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
+                    if  (id_sv1 > id_sv2) : continue
+                    transfer_mat[f"{sv1}_{ar1}x{sv2}_{ar2}"] = np.zeros((9 * n_bins, 9 * n_bins))
+                    diag = np.tile(transfer_func[sv1, sv2], 9)
+                    np.fill_diagonal(transfer_mat[f"{sv1}_{ar1}x{sv2}_{ar2}"], diag)
+               
+    return transfer_mat
+    
+    
 
 def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
 
