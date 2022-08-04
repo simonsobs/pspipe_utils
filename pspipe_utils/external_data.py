@@ -24,8 +24,8 @@ def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
     elif spec in ["ET", "BT"]:
         spec = spec[::-1]
         fp_choi = ["90x90", "150x90", "90x150", "150x150"]
-    elif spec == "BE"
-         spec ="EB"
+    elif spec == "BE":
+         spec = "EB"
          fp_choi = ["90x90", "90x150", "150x150"]
 
     data = np.loadtxt(f"{data_path}/act_dr4.01_multifreq_{survey}_C_ell_{spec}.txt")
