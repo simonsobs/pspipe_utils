@@ -14,7 +14,7 @@ def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
     spec: str
       the spectrum to consider (e.g "TT", "TE"....)
     survey: str
-      "deep", "wide" or combined
+      "deep", "wide" 
     """
 
     if spec in ["TT", "EE", "EB", "BB"]:
