@@ -82,7 +82,7 @@ def get_covariances_list(dict):
     
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, char="&"):
+def get_spec_name_list(dict, char="&", kind=None, freq_pair=None):
     """This function creates a list with the name of all spectra we consider
      
     Parameters
@@ -105,6 +105,19 @@ def get_spec_name_list(dict, char="&"):
                     if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
                     if  (id_sv1 > id_sv2) : continue
                     
+                    if (kind == "noise") or (kind == "auto"):
+                        if (sv1 != sv2): continue
+
+                    c = 0
+
+                    if freq_pair is not None:
+                        f1, f2 = freq_pair
+                        nu_eff1 = dict[f"nu_eff_{sv1}_{ar1}"]
+                        nu_eff2 = dict[f"nu_eff_{sv2}_{ar2}"]
+                        if (f1 != nu_eff1) or (f2 != nu_eff2): c +=1
+                        if (f2 != nu_eff1) or (f1 != nu_eff2): c +=1
+                    if c == 2: continue
+
                     spec_name += [f"{sv1}{char}{ar1}x{sv2}{char}{ar2}" ]
 
     return spec_name
