@@ -3,6 +3,7 @@ Some utility functions for additional transfer function.
 """
 from pspy import so_spectra, pspy_utils
 import numpy as np
+import healpy as hp
 
 
 def healpix_pixwin(survey, template, binning_file, lmax):
