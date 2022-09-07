@@ -72,7 +72,7 @@ def get_passband_dict_dr6(fname, wafer_list):
 
     return passband_dict
 
-def get_passband_dict_npipe(fname, wafer_list):
+def get_passband_dict_npipe(fname, wafer_list, freq_range_list = None):
     """
     Read and return NPIPE passbands for
     wafers in wafer_list
@@ -83,22 +83,27 @@ def get_passband_dict_npipe(fname, wafer_list):
       the path to passbands (fits file)
     wafer_list: list[str]
       list of the different wafers considered
+    freq_range_list: list[tuple]
+      list of the frequency range to use for each wafer of wafer_list
     """
     import astropy.io.fits as fits
     passband_dict = {}
 
-    for wafer in wafer_list:
+    for i, wafer in enumerate(wafer_list):
 
         freq = wafer.split("_")[1].replace("f", "")
 
         hdu_list = fits.open(fname)
         data = hdu_list[f"BANDPASS_F{freq}"].data
 
-        nu_ghz = data["WAVENUMBER"] * 1e-7 * 3e8
+        nu_ghz = data["WAVENUMBER"] * 1e-7 * 3e8 # conversion from cm^-1 to GHz
         passband = data["TRANSMISSION"]
 
-        freq_mask = (nu_ghz >= 50) & (nu_ghz <= 1100)
+        if freq_range_list:
+            nu_min, nu_max = freq_range_list[i]
+            freq_mask = (nu_ghz >= nu_min) & (nu_ghz <= nu_max)
+            nu_ghz, passband = nu_ghz[freq_mask], passband[freq_mask]
 
-        passband_dict[wafer] = [nu_ghz[freq_mask], passband[freq_mask]]
+        passband_dict[wafer] = [nu_ghz, passband]
 
     return passband_dict

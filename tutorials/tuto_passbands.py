@@ -10,8 +10,10 @@ dr6_passbands_file = "../data/passbands/AdvACT_Passbands.h5"
 
 dr6_wafers = ["pa4_f150", "pa4_f220", "pa5_f090", "pa5_f150", "pa6_f090", "pa6_f150"]
 npipe_wafers = [f"npipe_f{freq}" for freq in [100, 143, 217, 353, 545, 857]]
+npipe_freq_range = [(50, 1100) for wafer in npipe_wafers]
 
-npipe_passbands = ext.get_passband_dict_npipe(npipe_passbands_file, npipe_wafers)
+npipe_passbands = ext.get_passband_dict_npipe(npipe_passbands_file, npipe_wafers,
+                                              freq_range_list = npipe_freq_range)
 dr6_passbands = ext.get_passband_dict_dr6(dr6_passbands_file, dr6_wafers)
 
 passbands = {**dr6_passbands, **npipe_passbands}
