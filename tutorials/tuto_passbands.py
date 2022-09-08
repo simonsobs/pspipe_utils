@@ -4,6 +4,9 @@ from pspy import pspy_utils
 import matplotlib.pyplot as plt
 import numpy as np
 
+output_dir = "results_passbands"
+pspy_utils.create_directory(output_dir)
+
 # Load passbands
 npipe_passbands_file = "../data/passbands/HFI_RIMO_R4.00.fits"
 dr6_passbands_file = "../data/passbands/AdvACT_Passbands.h5"
@@ -27,7 +30,7 @@ for wafer in dr6_wafers:
 plt.legend()
 plt.ylim(bottom = 0)
 plt.tight_layout()
-plt.show()
+plt.savefig(f"{output_dir}/dr6_passbands.png", dpi = 300)
 
 plt.figure(figsize = (8, 6))
 plt.xlabel(r"$\ell$")
@@ -37,7 +40,7 @@ for wafer in npipe_wafers:
 plt.legend()
 plt.ylim(bottom = 0)
 plt.tight_layout()
-plt.show()
+plt.savefig(f"{output_dir}/npipe_passbands.png", dpi = 300)
 
 
 # Compute foreground models
@@ -87,23 +90,26 @@ for wafer in ["pa4_f150", "pa5_f150", "pa6_f150"]:
     dr6xdr6 = ps_dict["TT"][l_th >= ell.min()] + fg_dict["tt", "all", wafer, wafer]
     dr6xnpipe = ps_dict["TT"][l_th >= ell.min()] + fg_dict["tt", "all", wafer, "npipe_f143"]
     res = dr6xdr6 / dr6xnpipe
-    mask = (ell >= 1200) & (ell <= 2000)
-    plt.plot(ell[mask], res[mask] - 1, label = wafer)
+    mask = (ell >= 1200) & (ell <= 1800) # calibration range
+    l0, = plt.plot(ell[mask], res[mask] - 1, label = wafer)
+    plt.axhline(np.mean(res[mask]) - 1, color = l0.get_color(), ls = "--", lw = 0.6)
 plt.xlabel(r"$\ell$")
 plt.ylabel(r"$D_\ell^{TT, \mathrm{ACT}\times\mathrm{ACT}} / D_\ell^{TT, \mathrm{ACT}\times\mathrm{NPIPE}} - 1$")
 plt.legend()
 plt.tight_layout()
-plt.show()
+plt.savefig(f"{output_dir}/deltaDl_150ghz.png", dpi = 300)
 
 plt.figure(figsize = (8, 6))
 for wafer in ["pa5_f090", "pa6_f090"]:
     dr6xdr6 = ps_dict["TT"][l_th >= ell.min()] + fg_dict["tt", "all", wafer, wafer]
     dr6xnpipe = ps_dict["TT"][l_th >= ell.min()] + fg_dict["tt", "all", wafer, "npipe_f100"]
     res = dr6xdr6 / dr6xnpipe
-    mask = (ell >= 800) & (ell <= 1300)
-    plt.plot(ell[mask], res[mask] - 1, label = wafer)
+    mask = (ell >= 800) & (ell <= 1300) # calibration range
+    l0, = plt.plot(ell[mask], res[mask] - 1, label = wafer)
+    plt.axhline(np.mean(res[mask]) - 1, color = l0.get_color(), ls = "--", lw = 0.6)
+
 plt.xlabel(r"$\ell$")
 plt.ylabel(r"$D_\ell^{TT, \mathrm{ACT}\times\mathrm{ACT}} / D_\ell^{TT, \mathrm{ACT}\times\mathrm{NPIPE}} - 1$")
 plt.legend()
 plt.tight_layout()
-plt.show()
+plt.savefig(f"{output_dir}/deltaDl_090ghz.png", dpi = 300)
