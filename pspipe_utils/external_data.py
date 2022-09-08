@@ -6,7 +6,7 @@ import numpy as np
 def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
     """
     read in the choi et al power spectra
-    
+
     Parameters
     __________
     data_path: str
@@ -14,7 +14,7 @@ def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
     spec: str
       the spectrum to consider (e.g "TT", "TE"....)
     survey: str
-      "deep", "wide" 
+      "deep", "wide"
     """
 
     if spec in ["TT", "EE", "EB", "BB"]:
@@ -32,11 +32,78 @@ def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
     l = data[:, 0]
     fac = l * (l + 1) / (2 * np.pi)
     cl, err = {}, {}
-    
+
     for count, fp in enumerate(fp_choi):
         cl[fp] = data[:, 1 + 2 * count]
         err[fp] = data[:, 2 + 2 * count]
         if return_Dl:
             cl[fp], err[fp] = cl[fp] * fac, err[fp] * fac
-        
+
     return fp_choi, l, cl, err
+
+def get_passband_dict_dr6(fname, wafer_list):
+    """
+    Read and return ACT DR6 passbands for
+    wafers in wafer_list
+
+    Parameters
+    __________
+    fname: str
+      the path to passbands (h5 file)
+    wafer_list: list[str]
+      list of the different wafers considered
+    """
+    import h5py
+    passband_dict = {}
+
+    with h5py.File(fname,'r') as hfile:
+        for wafer in wafer_list:
+            pa, freq = wafer.split("_")
+
+            nu_ghz = hfile[f'{pa.upper()}_{freq}']['frequencies'][()]
+            freq_bounds = hfile[f'{pa.upper()}_{freq}']['integration_bounds'][()]
+            passband = hfile[f'{pa.upper()}_{freq}']['mean_band'][()]
+            passband /= nu_ghz ** 2
+
+            # Truncate frequencies.
+            freq_mask = (freq_bounds.min() < nu_ghz) & (nu_ghz < freq_bounds.max())
+
+            passband_dict[wafer] = [nu_ghz[freq_mask], passband[freq_mask]]
+
+    return passband_dict
+
+def get_passband_dict_npipe(fname, wafer_list, freq_range_list = None):
+    """
+    Read and return NPIPE passbands for
+    wafers in wafer_list
+
+    Parameters
+    __________
+    fname: str
+      the path to passbands (fits file)
+    wafer_list: list[str]
+      list of the different wafers considered
+    freq_range_list: list[tuple]
+      list of the frequency range to use for each wafer of wafer_list
+    """
+    import astropy.io.fits as fits
+    passband_dict = {}
+
+    for i, wafer in enumerate(wafer_list):
+
+        freq = wafer.split("_")[1].replace("f", "")
+
+        hdu_list = fits.open(fname)
+        data = hdu_list[f"BANDPASS_F{freq}"].data
+
+        nu_ghz = data["WAVENUMBER"] * 1e-7 * 3e8 # conversion from cm^-1 to GHz
+        passband = data["TRANSMISSION"]
+
+        if freq_range_list:
+            nu_min, nu_max = freq_range_list[i]
+            freq_mask = (nu_ghz >= nu_min) & (nu_ghz <= nu_max)
+            nu_ghz, passband = nu_ghz[freq_mask], passband[freq_mask]
+
+        passband_dict[wafer] = [nu_ghz, passband]
+
+    return passband_dict
