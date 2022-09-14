@@ -1,9 +1,16 @@
+from itertools import combinations_with_replacement as cwr
 from getdist.mcsamples import loadMCSamples
+from pspipe_utils import misc, covariance
+from pspy import so_spectra, so_cov
 import matplotlib.pyplot as plt
 from cobaya.run import run
+import scipy.stats as ss
 import numpy as np
+import re
 
-def append_spectra_and_cov(ps_dict, cov_dict, spec_list):
+def append_spectra_and_cov(ps_dict,
+                           cov_dict,
+                           spec_list):
     """
     Get the power spectra vector containing
     the spectra in `spec_list` with the
@@ -30,8 +37,12 @@ def append_spectra_and_cov(ps_dict, cov_dict, spec_list):
         spectra_vec[i*n_bins:(i+1)*n_bins] = ps_dict[key1]
         for j, key2 in enumerate(spec_list):
             if j < i: continue
-            full_cov[i*n_bins:(i+1)*n_bins,
-                     j*n_bins:(j+1)*n_bins] = cov_dict[key1, key2]
+            try:
+                full_cov[i*n_bins:(i+1)*n_bins,
+                         j*n_bins:(j+1)*n_bins] = cov_dict[key1, key2]
+            except:
+                full_cov[i*n_bins:(i+1)*n_bins,
+                         j*n_bins:(j+1)*n_bins] = cov_dict[key2, key1]
 
     full_cov = np.triu(full_cov)
     transpose_cov = full_cov.T
@@ -40,7 +51,8 @@ def append_spectra_and_cov(ps_dict, cov_dict, spec_list):
     return spectra_vec, full_cov
 
 
-def get_projector(n_bins, proj_pattern):
+def get_projector(n_bins,
+                  proj_pattern):
     """
     Get the projection operator
     to apply to a spectra vector to
@@ -65,7 +77,10 @@ def get_projector(n_bins, proj_pattern):
     return projector
 
 
-def project_spectra_vec_and_cov(spectra_vec, full_cov, proj_pattern, calib_vec = None):
+def project_spectra_vec_and_cov(spectra_vec,
+                                full_cov,
+                                proj_pattern,
+                                calib_vec = None):
     """
     Get the residual spectrum and the associated
     covariance matrix from the spectra vector and
@@ -98,7 +113,11 @@ def project_spectra_vec_and_cov(spectra_vec, full_cov, proj_pattern, calib_vec =
 
     return res_spectrum, res_cov
 
-def get_chi2(spectra_vec, full_cov, proj_pattern, calib_vec = None, lrange = None):
+def get_chi2(spectra_vec,
+             full_cov,
+             proj_pattern,
+             calib_vec = None,
+             lrange = None):
     """
     Compute the chi2 of the residual
     power spectrum
@@ -127,7 +146,15 @@ def get_chi2(spectra_vec, full_cov, proj_pattern, calib_vec = None, lrange = Non
     else:
         return res_spec @ np.linalg.inv(res_cov) @ res_spec
 
-def plot_residual(lb, res_spec, res_cov, mode, title, file_name, lrange = None):
+def plot_residual(lb,
+                  res_spec,
+                  res_cov_dict,
+                  mode,
+                  title,
+                  file_name,
+                  lrange = None,
+                  l_pow = 0,
+                  overplot_theory_lines = None):
     """
     Plot the residual power spectrum and
     save it at a png file
@@ -143,33 +170,53 @@ def plot_residual(lb, res_spec, res_cov, mode, title, file_name, lrange = None):
     title: string
     fileName: string
     """
-    if lrange is not None:
-        chi2 = res_spec[lrange] @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ res_spec[lrange]
-        ndof = len(lb[lrange])
-    else:
-        chi2 = res_spec @ np.linalg.inv(res_cov) @ res_spec
-        ndof = len(lb)
+    colors = ["#ebac23", "#b80058", "#008cf9"]
+
     plt.figure(figsize = (8, 6))
     plt.axhline(0, color = "k", ls = "--")
-    plt.errorbar(lb, res_spec, yerr = np.sqrt(res_cov.diagonal()),
-                 ls = "None", marker = ".",
-                 label = f"Chi2 : {chi2:.1f}/{ndof}")
+    for i, (name, res_cov) in enumerate(res_cov_dict.items()):
+        if lrange is not None:
+            chi2 = res_spec[lrange] @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ res_spec[lrange]
+            ndof = len(lb[lrange])
+        else:
+            chi2 = res_spec @ np.linalg.inv(res_cov) @ res_spec
+            ndof = len(lb)
+
+
+        plt.errorbar(lb, res_spec * lb ** l_pow,
+                     yerr = np.sqrt(res_cov.diagonal()) * lb ** l_pow,
+                     ls = "None", marker = ".", ecolor = colors[i],
+                     color = "k",
+                     label = f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
 
     if lrange is not None:
         xleft, xright = lb[lrange][0], lb[lrange][-1]
         plt.axvspan(xmin = 0, xmax = xleft,
                     color = "gray", alpha = 0.7)
-        plt.axvspan(xmin = xright, xmax = lb[-1],
-                    color = "gray", alpha = 0.7)
+        if xright != lb[-1]:
+            plt.axvspan(xmin = xright, xmax = lb[-1],
+                        color = "gray", alpha = 0.7)
+
+    if overplot_theory_lines:
+
+        l_th, ps_th = overplot_theory_lines
+        plt.plot(l_th, ps_th * l_th ** l_pow, color = "gray")
+
+
     plt.title(title)
-    plt.xlim(0, lb[-1])
+    plt.xlim(0, 1.05*lb[-1])
     plt.xlabel(r"$\ell$")
-    plt.ylabel(r"$\Delta D_\ell^\mathrm{%s}$" % mode)
+    plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode))
     plt.tight_layout()
     plt.legend()
     plt.savefig(f"{file_name}.png", dpi = 300)
 
-def get_calibration_amplitudes(spectra_vec, full_cov, proj_pattern, mode, lrange, chain_name):
+def get_calibration_amplitudes(spectra_vec,
+                               full_cov,
+                               proj_pattern,
+                               mode,
+                               lrange,
+                               chain_name):
     """
     Get the calibration amplitude and the
     associated error
@@ -244,3 +291,199 @@ def get_calibration_amplitudes(spectra_vec, full_cov, proj_pattern, mode, lrange
     cal_std = np.sqrt(samples.cov(["cal"])[0, 0])
 
     return cal_mean, cal_std
+
+
+def get_ps_and_cov_dict(ar_list,
+                        ps_template,
+                        cov_template,
+                        beam_error_corrections = False,
+                        mc_error_corrections = False):
+    """
+    Load power spectra and covariances for
+    arrays listed in `ar_list`.
+
+    Parameters
+    ----------
+    ar_list: 1d array [str]
+        List of the arrays we want to use
+    ps_template: str
+        Template for the name of the power spectra files
+        ex : "spectra/Dl_{}x{}_cross.dat"
+    cov_template: str
+        Template for the name of the covariance files
+        ex : "covariances/analytic_cov_{}x{}_{}x{}.npy"
+    beam_error_corrections: bool
+        Flag used to include beam error corrections (default : False)
+    mc_error_corrections: bool
+        Flag used to include MC error corrections (default : False)
+    """
+    ps_dict = {}
+    cov_dict = {}
+
+    spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+    modes = ["TT", "TE", "ET", "EE"]
+
+    for i, (ar1, ar2) in enumerate(cwr(ar_list, 2)):
+
+        try:
+            tuple_name1 = (ar1, ar2)
+            ps_file = ps_template.format(*tuple_name1)
+            lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
+        except:
+            tuple_name1 = (ar2, ar1)
+            ps_file = ps_template.format(*tuple_name1)
+            lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
+
+        ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in modes}}
+
+        for j, (ar3, ar4) in enumerate(cwr(ar_list, 2)):
+            if i < j: continue
+
+            try:
+                tuple_name2 = (ar3, ar4)
+                try:
+                    tuple_order = [tuple_name1, tuple_name2]
+                    cov_file = cov_template.format(*tuple_name1, *tuple_name2)
+                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+                except:
+                    tuple_order = [tuple_name2, tuple_name1]
+                    cov_file = cov_template.format(*tuple_name2, *tuple_name1)
+                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+            except:
+                tuple_name2 = (ar4, ar3)
+                try:
+                    tuple_order = [tuple_name1, tuple_name2]
+                    cov_file = cov_template.format(*tuple_name1, *tuple_name2)
+                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+                except:
+                    tuple_order = [tuple_name2, tuple_name1]
+                    cov_file = cov_template.format(*tuple_name2, *tuple_name1)
+                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+
+            t1, t2 = tuple_order
+            for m1, m2 in cwr(modes, 2):
+
+                cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, modes, n_bins=len(lb), block = m1+m2)
+
+    ps_dict["ell"] = lb
+
+    return ps_dict, cov_dict
+
+
+def compute_ps_and_cov_ratio(ps_dict,
+                             cov_dict,
+                             spec_list):
+    """
+    Compute the ratio between two power spectra
+    and the associated covariance matrix.
+
+    Parameters
+    ----------
+    ps_dict: dict
+    cov_dict: dict
+    spec_list: 1d array [str] (len = 2)
+        List containing the two power spectra for
+        which we want to compute the ratio
+    """
+    XY, WZ = spec_list
+
+    bias = cov_dict[WZ, WZ] / np.outer(ps_dict[WZ], ps_dict[WZ])
+    try:
+        cross_name = (XY, WZ)
+        bias -= cov_dict[cross_name] / np.outer(ps_dict[XY], ps_dict[WZ])
+    except:
+        cross_name = (WZ, XY)
+        bias -= cov_dict[cross_name] / np.outer(ps_dict[XY], ps_dict[WZ])
+
+    ratio = ps_dict[XY] / ps_dict[WZ] * (1 - bias.diagonal())
+
+    cov = cov_dict[WZ, WZ] / np.outer(ps_dict[WZ], ps_dict[WZ])
+    cov += cov_dict[XY, XY] / np.outer(ps_dict[XY], ps_dict[XY])
+    cov -= 2 * cov_dict[cross_name] / np.outer(ps_dict[XY], ps_dict[WZ])
+
+    cov *= np.outer(ratio, ratio)
+
+    return ratio, cov
+
+
+
+def compare_spectra(ar_list,
+                    op,
+                    ps_dict,
+                    cov_dict,
+                    mode = "TT"):
+    """
+    Compare two power spectra according
+    to the operation specified in `op`.
+
+    Parameters
+    ----------
+    ar_list: 1d array [str]
+        List of the arrays [arA, arB, ...]
+    op: str
+        Symbolic operation to perform on the power spectra.
+        ex: "ab-aa" where "a" corresponds to the first element of
+            `ar_list` and "b" corresponds to the second.
+        Supported operations are :
+            - PS differences : "ab-cd"
+            - Map differences : "aa+bb-2ab"
+            - PS ratio : "ab/cd"
+    ps_dict: dict
+    cov_dict: dict
+    mode: str
+        Default: "TT"
+    """
+    required_names = sorted(set(re.findall("[A-Za-z]", op)))
+    if len(required_names) > len(ar_list):
+        raise ValueError(f"You have to provide {len(required_names)} names to perform this comparison.")
+    names_dict = {alias: ar_list[i] for i, alias in enumerate(required_names)}
+
+    spec_list = []
+
+    op_is_ratio = False
+
+    # Power spectra difference
+    if re.match("[a-z]{2}-[a-z]{2}", op):
+        proj_pattern = np.array([1, -1])
+        for cross in op.split("-"):
+            ps_name = (names_dict[cross[0]], names_dict[cross[1]])
+            if ps_name + (mode,) in ps_dict.keys():
+                spec_list.append(ps_name + (mode,))
+            else:
+                spec_list.append(ps_name[::-1] + (mode,))
+
+    # Map difference
+    elif re.match("[a-z]{2}\+[a-z]{2}-2[a-z]{2}", op):
+        proj_pattern = np.array([1, -2, 1])
+        map1 = names_dict[op[0]]
+        map2 = names_dict[op[3]]
+
+        if (map1, map2, mode) in ps_dict.keys():
+            spec_list = [(map1, map1, mode), (map1, map2, mode), (map2, map2, mode)]
+        else:
+            spec_list = [(map1, map1, mode), (map2, map1, mode), (map2, map2, mode)]
+
+    # Power spectra ratio
+    elif re.match("[a-z]{2}/[a-z]{2}", op):
+        op_is_ratio = True
+        for cross in op.split("/"):
+            ps_name = (names_dict[cross[0]], names_dict[cross[1]])
+            if ps_name in ps_dict.keys():
+                spec_list.append(ps_name + (mode,))
+            else:
+                spec_list.append(ps_name[::-1] + (mode,))
+    else:
+        raise ValueError(f"Invalid operation : {op}")
+
+    ps_vec, full_cov = append_spectra_and_cov(ps_dict, cov_dict, spec_list)
+    if op_is_ratio:
+        expect = 1
+        res_ps, res_cov = compute_ps_and_cov_ratio(ps_dict, cov_dict, spec_list)
+    else:
+        expect = 0
+        res_ps, res_cov = project_spectra_vec_and_cov(ps_vec, full_cov, proj_pattern)
+
+    chi2 = (res_ps - expect) @ np.linalg.inv(res_cov) @ (res_ps - expect)
+    pte = 1 - ss.chi2.cdf(chi2, len(ps_dict["ell"]))
+
+    return ps_dict["ell"], res_ps, res_cov, chi2, pte
