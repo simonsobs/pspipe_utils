@@ -203,8 +203,7 @@ def cov_dict_to_file(cov_dict,
                      spectra_order = ["TT", "TE", "ET", "EE"]):
                      
     """
-    Decompose the full covariance into a covariance dict, note that
-    the full covariance should NOT have been produced with remove_doublon=True
+    Write a cov dict into a bunch of files corresponding to cov mat block
     
     Parameters
     ----------
