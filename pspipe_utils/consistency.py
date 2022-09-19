@@ -436,8 +436,8 @@ def compare_spectra(ar_list,
     required_names = sorted(set(re.findall("[A-Za-z]", op)))
     if len(required_names) > len(ar_list):
         raise ValueError(f"You have to provide {len(required_names)} names to perform this comparison.")
-    names_dict = {alias: ar_list[i] for i, alias in enumerate(required_names)}
 
+    names_dict = {alias: ar_list[i] for i, alias in enumerate([chr(i) for i in range(ord("a"),ord("a")+len(ar_list))])}
     spec_list = []
 
     op_is_ratio = False
