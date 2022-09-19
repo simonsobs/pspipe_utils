@@ -8,11 +8,11 @@ def read_cov_block_and_build_dict(spec_name_list,
                                   cov_dir,
                                   cov_type,
                                   spectra_order = ["TT", "TE", "ET", "EE"]):
-                                  
+
     """
     Read the different block covariances corresponding to spec_name_list
     and build a dictionnary with the different elements
-    
+
     Parameters
     ----------
     spec_name_list: list of str
@@ -25,7 +25,7 @@ def read_cov_block_and_build_dict(spec_name_list,
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
     """
-    
+
     cov_dict = {}
     for sid1, name1 in enumerate(spec_name_list):
         for sid2, name2 in enumerate(spec_name_list):
@@ -36,7 +36,7 @@ def read_cov_block_and_build_dict(spec_name_list,
                 for s2, spec2 in enumerate(spectra_order):
                     sub_cov_block = cov_block[s1 * n_bins:(s1 + 1) * n_bins, s2 * n_bins:(s2 + 1) * n_bins]
                     cov_dict[name1, name2, spec1, spec2] = sub_cov_block
-                    
+
     return cov_dict
 
 def cov_dict_to_full_cov(cov_dict,
@@ -44,14 +44,14 @@ def cov_dict_to_full_cov(cov_dict,
                          spectra_order = ["TT", "TE", "ET", "EE"],
                          remove_doublon = False,
                          check_pos_def = False):
-                         
+
     """
     Build the full covariance matrix corresponding to spec_name_list using the covariance dictionnary
     There is an option to remove doublon e.g, TE and ET are the same for pa4_f150 x pa4_f150
     while they differ for pa4_f150 and pa5_f150
     There is also an option to check that the full matrix is positive definite and symmetric
-    
-    
+
+
     Parameters
     ----------
     cov_dict: dict
@@ -88,7 +88,7 @@ def cov_dict_to_full_cov(cov_dict,
     transpose = full_cov.copy().T
     transpose[full_cov != 0] = 0
     full_cov += transpose
-    
+
     if remove_doublon == True:
         block_to_delete = []
         for sid, name in enumerate(spec_name_list):
@@ -99,31 +99,31 @@ def cov_dict_to_full_cov(cov_dict,
                 if (na == nb) & (spec == "ET" or spec == "BT" or spec == "BE"):
                     block_to_delete = np.append(block_to_delete, np.arange(id_start, id_stop))
         block_to_delete = block_to_delete.astype(int)
-        
+
         full_cov = np.delete(full_cov, block_to_delete, axis=1)
         full_cov = np.delete(full_cov, block_to_delete, axis=0)
-        
+
     if check_pos_def == True:
         pspy_utils.is_pos_def(full_cov)
         pspy_utils.is_symmetric(full_cov)
 
     return full_cov
-    
-    
+
+
 def read_cov_block_and_build_full_cov(spec_name_list,
                                       cov_dir,
                                       cov_type,
                                       spectra_order = ["TT", "TE", "ET", "EE"],
                                       remove_doublon = False,
                                       check_pos_def = False):
-                                      
+
     """
     Build the full covariance matrix corresponding to spec_name_list from files
     There is an option to remove doublon e.g, TE and ET are the same for pa4_f150 x pa4_f150
     while they differ for pa4_f150 and pa5_f150
     There is also an option to check that the full matrix is positive definite and symmetric
-    
-    
+
+
     Parameters
     ----------
     spec_name_list: list of str
@@ -141,12 +141,12 @@ def read_cov_block_and_build_full_cov(spec_name_list,
     check_pos_def: boolean
         check that the full covariancde matrix is positive definite and symmetric
     """
-                                        
+
     cov_dict = read_cov_block_and_build_dict(spec_name_list,
                                              cov_dir,
                                              cov_type,
                                              spectra_order)
-    
+
     full_cov = cov_dict_to_full_cov(cov_dict,
                                     spec_name_list,
                                     spectra_order,
@@ -160,11 +160,11 @@ def full_cov_to_cov_dict(full_cov,
                          spec_name_list,
                          n_bins,
                          spectra_order = ["TT", "TE", "ET", "EE"]):
-                         
+
     """
     Decompose the full covariance into a covariance dict, note that
     the full covariance should NOT have been produced with remove_doublon=True
-    
+
     Parameters
     ----------
     full_cov: 2d array
@@ -195,16 +195,16 @@ def full_cov_to_cov_dict(full_cov,
                     cov_dict[name1, name2, spec1, spec2] = full_cov[id_start_1:id_stop_1, id_start_2: id_stop_2]
 
     return cov_dict
-    
+
 def cov_dict_to_file(cov_dict,
                      spec_name_list,
                      cov_dir,
                      cov_type,
                      spectra_order = ["TT", "TE", "ET", "EE"]):
-                     
+
     """
     Write a cov dict into a bunch of files corresponding to cov mat block
-    
+
     Parameters
     ----------
     cov_dict: dict
@@ -221,20 +221,20 @@ def cov_dict_to_file(cov_dict,
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
     """
 
-                     
+
     n_spec = len(spectra_order)
     n_bins = int(cov_dict[list(cov_dict)[0]].shape[0])
 
     for sid1, name1 in enumerate(spec_name_list):
         for sid2, name2 in enumerate(spec_name_list):
             if sid1 > sid2: continue
-             
+
             cov_block = np.zeros((n_spec * n_bins, n_spec * n_bins))
- 
+
             for s1, spec1 in enumerate(spectra_order):
                 for s2, spec2 in enumerate(spectra_order):
                     cov_block[s1 * n_bins:(s1 + 1) * n_bins, s2 * n_bins:(s2 + 1) * n_bins] = cov_dict[name1, name2, spec1, spec2]
-            
+
             np.save(f"{cov_dir}/{cov_type}_{name1}_{name2}.npy", cov_block)
 
 
@@ -261,5 +261,33 @@ def correct_analytical_cov(an_full_cov,
     corrected_cov = so_cov.corr2cov(an_full_corr, rescaling_var)
 
     return corrected_cov
-            
-            
+
+
+def read_covariance(cov_file,
+                    beam_error_corrections,
+                    mc_error_corrections):
+    """
+    Read the covariance matrix from `cov_file`
+    applying some corrections if requested.
+
+    Parameters
+    ----------
+    cov_file: str
+        Path to the .npy file
+    beam_error_corrections: bool
+        Flag used to include beam error corrections
+    mc_error_corrections: bool
+        Flag used to include MC error corrections
+    """
+    cov = np.load(cov_file)
+
+    if mc_error_corrections:
+        mc_corr_cov_file = misc.str_replace(cov_file, "analytic_cov", "mc_corr_cov")
+        cov = np.load(mc_corr_cov_file)
+
+    if beam_error_corrections:
+        beam_cov_file = misc.str_replace(cov_file, "analytic_cov", "analytic_beam_cov")
+        beam_cov = np.load(beam_cov_file)
+        cov = cov + beam_cov
+
+    return cov
