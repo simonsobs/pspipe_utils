@@ -1,6 +1,9 @@
 """
 Some utility functions for building list for mpi.
 """
+from itertools import combinations_with_replacement as cwr
+from itertools import product
+
 
 def get_arrays_list(dict):
     """This function creates the lists over which mpi is done
@@ -178,10 +181,6 @@ def x_ar_cov_order(spec_name_list,
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
     """
-
-
-
-    
     x_ar_list = []
     for spec in spectra_order:
         for spec_name in spec_name_list:
@@ -206,8 +205,6 @@ def x_freq_cov_order(freq_list,
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "EE"]
     """
-
-
     for spec in spectra_order:
         if spec in ["ET", "BT", "BE"]:
             raise ValueError("spectra_order can not contain [ET, BT, BE] the cross freq cov matrix convention is to assign all ET, BT, BE into TE,TB,EB")

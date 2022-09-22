@@ -2,6 +2,8 @@ import numpy as np
 import pylab as plt
 from pspy import so_cov
 from pspy import pspy_utils
+from itertools import combinations_with_replacement as cwr
+from itertools import product
 
 
 def read_cov_block_and_build_dict(spec_name_list,
@@ -411,7 +413,7 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
 def combine_P_mat(P_mat, P_mat_cross):
 
     """
-    Cheap function to combine the different passage matrix of the TT-TE- EE spectra
+    Cheap function to combine the different passage matrix of the TT - TE - EE spectra
     """
     shape_x, shape_y = P_mat.shape
     shape_cross_x, shape_cross_y = P_mat_cross.shape
@@ -533,7 +535,6 @@ def from_vector_and_cov_to_ps_and_std_dict(vec, cov, spectra_order, spec_block_o
       a binning file with format bin low, bin high, bin mean
     lmax: int
       the maximum multipole to consider
-
     """
 
     bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
@@ -570,7 +571,6 @@ def get_x_freq_to_final_P_mat(freq_list, binning_file, lmax):
     lmax: int
       the maximum multipole to consider
     """
-
 
     bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     n_bins = len(bin_hi)
