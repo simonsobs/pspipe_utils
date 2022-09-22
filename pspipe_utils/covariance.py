@@ -1,6 +1,6 @@
 import numpy as np
 import pylab as plt
-from pspy import so_cov
+from pspy import so_cov, so_spectra
 from pspy import pspy_utils
 from itertools import combinations_with_replacement as cwr
 from itertools import product
