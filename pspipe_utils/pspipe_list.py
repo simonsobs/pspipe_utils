@@ -160,7 +160,7 @@ def get_freq_list(dict):
             freq_list += [dict["nu_eff_%s_%s" % (sv, ar)]]
 
     # remove doublons
-    freq_list = list(dict.fromkeys(freq_list))
+    freq_list = np.sort(list(dict.fromkeys(freq_list)))
     
     return freq_list
 
