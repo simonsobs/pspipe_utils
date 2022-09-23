@@ -85,7 +85,7 @@ def get_covariances_list(dict):
     
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, char="&", kind=None, freq_pair=None, same_ar_and_sv=False, return_nueff=False):
+def get_spec_name_list(dict, char="&", kind=None, freq_pair=None, remove_same_ar_and_sv=False, return_nueff=False):
     """This function creates a list with the name of all spectra we consider
  
     Parameters
@@ -132,8 +132,8 @@ def get_spec_name_list(dict, char="&", kind=None, freq_pair=None, same_ar_and_sv
                         if (f2 != nu_eff1) or (f1 != nu_eff2): c +=1
                     if c == 2: continue
                 
-                    if same_ar_and_sv == True:
-                        if (sv1 != sv2) or (ar1 != ar2): continue
+                    if remove_same_ar_and_sv == True:
+                        if (sv1 == sv2) & (ar1 == ar2): continue
 
                     spec_name_list += [f"{sv1}{char}{ar1}x{sv2}{char}{ar2}"]
                     nu_eff_list += [(nu_eff1, nu_eff2)]
