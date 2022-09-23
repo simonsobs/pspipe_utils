@@ -3,7 +3,7 @@ Some utility functions for building list for mpi.
 """
 from itertools import combinations_with_replacement as cwr
 from itertools import product
-
+import numpy as np
 
 def get_arrays_list(dict):
     """This function creates the lists over which mpi is done
