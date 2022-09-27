@@ -1,0 +1,35 @@
+surveys = ["dr6"]
+arrays_dr6 = ["ar1", "ar2", "ar3"]
+n_splits = {"dr6" : 2}
+
+ra0 = -130
+ra1 = 130
+dec0 = -30
+dec1 = 30
+res = 2
+apo_type_survey = "Rectangle"
+apo_radius_degree = 1
+binned_mcm = False
+lmax = 2000
+bin_size = 40
+n_sims = 100
+
+n_splits_dr6 = 2
+nu_eff_dr6_ar1 = 150
+nu_eff_dr6_ar2 = 150
+nu_eff_dr6_ar3 = 90
+rms_uKarcmin_T_dr6_ar1 = 10
+rms_uKarcmin_T_dr6_ar2 = 20
+rms_uKarcmin_T_dr6_ar3 = 5
+beam_fwhm_dr6_ar1 = 3
+beam_fwhm_dr6_ar2 = 4
+beam_fwhm_dr6_ar3 = 6
+
+r_xar = 0.3
+r_xcomp = 0.2
+
+cosmo_params = {"cosmomc_theta":0.0104085, "logA": 3.044, "ombh2": 0.02237, "omch2": 0.1200,  "ns": 0.9649, "tau": 0.0544}
+
+fg_components = {"tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"], "te": ["radio", "dust"], "ee": ["radio", "dust"], "bb": ["radio", "dust"], "tb": ["radio", "dust"],"eb": []}
+
+fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60,"a_p": 6.90, "beta_p": 2.08, "a_c": 4.90, "beta_c": 2.20, "a_s": 3.10, "xi": 0.1,  "T_d": 9.60,  "a_gtt": 2.79, "a_gte": 0.36, "a_pste": 0.05,"a_gee": 0.13, "a_psee": 0.05, "a_gbb": 0.13, "a_psbb": 0.05, "a_gtb": 0.36, "a_pstb": 0.05}
