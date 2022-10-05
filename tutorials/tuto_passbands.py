@@ -23,7 +23,7 @@ passbands = {**dr6_passbands, **npipe_passbands}
 
 # Plot passbands
 plt.figure(figsize = (8, 6))
-plt.xlabel(r"$\ell$")
+plt.xlabel(r"$\nu$ [GHz]")
 for wafer in dr6_wafers:
     nu_ghz, trans = dr6_passbands[wafer]
     plt.plot(nu_ghz, trans / np.trapz(trans, nu_ghz), label = wafer)
@@ -33,7 +33,7 @@ plt.tight_layout()
 plt.savefig(f"{output_dir}/dr6_passbands.png", dpi = 300)
 
 plt.figure(figsize = (8, 6))
-plt.xlabel(r"$\ell$")
+plt.xlabel(r"$\nu$ [GHz]")
 for wafer in npipe_wafers:
     nu_ghz, trans = npipe_passbands[wafer]
     plt.plot(nu_ghz, trans / np.trapz(trans, nu_ghz), label = wafer)
