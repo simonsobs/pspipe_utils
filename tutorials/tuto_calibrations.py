@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import pickle
+import time
 import sys
 
 # This class is used to prevent cobaya
@@ -67,11 +68,10 @@ lmax_cal = 1300
 # Get calibration amplitudes
 proj_dict = {
              "C1": np.array([1, -1, 0]),
-             "C2": np.array([0, -1, 1]),
-             "C3": np.array([1, 0, -1])
+             "C2": np.array([0, -1, 1])
             }
 
-cal_dict_out = {f"C{i}": [] for i in range(1, 4)}
+cal_dict_out = {"C1": [] , "C2": []}
 
 # Load analytic cov dict
 an_cov_dict = {}
@@ -109,7 +109,7 @@ for iii in range(n_sims):
     # Get the calibration range
     id = np.where((lb >= lmin_cal) & (lb <= lmax_cal))[0]
 
-    print(f"Calibrating sim {iii} ...")
+    t0 = time.time()
     for comb, proj_pattern in proj_dict.items():
         # Prevent cobaya from printing chains details for
         # each simulation
@@ -119,12 +119,12 @@ for iii in range(n_sims):
                                                                    id, f"{output_dir}/chains/mcmc")
         sys.stdout = sys.__stdout__
         cal_dict_out[comb].append(cal_mean)
-
+    print(f"Sim {iii} calibrated in {time.time() - t0:.2f} s")
 
 pickle.dump(cal_dict_out, open(f"{output_dir}/calibs_dict.pkl", "wb"))
 
-nbins = 15
-colors = {"C1": "tab:red", "C2": "tab:blue", "C3": "tab:green"}
+nbins = 10
+colors = {"C1": "tab:red", "C2": "tab:blue"}
 plt.figure(figsize = (8, 6))
 for comb in cal_dict_out:
     plt.hist(cal_dict_out[comb], density = True, bins = nbins,
