@@ -271,6 +271,7 @@ def get_calibration_amplitudes(spectra_vec,
                     "min": 0.5,
                     "max": 1.5
                          },
+                "proposal": 1e-2,
                 "latex": "c"
                  }
                   },
