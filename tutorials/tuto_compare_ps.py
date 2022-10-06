@@ -1,7 +1,8 @@
 """
 
 """
-from pspy import pspy_utils, so_dict
+from itertools import combinations_with_replacement as cwr
+from pspy import pspy_utils, so_dict, so_spectra
 from pspipe_utils import consistency
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -17,6 +18,11 @@ n_sims = d["n_sims"]
 ps_dir = "result_simulation"
 cov_dir = "result_covariances"
 tuto_data_dir = "tuto_data"
+
+binning_file = f"{tuto_data_dir}/binning.dat"
+lmax = d["lmax"]
+_, _, lb, _ = pspy_utils.read_binning_file(binning_file, lmax)
+n_bins = len(lb)
 
 # Output dir
 output_dir = "result_compare"
@@ -49,7 +55,38 @@ for iii in range(n_sims):
         res_ps_dict[key].append(res_ps)
         res_cov_dict[key].append(res_cov)
 
+# Get MC errors on spectra combinations
+# Load sims
+ps_dict = {}
+for na, nb in cwr(ar_list, 2):
+    ps_dict[na, nb] = []
+    for iii in range(n_sims):
+        lb, ps = so_spectra.read_ps(f"{ps_dir}/Dl_{na}x{nb}_cross_{iii:05d}.dat", spectra = spectra)
+        ps_dict[na, nb].append(ps["TT"])
 
+mc_res_cov_dict = {}
+ar1, ar2 = ar_list
+for key, op in op_dict.items():
+    mc_res_cov_dict[key] = np.zeros((n_bins, n_bins))
+
+    mean_res = np.zeros(n_bins)
+    for iii in range(n_sims):
+        if key == "ratio":
+            res = ps_dict[ar1, ar1][iii] / ps_dict[ar2, ar2][iii]
+        if key == "diff":
+            res = ps_dict[ar1, ar1][iii] - ps_dict[ar2, ar2][iii]
+        if key == "map_diff":
+            res = ps_dict[ar1, ar1][iii] + ps_dict[ar2, ar2][iii] - 2 * ps_dict[ar1, ar2][iii]
+
+        mc_res_cov_dict[key] += np.outer(res, res)
+        mean_res += res
+
+    mean_res /= n_sims
+    mc_res_cov_dict[key] /= n_sims
+
+    mc_res_cov_dict[key] -= np.outer(mean_res, mean_res)
+
+mc_res_std = {op: np.sqrt(mc_res_cov_dict[op].diagonal()/n_sims) for op in mc_res_cov_dict}
 
 mean_res_ps = {op: np.mean(res_ps_dict[op], axis = 0) for op in res_ps_dict}
 mean_res_cov = {op: 1/n_sims * np.mean(res_cov_dict[op], axis = 0) for op in res_ps_dict}
@@ -65,6 +102,7 @@ for i, op in enumerate(op_dict):
     x_plot = lb
     y_plot = mean_res_ps[op]
     yerr_plot = mean_res_std[op]
+    mc_err_plot = mc_res_std[op]
 
     if op == "ratio":
         res = y_plot - 1
@@ -73,8 +111,18 @@ for i, op in enumerate(op_dict):
         res = y_plot
         ax.axhline(0, color = "k", ls = "--")
     chi2 = res @ np.linalg.inv(mean_res_cov[op]) @ res
-    print(f"X² = {chi2}/{len(lb)}")
-    ax.errorbar(x_plot, y_plot, yerr_plot, ls = "None", marker = "o", label = op)
+    #print(f"X² = {chi2}/{len(lb)}")
+    ax.fill_between(x_plot, y_plot - mc_err_plot, y_plot + mc_err_plot,
+                    color = "tab:orange", alpha = 0.2, label = "MC errors")
+    ax.errorbar(x_plot, y_plot, yerr_plot, ls = "None", marker = "o")
+    ax.text(0.5, 0.92, op, verticalalignment = "center",
+            horizontalalignment = "center",
+            transform = ax.transAxes)
+    ax.text(0.1, 0.85, r"$\chi^2 = %.2f / %d$" % (chi2, len(lb)),
+            verticalalignment = "center",
+            horizontalalignment = "center",
+            transform = ax.transAxes,
+            bbox=dict(facecolor='none', edgecolor='black', boxstyle='round,pad=1'))
     ax.legend()
 plt.tight_layout()
 plt.show()
