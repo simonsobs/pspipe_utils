@@ -154,7 +154,8 @@ def plot_residual(lb,
                   file_name,
                   lrange = None,
                   l_pow = 0,
-                  overplot_theory_lines = None):
+                  overplot_theory_lines = None,
+                  expected_res = 0.):
     """
     Plot the residual power spectrum and
     save it at a png file
@@ -169,17 +170,23 @@ def plot_residual(lb,
     mode: string
     title: string
     fileName: string
+    l_pow: float
+      apply a ell^{l_pow} scaling to the plot
+    overplot_theory_lines: tuple (lb, Cl)
+    expected_res: float
+      Expected value for the residual
+      ex: 0 for ps differences and 1 for a ratio of two ps
     """
     colors = ["#ebac23", "#b80058", "#008cf9"]
 
     plt.figure(figsize = (8, 6))
-    plt.axhline(0, color = "k", ls = "--")
+    plt.axhline(expected_res, color = "k", ls = "--")
     for i, (name, res_cov) in enumerate(res_cov_dict.items()):
         if lrange is not None:
-            chi2 = res_spec[lrange] @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ res_spec[lrange]
+            chi2 = (res_spec[lrange] - expected_res) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - expected_res)
             ndof = len(lb[lrange])
         else:
-            chi2 = res_spec @ np.linalg.inv(res_cov) @ res_spec
+            chi2 = (res_spec - expected_res) @ np.linalg.inv(res_cov) @ (res_spec - expected_res)
             ndof = len(lb)
 
 
@@ -296,9 +303,7 @@ def get_calibration_amplitudes(spectra_vec,
 
 def get_ps_and_cov_dict(ar_list,
                         ps_template,
-                        cov_template,
-                        beam_error_corrections = False,
-                        mc_error_corrections = False):
+                        cov_template):
     """
     Load power spectra and covariances for
     arrays listed in `ar_list`.
@@ -313,10 +318,6 @@ def get_ps_and_cov_dict(ar_list,
     cov_template: str
         Template for the name of the covariance files
         ex : "covariances/analytic_cov_{}x{}_{}x{}.npy"
-    beam_error_corrections: bool
-        Flag used to include beam error corrections (default : False)
-    mc_error_corrections: bool
-        Flag used to include MC error corrections (default : False)
     """
     ps_dict = {}
     cov_dict = {}
@@ -345,22 +346,21 @@ def get_ps_and_cov_dict(ar_list,
                 try:
                     tuple_order = [tuple_name1, tuple_name2]
                     cov_file = cov_template.format(*tuple_name1, *tuple_name2)
-                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+                    cov = np.load(cov_file)
                 except:
                     tuple_order = [tuple_name2, tuple_name1]
                     cov_file = cov_template.format(*tuple_name2, *tuple_name1)
-                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+                    cov = np.load(cov_file)
             except:
                 tuple_name2 = (ar4, ar3)
                 try:
                     tuple_order = [tuple_name1, tuple_name2]
                     cov_file = cov_template.format(*tuple_name1, *tuple_name2)
-                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
+                    cov = np.load(cov_file)
                 except:
                     tuple_order = [tuple_name2, tuple_name1]
                     cov_file = cov_template.format(*tuple_name2, *tuple_name1)
-                    cov = covariance.read_covariance(cov_file, beam_error_corrections, mc_error_corrections)
-
+                    cov = np.load(cov_file)
             t1, t2 = tuple_order
             for m1, m2 in cwr(modes, 2):
 

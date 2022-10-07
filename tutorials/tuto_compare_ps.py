@@ -14,6 +14,8 @@ d = so_dict.so_dict()
 d.read_from_file(sys.argv[1])
 n_sims = d["n_sims"]
 
+random_sim = np.random.randint(0, n_sims-1)
+
 # Directories
 ps_dir = "result_simulation"
 cov_dir = "result_covariances"
@@ -35,6 +37,7 @@ modes = ["TT", "TE", "ET", "EE"]
 op_dict = {"ratio": "aa/bb",
            "diff": "aa-bb",
            "map_diff": "aa+bb-2ab"}
+expected_res = {"ratio": 1., "diff": 0., "map_diff": 0.}
 
 # Define the arrays we want to compare
 ar_list = ["dr6&ar1", "dr6&ar2"]
@@ -43,15 +46,35 @@ res_ps_dict = {op: [] for op in op_dict}
 res_cov_dict = {op: [] for op in op_dict}
 
 for iii in range(n_sims):
+    # Define templates for the power spectra and covariances
     ps_template = f"{ps_dir}/Dl_" + "{}x{}" + f"_cross_{iii:05d}.dat"
+    # Note that if you want to use different covariances (e.g. including
+    # MC corrections) you just have to load the corresponding corrected covmat)
     cov_template = f"{cov_dir}/" + "analytic_cov_{}x{}_{}x{}.npy"
 
+    # Load ps and cov dict associated to ar_list
     ps_dict, cov_dict = consistency.get_ps_and_cov_dict(ar_list, ps_template,
-                                                        cov_template,
-                                                        mc_error_corrections = False)
+                                                        cov_template)
 
+    # Loop over different operations
     for key, op in op_dict.items():
+        # Compute the "residual" power spectrum and the associated covariance
         lb, res_ps, res_cov, chi2, pte = consistency.compare_spectra(ar_list, op, ps_dict, cov_dict)
+
+        if iii == random_sim:
+            # This function is used to plot a residual power spectrum
+            # with errorbars.
+            consistency.plot_residual(lb,
+                                      res_ps,
+                                      # Here we give the covariance matrices
+                                      # as a dict. This can be useful if you
+                                      # want to compare the null test for
+                                      # different covariances matrices.
+                                      {"analytic": res_cov},
+                                      mode = "TT",
+                                      title = f"Sim n° {iii} [{key}]",
+                                      file_name = f"{output_dir}/{key}_null",
+                                      expected_res = expected_res[key])
         res_ps_dict[key].append(res_ps)
         res_cov_dict[key].append(res_cov)
 
@@ -96,8 +119,8 @@ fig, axes = plt.subplots(3, 1, figsize = (10, 15))
 for i, op in enumerate(op_dict):
     ax = axes[i]
     if i == 2:
-        ax.set_xlabel(r"$\ell$")
-    ax.set_ylabel(r"$\Delta D_\ell^{TT}$")
+        ax.set_xlabel(r"$\ell$", fontsize = 15)
+    ax.set_ylabel(r"$\Delta D_\ell^{TT}$", fontsize = 15)
 
     x_plot = lb
     y_plot = mean_res_ps[op]
@@ -117,12 +140,15 @@ for i, op in enumerate(op_dict):
     ax.errorbar(x_plot, y_plot, yerr_plot, ls = "None", marker = "o")
     ax.text(0.5, 0.92, op, verticalalignment = "center",
             horizontalalignment = "center",
-            transform = ax.transAxes)
+            transform = ax.transAxes,
+            fontweight = "bold",
+            fontsize = 15)
     ax.text(0.1, 0.85, r"$\chi^2 = %.2f / %d$" % (chi2, len(lb)),
             verticalalignment = "center",
             horizontalalignment = "center",
             transform = ax.transAxes,
-            bbox=dict(facecolor='none', edgecolor='black', boxstyle='round,pad=1'))
+            bbox=dict(facecolor='none', edgecolor='black', boxstyle='round,pad=1'),
+            fontsize = 13)
     ax.legend()
 plt.tight_layout()
 plt.show()
