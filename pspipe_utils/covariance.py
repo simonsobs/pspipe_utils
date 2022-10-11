@@ -284,7 +284,7 @@ def read_covariance(cov_file,
     cov = np.load(cov_file)
 
     if mc_error_corrections:
-        mc_corr_cov_file = misc.str_replace(cov_file, "analytic_cov", "mc_corr_cov")
+        mc_corr_cov_file = misc.str_replace(cov_file, "analytic_cov", "analytic_cov_with_mc_corrections")
         cov = np.load(mc_corr_cov_file)
 
     if beam_error_corrections:
@@ -295,7 +295,7 @@ def read_covariance(cov_file,
     return cov
 
 def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_file, lmax):
-    
+
     """
     The goal of this function is to build the passage matrix that will
     help combining the cross array spectra
@@ -303,7 +303,7 @@ def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_fil
     into cross frequency spectra (150x150)
     note that this function work for the "auto" case, i.e the TT, EE, BB cases
     another function take care of the "cross" TE, ...,
-    
+
     Parameters
     ----------
     freq_list: list of str
@@ -325,7 +325,7 @@ def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_fil
     n_cross_freq =  int(n_freq * (n_freq + 1) / 2)
 
     P_mat = np.zeros((n_cross_freq * n_bins, n_ps * n_bins))
-    
+
     cross_freq_list = [f"{f0}x{f1}" for f0, f1 in cwr(freq_list, 2)]
     for c_id, cross_freq in enumerate(cross_freq_list):
         id_start_cf = n_bins * (c_id)
@@ -337,9 +337,9 @@ def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_fil
             id_stop_n =  n_bins * (ps_id + 1)
             if cross_freq in [f"{nueff_a}x{nueff_b}", f"{nueff_b}x{nueff_a}"]:
                 P_mat[id_start_cf:id_stop_cf, id_start_n:id_stop_n] = np.identity(n_bins)
-            
+
     return P_mat
-    
+
 def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB, binning_file, lmax, char="&"):
 
     """
@@ -355,7 +355,7 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
     reverted nu_eff order (ET 90x150 -> TE 150x90)
     the TE block has n_freq ** 2 element instead of n_freq * (n_freq+1)/2 because
     TE 150x90 and TE 90x150 can have different fg model
-    
+
     Parameters
     ----------
     freq_list: list of str
@@ -376,7 +376,7 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
 
     n_cross_freq = n_freq ** 2
     cross_freq_list = [f"{f0}x{f1}" for f0, f1 in product(freq_list, freq_list)]
-    
+
     # we need to remove ET spectrum with same sv same ar since TE == ET for these guys
     spec_name_list_BA = spec_name_list_AB.copy()
     nu_eff_list_BA = []
@@ -388,10 +388,10 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
             n_ps_same += 1
         else:
             nu_eff_list_BA += [nu_eff[::-1]]
-            
+
     spec_name_list = np.append(spec_name_list_AB, spec_name_list_BA)
     nu_eff_list = nu_eff_list_AB + nu_eff_list_BA
-    
+
     n_ps = 2 * n_ps - n_ps_same
     P_mat_cross = np.zeros((n_cross_freq * n_bins, n_ps * n_bins))
 
@@ -409,7 +409,7 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
             count += 1
 
     return P_mat_cross
-    
+
 def combine_P_mat(P_mat, P_mat_cross):
 
     """
@@ -428,12 +428,12 @@ def read_x_ar_spectra_vec(spec_dir,
                           end_of_file,
                           spectra_order = ["TT", "TE", "ET", "EE"],
                           type="Dl"):
-    
-    
+
+
     """
     This function read spectra files on disk to create a vector that correspond
     to the full covariance matrix corresponding to spec_name_list
-    
+
     Parameters
      ----------
      spec_name_list: list of str
@@ -475,7 +475,7 @@ def get_max_likelihood_cov(P, inv_cov, check_pos_def = False, force_sim = False)
     """
 
     cov_ml = np.linalg.inv(P @ inv_cov @ P.T)
-    
+
     if force_sim == True:
         temp = cov_ml.copy()
         cov_ml = np.tril(temp) + np.triu(temp.T, 1)
@@ -508,11 +508,11 @@ def from_vector_and_cov_to_ps_and_std_dict(vec, cov, spectra_order, spec_block_o
     Take a vector of power spectra and their associated covariance and extract a dictionnary
     of power spectra and a dictionnary of std.
     The organisation of the vector and cov should be the following
-    
+
     ps[spectra_order[0], spec_block_order[0]] = vec[0:nbins]
     ps[spectra_order[0], spec_block_order[1]] = vec[nbins:2*nbins]
     ....
-    
+
     spectra_order[0] is usually TT, spec_block_order can be anything depending on
     how was aranged the vector and cov.
 
