@@ -170,6 +170,8 @@ def plot_residual(lb,
     mode: string
     title: string
     fileName: string
+    lrange: 1D array
+      selected multipole indices
     l_pow: float
       apply a ell^{l_pow} scaling to the plot
     overplot_theory_lines: tuple (lb, Cl)
@@ -388,6 +390,9 @@ def compute_ps_and_cov_ratio(ps_dict,
     """
     XY, WZ = spec_list
 
+    snr = ps_dict[WZ] / np.sqrt(cov_dict[WZ, WZ].diagonal())
+    snr_cut = np.where(snr >= 3)[0]
+
     bias = cov_dict[WZ, WZ] / np.outer(ps_dict[WZ], ps_dict[WZ])
     try:
         cross_name = (XY, WZ)
@@ -404,7 +409,7 @@ def compute_ps_and_cov_ratio(ps_dict,
 
     cov *= np.outer(ratio, ratio)
 
-    return ratio, cov
+    return ratio[snr_cut], cov[np.ix_(snr_cut, snr_cut)], snr_cut
 
 
 
@@ -469,7 +474,7 @@ def compare_spectra(ar_list,
         op_is_ratio = True
         for cross in op.split("/"):
             ps_name = (names_dict[cross[0]], names_dict[cross[1]])
-            if ps_name in ps_dict.keys():
+            if ps_name + (mode,) in ps_dict.keys():
                 spec_list.append(ps_name + (mode,))
             else:
                 spec_list.append(ps_name[::-1] + (mode,))
@@ -477,14 +482,17 @@ def compare_spectra(ar_list,
         raise ValueError(f"Invalid operation : {op}")
 
     ps_vec, full_cov = append_spectra_and_cov(ps_dict, cov_dict, spec_list)
+    lb = ps_dict["ell"]
+
     if op_is_ratio:
         expect = 1
-        res_ps, res_cov = compute_ps_and_cov_ratio(ps_dict, cov_dict, spec_list)
+        res_ps, res_cov, snr_cut = compute_ps_and_cov_ratio(ps_dict, cov_dict, spec_list)
+        lb = lb[snr_cut]
     else:
         expect = 0
         res_ps, res_cov = project_spectra_vec_and_cov(ps_vec, full_cov, proj_pattern)
 
     chi2 = (res_ps - expect) @ np.linalg.inv(res_cov) @ (res_ps - expect)
-    pte = 1 - ss.chi2.cdf(chi2, len(ps_dict["ell"]))
+    pte = 1 - ss.chi2.cdf(chi2, len(lb))
 
-    return ps_dict["ell"], res_ps, res_cov, chi2, pte
+    return lb, res_ps, res_cov, chi2, pte
