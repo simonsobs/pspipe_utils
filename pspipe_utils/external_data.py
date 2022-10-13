@@ -3,7 +3,7 @@ Some utility functions for handling external data.
 """
 import numpy as np
 
-def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
+def get_choi_spectra(data_path, spec, survey="deep", return_Dl=True):
     """
     read in the choi et al power spectra
 
@@ -31,15 +31,34 @@ def get_choi_data(data_path, spec, survey="deep", return_Dl=True):
     data = np.loadtxt(f"{data_path}/act_dr4.01_multifreq_{survey}_C_ell_{spec}.txt")
     l = data[:, 0]
     fac = l * (l + 1) / (2 * np.pi)
-    cl, err = {}, {}
+    l_choi, cl, err = {}, {}, {}
 
     for count, fp in enumerate(fp_choi):
         cl[fp] = data[:, 1 + 2 * count]
         err[fp] = data[:, 2 + 2 * count]
         if return_Dl:
             cl[fp], err[fp] = cl[fp] * fac, err[fp] * fac
+        l_choi[fp] = l
+        
+    return fp_choi, l_choi, cl, err
+    
+def get_planck_spectra(data_path, spec, return_Dl=True):
 
-    return fp_choi, l, cl, err
+    if spec == "TT":
+        fp_planck = ["100x100", "143x143", "143x217", "217x217"]
+    elif spec in ["TE", "EE"]:
+        fp_planck = ["100x100", "100x143", "100x217", "143x143", "143x217", "217x217"]
+
+    l, cl, err = {}, {}, {}
+    for fp in fp_planck:
+
+        l[fp], cl[fp], err[fp] = np.loadtxt(f"{data_path}/planck_spectrum_{spec}_{fp}.dat", unpack=True)
+        fac = l[fp] * (l[fp] + 1) / (2 * np.pi)
+
+        if return_Dl:
+            cl[fp], err[fp] = cl[fp] * fac, err[fp] * fac
+
+    return fp_planck, l, cl, err
 
 def get_passband_dict_dr6(fname, wafer_list):
     """
