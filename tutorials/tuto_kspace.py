@@ -5,12 +5,14 @@ Some test of the kspace filter
 from pspy import so_map, so_window, sph_tools, so_spectra, pspy_utils, so_map_preprocessing, so_mcm, so_cov
 import pylab as plt
 import numpy as np
+import pspipe_utils
 from pspipe_utils import simulation, best_fits, kspace
 from pixell import curvedsky, enmap
-import time
+import os, time
 
 test_dir = "result_leakage"
 pspy_utils.create_directory(test_dir)
+data_path = os.path.join(os.path.dirname(os.path.abspath(pspipe_utils.__file__)), "data/")
 
 ########################################################
 # let's first specify the parameters used in the analysis
@@ -20,7 +22,7 @@ ncomp = 3
 niter = 0
 n_sims = 40
 spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
-binning_file = "data/BIN_ACTPOL_50_4_SC_large_bin_at_low_ell"
+binning_file = f"{data_path}/binning_files/BIN_ACTPOL_50_4_SC_large_bin_at_low_ell"
 vk_mask = [-90, 90]
 hk_mask = [-50, 50]
 binned_mcm = False
@@ -66,7 +68,7 @@ spec_name_list = []
 
 for ar in arrays:
 
-    binary[ar] = so_map.read_map(f"data/binary_dr6_{ar}_downgraded.fits")
+    binary[ar] = so_map.read_map(f"{data_path}/binaries/binary_dr6_{ar}_downgraded.fits")
     lmax = int(binary[ar].get_lmax_limit())
 
     template = binary[ar].copy()
@@ -89,7 +91,7 @@ for ar in arrays:
     binary[ar].plot(file_name=f"{test_dir}/binary_{ar}")
     window_tuple[ar] = (window, window)
     
-    l, bl[ar] = pspy_utils.read_beam_file(f"data/coadd_{ar}_night_beam_tform_jitter_cmb.txt")
+    l, bl[ar] = pspy_utils.read_beam_file(f"{data_path}/beams/coadd_{ar}_night_beam_tform_jitter_cmb.txt")
 
     mcm_inv[ar], Bbl[ar] = so_mcm.mcm_and_bbl_spin0and2(window_tuple[ar],
                                                     bl1 = (bl[ar], bl[ar]),
