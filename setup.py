@@ -15,4 +15,5 @@ setup(
         "pspy>=1.5.3",
         "mflike @ git+https://github.com/simonsobs/LAT_MFLike@master#egg=mflike",
     ],
+    package_data={"": ["data/**"]},
 )
