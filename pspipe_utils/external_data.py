@@ -8,7 +8,7 @@ from . import get_data_path
 
 def get_choi_spectra(spec, survey="deep", return_Dl=True):
     """
-    read in the choi et al power spectra
+    Read in the choi et al power spectra
 
     Parameters
     __________
@@ -16,6 +16,8 @@ def get_choi_spectra(spec, survey="deep", return_Dl=True):
       the spectrum to consider (e.g "TT", "TE"....)
     survey: str
       "deep", "wide"
+    return_Dl: bool
+      by default return Dl spectra (if False return Cl)
     """
 
     if spec in ["TT", "EE", "EB", "BB"]:
@@ -29,7 +31,7 @@ def get_choi_spectra(spec, survey="deep", return_Dl=True):
          spec = "EB"
          fp_choi = ["90x90", "90x150", "150x150"]
 
-    data = np.loadtxt(f"{get_data_path()}/act_dr4.01_multifreq_{survey}_C_ell_{spec}.txt")
+    data = np.loadtxt(f"{get_data_path()}/spectra/dr4/act_dr4.01_multifreq_{survey}_C_ell_{spec}.txt")
     l = data[:, 0]
     fac = l * (l + 1) / (2 * np.pi)
     l_choi, cl, err = {}, {}, {}
@@ -40,10 +42,20 @@ def get_choi_spectra(spec, survey="deep", return_Dl=True):
         if return_Dl:
             cl[fp], err[fp] = cl[fp] * fac, err[fp] * fac
         l_choi[fp] = l
-        
+
     return fp_choi, l_choi, cl, err
-    
+
 def get_planck_spectra(data_path, spec, return_Dl=True):
+    """
+    Read in the Planck legacy (PR3) power spectra
+
+    Parameters
+    __________
+    spec: str
+      the spectrum to consider (e.g "TT", "TE"....)
+    return_Dl: bool
+      by default return Dl spectra (if False return Cl)
+    """
 
     if spec == "TT":
         fp_planck = ["100x100", "143x143", "143x217", "217x217"]
@@ -53,7 +65,7 @@ def get_planck_spectra(data_path, spec, return_Dl=True):
     l, cl, err = {}, {}, {}
     for fp in fp_planck:
 
-        l[fp], cl[fp], err[fp] = np.loadtxt(f"{data_path}/planck_spectrum_{spec}_{fp}.dat", unpack=True)
+        l[fp], cl[fp], err[fp] = np.loadtxt(f"{data_path}/spectra/planck/planck_spectrum_{spec}_{fp}.dat", unpack=True)
         fac = l[fp] * (l[fp] + 1) / (2 * np.pi)
 
         if return_Dl:
