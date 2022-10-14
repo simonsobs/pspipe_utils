@@ -45,7 +45,7 @@ def get_choi_spectra(spec, survey="deep", return_Dl=True):
 
     return fp_choi, l_choi, cl, err
 
-def get_planck_spectra(data_path, spec, return_Dl=True):
+def get_planck_spectra(spec, return_Dl=True):
     """
     Read in the Planck legacy (PR3) power spectra
 
