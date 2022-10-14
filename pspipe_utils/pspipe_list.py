@@ -184,6 +184,7 @@ def x_ar_cov_order(spec_name_list,
     x_ar_list = []
     for spec in spectra_order:
         for spec_name in spec_name_list:
+            print(spec_name)
             na, nb = spec_name.split("x")
             if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
             x_ar_list += [f"{spec}_{spec_name}"]
