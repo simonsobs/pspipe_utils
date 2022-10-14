@@ -65,7 +65,7 @@ def get_planck_spectra(data_path, spec, return_Dl=True):
     l, cl, err = {}, {}, {}
     for fp in fp_planck:
 
-        l[fp], cl[fp], err[fp] = np.loadtxt(f"{data_path}/spectra/planck/planck_spectrum_{spec}_{fp}.dat", unpack=True)
+        l[fp], cl[fp], err[fp] = np.loadtxt(f"{get_data_path()}/spectra/planck/planck_spectrum_{spec}_{fp}.dat", unpack=True)
         fac = l[fp] * (l[fp] + 1) / (2 * np.pi)
 
         if return_Dl:
