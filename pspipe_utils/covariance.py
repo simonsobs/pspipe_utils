@@ -459,6 +459,52 @@ def read_x_ar_spectra_vec(spec_dir,
             data_vec = np.append(data_vec, Db[spec])
 
     return data_vec
+    
+def read_x_ar_theory_vec(bestfit_dir,
+                         mcm_dir,
+                         spec_name_list,
+                         freq_pair_list,
+                         lmax,
+                         spectra_order = ["TT", "TE", "ET", "EE"]):
+    
+    """
+    This function read the theory and fg model from disk and bin it to create a vector that correspond
+    to the full covariance matrix corresponding to spec_name_list
+    Parameters
+    ----------
+    bestfit_dir: str
+        path to the folder with the theory and fg model
+    mcm_dir: str
+        path to the folder with the binning matrix
+    spec_name_list: list of str
+        list of the cross spectra
+    freq_pair_list: list of two-d list
+        list of the frequencies corresponding the the spec_name in spec_name_list
+    lmax: interger
+        the maximum multipole to consider
+    spectra_order: list of str
+         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+     """
+
+    spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+    theory_vec = []
+    for spec in spectra_order:
+        for spec_name, fpair in zip(spec_name_list, freq_pair_list):
+            na, nb = spec_name.split("x")
+            fa, fb = fpair
+            
+            l, Dl = so_spectra.read_ps(f"{bestfit_dir}/cmb.dat", spectra=spectra)
+            l, Dfl = so_spectra.read_ps(f"{bestfit_dir}/fg_{fa}x{fb}.dat", spectra=spectra)
+            
+            # this is slightly incaccurate in some cases
+            Bbl = np.load(f"{mcm_dir}/{spec_name}_Bbl_spin0xspin0.npy")
+            Db = np.dot(Bbl, Dl[spec][:lmax] + Dfl[spec][:lmax])
+            
+            if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
+            theory_vec = np.append(theory_vec, Db)
+
+    return theory_vec
+
 
 def get_max_likelihood_cov(P, inv_cov, check_pos_def = False, force_sim = False):
 
