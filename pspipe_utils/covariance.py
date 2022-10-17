@@ -241,7 +241,8 @@ def cov_dict_to_file(cov_dict,
 
 
 def correct_analytical_cov(an_full_cov,
-                           mc_full_cov):
+                           mc_full_cov,
+                           only_diag_corrections = False):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We keep the correlation structure of the analytical covariance matrices, rescaling
@@ -253,14 +254,17 @@ def correct_analytical_cov(an_full_cov,
     mc_full_cov: 2d array
       Full MC covariance matrix
      """
-    an_full_corr = so_cov.cov2corr(an_full_cov)
 
     an_var = an_full_cov.diagonal()
     mc_var = mc_full_cov.diagonal()
 
     rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
 
-    corrected_cov = so_cov.corr2cov(an_full_corr, rescaling_var)
+    if only_diag_corrections:
+        corrected_cov = an_full_cov - np.diag(an_var) + np.diag(mc_var)
+    else:
+        an_full_corr = so_cov.cov2corr(an_full_cov)
+        corrected_cov = so_cov.corr2cov(an_full_corr, rescaling_var)
 
     return corrected_cov
 
@@ -459,14 +463,14 @@ def read_x_ar_spectra_vec(spec_dir,
             data_vec = np.append(data_vec, Db[spec])
 
     return data_vec
-    
+
 def read_x_ar_theory_vec(bestfit_dir,
                          mcm_dir,
                          spec_name_list,
                          freq_pair_list,
                          lmax,
                          spectra_order = ["TT", "TE", "ET", "EE"]):
-    
+
     """
     This function read the theory and fg model from disk and bin it to create a vector that correspond
     to the full covariance matrix corresponding to spec_name_list
@@ -492,14 +496,14 @@ def read_x_ar_theory_vec(bestfit_dir,
         for spec_name, fpair in zip(spec_name_list, freq_pair_list):
             na, nb = spec_name.split("x")
             fa, fb = fpair
-            
+
             l, Dl = so_spectra.read_ps(f"{bestfit_dir}/cmb.dat", spectra=spectra)
             l, Dfl = so_spectra.read_ps(f"{bestfit_dir}/fg_{fa}x{fb}.dat", spectra=spectra)
-            
+
             # this is slightly incaccurate in some cases
             Bbl = np.load(f"{mcm_dir}/{spec_name}_Bbl_spin0xspin0.npy")
             Db = np.dot(Bbl, Dl[spec][:lmax] + Dfl[spec][:lmax])
-            
+
             if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
             theory_vec = np.append(theory_vec, Db)
 
