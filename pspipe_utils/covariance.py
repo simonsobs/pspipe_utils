@@ -261,7 +261,7 @@ def correct_analytical_cov(an_full_cov,
     rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
 
     if only_diag_corrections:
-        corrected_cov = an_full_cov - np.diag(an_var) + np.diag(mc_var)
+        corrected_cov = an_full_cov - np.diag(an_var) + np.diag(rescaling_var)
     else:
         an_full_corr = so_cov.cov2corr(an_full_cov)
         corrected_cov = so_cov.corr2cov(an_full_corr, rescaling_var)
