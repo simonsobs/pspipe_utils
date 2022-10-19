@@ -191,7 +191,7 @@ def plot_residual(lb,
             chi2 = (res_spec - expected_res) @ np.linalg.inv(res_cov) @ (res_spec - expected_res)
             ndof = len(lb)
 
-
+        print(res_cov.diagonal().shape, lb.shape, title, file_name)
         plt.errorbar(lb, res_spec * lb ** l_pow,
                      yerr = np.sqrt(res_cov.diagonal()) * lb ** l_pow,
                      ls = "None", marker = ".", ecolor = colors[i],
@@ -214,11 +214,13 @@ def plot_residual(lb,
 
     plt.title(title)
     plt.xlim(0, 1.05*lb[-1])
-    plt.xlabel(r"$\ell$")
-    plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode))
+    plt.xlabel(r"$\ell$", fontsize=18)
+    plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode), fontsize=18)
     plt.tight_layout()
     plt.legend()
     plt.savefig(f"{file_name}.png", dpi = 300)
+    plt.clf()
+    plt.close()
 
 def get_calibration_amplitudes(spectra_vec,
                                full_cov,
