@@ -31,7 +31,7 @@ def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     return l_cmb, cmb_dict
 
 
-def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=None):
+def fg_dict_from_files(f_name_fg, array_list, lmax, spectra, lmin=2, f_name_cmb=None):
     """
     create a fg power spectrum dict from files
 
@@ -39,8 +39,8 @@ def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=Non
     __________
     f_name_fg: string
       a template for the name of the fg power spectra files
-    nu_list: list
-      list of all frequencies
+    array_list: list
+      list of all arrays
     spectra: list
       the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     lmax: integer
@@ -57,15 +57,20 @@ def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=Non
         l_cmb, cmb_dict = cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin)
 
     fg_dict = {}
-    for freq1 in nu_list:
-        for freq2 in nu_list:
-            l_fg, fg = so_spectra.read_ps(f_name_fg.format(freq1, freq2), spectra=spectra)
+    for i, ar1 in enumerate(array_list):
+        for j, ar2 in enumerate(array_list):
+            if i > j: array_tuple = (ar2, ar1)
+            else: array_tuple = (ar1, ar2)
+
+            l_fg, fg = so_spectra.read_ps(f_name_fg.format(*array_tuple), spectra=spectra)
             id_fg = np.where((l_fg >= lmin) & (l_fg < lmax))
-            fg_dict[freq1, freq2] = {}
+            fg_dict[ar1, ar2] = {}
             for spec in spectra:
-                fg_dict[freq1, freq2][spec] = fg[spec][id_fg]
+                if i > j:
+                    spec = spec[::-1]
+                fg_dict[ar1, ar2][spec] = fg[spec][id_fg]
                 if f_name_cmb is not None:
-                    fg_dict[freq1, freq2][spec] += cmb_dict[spec]
+                    fg_dict[ar1, ar2][spec] += cmb_dict[spec]
 
     l_fg = l_fg[id_fg]
 
@@ -146,7 +151,6 @@ def get_all_best_fit(spec_name_list,
                      l_th,
                      cmb_dict,
                      fg_dict,
-                     nu_eff,
                      spectra,
                      nl_dict=None,
                      bl_dict=None):
@@ -165,7 +169,7 @@ def get_all_best_fit(spec_name_list,
     cmb_dict: dict
         the cmb ps (format is [spec]
     fg_dict: dict of dict
-        the fg ps (format is [f1,f2][spec])
+        the fg ps (format is [sv1_ar1,sv2_ar2][spec])
     nl_dict: dict of dict
         the noise ps (format is [sv, ar1, ar2][spec])
     bl_dict: dict
@@ -179,11 +183,9 @@ def get_all_best_fit(spec_name_list,
         sv_a, ar_a = na.split("&")
         sv_b, ar_b = nb.split("&")
 
-        freq_a, freq_b = nu_eff[sv_a, ar_a], nu_eff[sv_b, ar_b]
-
         for spec in spectra:
 
-            ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec] =  cmb_dict[spec] + fg_dict[freq_a, freq_b][spec]
+            ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec] =  cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
             if bl_dict is not None:
                 ps_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec]  *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
 

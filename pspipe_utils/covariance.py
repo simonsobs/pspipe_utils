@@ -298,7 +298,7 @@ def read_covariance(cov_file,
 
     return cov
 
-def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_file, lmax):
+def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_tag_list, binning_file, lmax):
 
     """
     The goal of this function is to build the passage matrix that will
@@ -314,7 +314,7 @@ def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_fil
         the frequency we consider
     spec_name_list: list of str
         list of the cross spectra
-    nu_eff_list: list of tuple
+    nu_tag_list: list of tuple
         the effective frequency associated to each cross spectra
     binning_file: str
       a binning file with format bin low, bin high, bin mean
@@ -334,17 +334,17 @@ def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_fil
     for c_id, cross_freq in enumerate(cross_freq_list):
         id_start_cf = n_bins * (c_id)
         id_stop_cf = n_bins * (c_id + 1)
-        for ps_id, (nu_eff, ps) in enumerate(zip(nu_eff_list, spec_name_list)):
+        for ps_id, (nu_tag, ps) in enumerate(zip(nu_tag_list, spec_name_list)):
             na, nb = ps.split("x")
-            nueff_a, nueff_b = nu_eff
+            nu_tag_a, nu_tag_b = nu_tag
             id_start_n = n_bins * (ps_id)
             id_stop_n =  n_bins * (ps_id + 1)
-            if cross_freq in [f"{nueff_a}x{nueff_b}", f"{nueff_b}x{nueff_a}"]:
+            if cross_freq in [f"{nu_tag_a}x{nu_tag_b}", f"{nu_tag_b}x{nu_tag_a}"]:
                 P_mat[id_start_cf:id_stop_cf, id_start_n:id_stop_n] = np.identity(n_bins)
 
     return P_mat
 
-def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB, binning_file, lmax, char="&"):
+def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_tag_list_AB, binning_file, lmax, char="&"):
 
     """
     The goal of this function is to build the passage matrix that will
@@ -366,7 +366,7 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
         the frequency we consider
     spec_name_list_AB: list of str
         list of the cross spectra corresponding to AB so for example TE
-    nu_eff_list_AB: list of tuple
+    nu_tag_list_AB: list of tuple
         the effective frequency associated to each cross spectra
     binning_file: str
       a binning file with format bin low, bin high, bin mean
@@ -383,18 +383,18 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
 
     # we need to remove ET spectrum with same sv same ar since TE == ET for these guys
     spec_name_list_BA = spec_name_list_AB.copy()
-    nu_eff_list_BA = []
+    nu_tag_list_BA = []
     n_ps_same = 0
-    for nu_eff, ps in zip(nu_eff_list_AB, spec_name_list_AB):
+    for nu_tag, ps in zip(nu_tag_list_AB, spec_name_list_AB):
         na, nb = ps.split("x")
         if (na == nb):
             spec_name_list_BA.remove(ps)
             n_ps_same += 1
         else:
-            nu_eff_list_BA += [nu_eff[::-1]]
+            nu_tag_list_BA += [nu_tag[::-1]]
 
     spec_name_list = np.append(spec_name_list_AB, spec_name_list_BA)
-    nu_eff_list = nu_eff_list_AB + nu_eff_list_BA
+    nu_tag_list = nu_tag_list_AB + nu_tag_list_BA
 
     n_ps = 2 * n_ps - n_ps_same
     P_mat_cross = np.zeros((n_cross_freq * n_bins, n_ps * n_bins))
@@ -403,9 +403,9 @@ def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_eff_list_AB,
         id_start_cf = n_bins * (c_id)
         id_stop_cf = n_bins * (c_id + 1)
         count = 0
-        for nu_eff, ps in zip(nu_eff_list, spec_name_list):
-            nueff_a, nueff_b = nu_eff
-            spec_cf_list = [f"{nueff_a}x{nueff_b}"]
+        for nu_tag, ps in zip(nu_tag_list, spec_name_list):
+            nu_tag_a, nu_tag_b = nu_tag
+            spec_cf_list = [f"{nu_tag_a}x{nu_tag_b}"]
             id_start_n = n_bins * (count)
             id_stop_n =  n_bins * (count + 1)
             if cross_freq in spec_cf_list:
@@ -467,7 +467,6 @@ def read_x_ar_spectra_vec(spec_dir,
 def read_x_ar_theory_vec(bestfit_dir,
                          mcm_dir,
                          spec_name_list,
-                         freq_pair_list,
                          lmax,
                          spectra_order = ["TT", "TE", "ET", "EE"]):
 
@@ -493,12 +492,11 @@ def read_x_ar_theory_vec(bestfit_dir,
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     theory_vec = []
     for spec in spectra_order:
-        for spec_name, fpair in zip(spec_name_list, freq_pair_list):
+        for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
-            fa, fb = fpair
 
             l, Dl = so_spectra.read_ps(f"{bestfit_dir}/cmb.dat", spectra=spectra)
-            l, Dfl = so_spectra.read_ps(f"{bestfit_dir}/fg_{fa}x{fb}.dat", spectra=spectra)
+            l, Dfl = so_spectra.read_ps(f"{bestfit_dir}/fg_{na}x{nb}.dat", spectra=spectra)
 
             # this is slightly incaccurate in some cases
             Bbl = np.load(f"{mcm_dir}/{spec_name}_Bbl_spin0xspin0.npy")
