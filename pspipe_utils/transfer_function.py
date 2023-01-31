@@ -6,38 +6,7 @@ import numpy as np
 import healpy as hp
 
 
-def healpix_pixwin(survey, template, binning_file, lmax):
-    """
-    in pspipe, the pixwin deconvolution is done in map space for CAR map
-    however we need to take into account the pixwin of Healpix map and the one of
-    Planck projected on CAR
-    
-    Parameters
-    ----------
-    survey: str
-        the survey we consider
-    template: so_map
-        a template of the map
-    binning_file: data file
-      a binning file with format bin low, bin high, bin mean
-    lmax: int
-        the maximum multipole to consider
-    """
-    
-    
-    pixwin_l = np.ones(2 * lmax)
-    if "planck" in survey.lower():
-        print("Deconvolve Planck pixel window function")
-        pixwin_l = hp.pixwin(2048)
-        lb, pw = pspy_utils.naive_binning(np.arange(len(pixwin_l)),  pixwin_l, binning_file, lmax)
 
-    elif template.pixel == "HEALPIX":
-        pixwin_l = hp.pixwin(template.nside)
-        lb, pw = pspy_utils.naive_binning(np.arange(len(pixwin_l)),  pixwin_l, binning_file, lmax)
-    else:
-        pw = None
-    return pw
-    
 
 def deconvolve_xtra_tf(lb, ps, spectra, xtra_pw1=None, xtra_pw2=None, mm_tf1=None, mm_tf2=None):
     """
