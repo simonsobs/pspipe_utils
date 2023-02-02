@@ -15,12 +15,21 @@ bin_size = 40
 n_sims = 100
 
 n_splits_dr6 = 2
-nu_eff_dr6_ar1 = 150
-nu_eff_dr6_ar2 = 150
-nu_eff_dr6_ar3 = 90
+
+passband_dir = "tuto_data/passbands/"
+bandwidth_dr6_ar1 = 30
+bandwidth_dr6_ar2 = 30
+bandwidth_dr6_ar3 = 20
+
+do_bandpass_integration = True
+freq_info_dr6_ar1 = {"freq_tag": 150, "passband": passband_dir + "passband_dr6_ar1.dat"}
+freq_info_dr6_ar2 = {"freq_tag": 150, "passband": passband_dir + "passband_dr6_ar2.dat"}
+freq_info_dr6_ar3 = {"freq_tag": 90, "passband": passband_dir + "passband_dr6_ar3.dat"}
+
 rms_uKarcmin_T_dr6_ar1 = 10
 rms_uKarcmin_T_dr6_ar2 = 20
 rms_uKarcmin_T_dr6_ar3 = 5
+
 beam_fwhm_dr6_ar1 = 3
 beam_fwhm_dr6_ar2 = 4
 beam_fwhm_dr6_ar3 = 6

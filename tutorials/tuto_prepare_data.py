@@ -52,15 +52,36 @@ l_th, ps_dict = pspy_utils.ps_from_params(cosmo_params, type, lmax_sim)
 f_name = f"{tuto_data_dir}/cmb.dat"
 so_spectra.write_ps(f_name, l_th, ps_dict, type, spectra=spectra)
 
-freq_list = pspipe_list.get_freq_list(d)
-fg_dict = best_fits.get_foreground_dict(l_th, freq_list, fg_components, fg_params, fg_norm=None)
+pspy_utils.create_directory(d["passband_dir"])
+passbands = {}
+
+narrays, sv_list, ar_list = pspipe_list.get_arrays_list(d)
+for sv, ar in zip(sv_list, ar_list):
+    freq_info = d[f"freq_info_{sv}_{ar}"]
+    if d["do_bandpass_integration"]:
+        central_nu, delta_nu = freq_info["freq_tag"], d[f"bandwidth_{sv}_{ar}"]
+        nu_min, nu_max = central_nu - 2 * delta_nu, central_nu + 2 * delta_nu
+        nu_ghz = np.linspace(nu_min, nu_max, 200)
+        bp = np.where(nu_ghz > central_nu + delta_nu, 0., np.where(nu_ghz < central_nu - delta_nu, 0., 1.))
+        np.savetxt(freq_info["passband"], np.array([nu_ghz, bp]).T)
+    else:
+        nu_ghz, bp = np.array([freq_info["freq_tag"]]), np.array([1])
+
+    passbands[f"{sv}_{ar}"] = [nu_ghz, bp]
+
+
+fg_dict = best_fits.get_foreground_dict(l_th, passbands, fg_components, fg_params, fg_norm=None)
+
 fg= {}
-for freq1 in freq_list:
-    for freq2 in freq_list:
-        fg[freq1, freq2] = {}
+for sv1, ar1 in zip(sv_list, ar_list):
+    for sv2, ar2 in zip(sv_list, ar_list):
+        name1 = f"{sv1}_{ar1}"
+        name2 = f"{sv2}_{ar2}"
+        fg[name1, name2] = {}
         for spec in spectra:
-            fg[freq1,freq2][spec] = fg_dict[spec.lower(), "all", freq1, freq2]
-        so_spectra.write_ps(f"{tuto_data_dir}/fg_{freq1}x{freq2}.dat", l_th, fg[freq1,freq2], type, spectra=spectra)
+            fg[name1, name2][spec] = fg_dict[spec.lower(), "all", name1, name2]
+
+        so_spectra.write_ps(f"{tuto_data_dir}/fg_{name1}x{name2}.dat", l_th, fg[name1, name2], type, spectra=spectra)
 
 for sv in surveys:
     for ar1 in arrays[sv]:
@@ -101,16 +122,16 @@ for sv in surveys:
 for id_sv_a, sv_a in enumerate(surveys):
     for id_ar_a, ar_a in enumerate(arrays[sv_a]):
         # we need both the window for T and pol, here we assume they are the same
-        
+
         window_tuple_a = (window[sv_a, ar_a], window[sv_a, ar_a])
         bl_a = (bl[sv_a, ar_a], bl[sv_a, ar_a])
 
         for id_sv_b, sv_b in enumerate(surveys):
             for id_ar_b, ar_b in enumerate(arrays[sv_b]):
-    
+
                 if  (id_sv_a == id_sv_b) & (id_ar_a > id_ar_b) : continue
                 if  (id_sv_a > id_sv_b) : continue
-                
+
                 spec_name = f"{sv_a}&{ar_a}x{sv_b}&{ar_b}"
 
                 # the if here help avoiding redondant computation
@@ -129,9 +150,9 @@ for id_sv_a, sv_a in enumerate(surveys):
                                                             niter=niter,
                                                             binned_mcm=binned_mcm,
                                                             save_file=f"{tuto_data_dir}/{spec_name}")
-    
+
                 sq_win = window[sv_a, ar_a].copy()
                 sq_win.data *= window[sv_b, ar_b].data
                 sqwin_alm = sph_tools.map2alm(sq_win, niter=niter, lmax=lmax)
-                
+
                 np.save(f"{tuto_data_dir}/alms_{spec_name}.npy", sqwin_alm)

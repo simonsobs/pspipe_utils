@@ -71,9 +71,9 @@ fg_params = {
 }
 
 ell = np.arange(30, 5000)
-frequencies = [] # No need for frequencies when using external passbands
-fg_dict = best_fits.get_foreground_dict(ell, frequencies, fg_components,
-                                        fg_params, external_bandpass = passbands)
+fg_dict = best_fits.get_foreground_dict(ell, passbands,
+                                        fg_components,
+                                        fg_params)
 
 
 # Impact of bandpass integration on the calibration

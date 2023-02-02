@@ -35,17 +35,19 @@ binning_file = f"{tuto_data_dir}/binning.dat"
 
 _, _, lb, _ = pspy_utils.read_binning_file(binning_file, lmax)
 
-spec_name_list, nu_eff_list = pspipe_list.get_spec_name_list(d, return_nueff=True)
+spec_name_list, nu_tag_list = pspipe_list.get_spec_name_list(d, return_nu_tag=True)
 spec_name_list_ET = pspipe_list.get_spec_name_list(d, remove_same_ar_and_sv=True)
 
+narrays, sv_list, ar_list = pspipe_list.get_arrays_list(d)
+arrays_list = [f"{sv}_{ar}" for (sv, ar) in zip(sv_list, ar_list)]
 freq_list = pspipe_list.get_freq_list(d)
 
-
-arrays, nu_eff = {}, {}
-for sv in surveys:
-    arrays[sv] = d[f"arrays_{sv}"]
-    for ar in arrays[sv]:
-        nu_eff[sv, ar] = d[f"nu_eff_{sv}_{ar}"]
+#arrays = {}
+#for sv in surveys:
+#    arrays[sv] = d[f"arrays_{sv}"]
+#    for ar in arrays[sv]:
+#        nu_eff[sv, ar] = d[f"nu_eff_{sv}_{ar}"]
+arrays = {sv: d[f"arrays_{sv}"] for sv in surveys}
 
 f_name_cmb = tuto_data_dir + "/cmb.dat"
 f_name_noise = tuto_data_dir + "/mean_{}x{}_{}_noise.dat"
@@ -53,7 +55,7 @@ f_name_fg = tuto_data_dir + "/fg_{}x{}.dat"
 f_name_beam = tuto_data_dir + "/beam_{}_{}.dat"
 
 l_cmb, cmb_dict = best_fits.cmb_dict_from_file(f_name_cmb, lmax, spectra)
-l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, freq_list, lmax, spectra)
+l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, arrays_list, lmax, spectra)
 l_noise, nl_dict = best_fits.noise_dict_from_files(f_name_noise,  surveys, arrays, lmax, spectra, n_splits=n_splits)
 l_beam, bl_dict = best_fits.beam_dict_from_files(f_name_beam, surveys, arrays, lmax)
 
@@ -61,11 +63,10 @@ l_cmb, ps_all_th, nl_all_th = best_fits.get_all_best_fit(spec_name_list,
                                                          l_cmb,
                                                          cmb_dict,
                                                          fg_dict,
-                                                         nu_eff,
                                                          spectra,
                                                          nl_dict=nl_dict,
                                                          bl_dict=bl_dict)
-                                                         
+
 for sid1, spec1 in enumerate(spec_name_list):
     for sid2, spec2 in enumerate(spec_name_list):
         if sid1 > sid2: continue
@@ -114,10 +115,10 @@ cov["xar"] = covariance.read_cov_block_and_build_full_cov(spec_name_list,
 inv_cov_xar = np.linalg.inv(cov["xar"])
 
 x_ar_list = pspipe_list.x_ar_cov_order(spec_name_list)
-x_freq_cov_order = pspipe_list.x_freq_cov_order(freq_list)
+#x_freq_cov_order = pspipe_list.x_freq_cov_order(freq_list)
 
-P_mat = covariance.get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_eff_list, binning_file, lmax)
-P_mat_cross = covariance.get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list, nu_eff_list, binning_file, lmax)
+P_mat = covariance.get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_tag_list, binning_file, lmax)
+P_mat_cross = covariance.get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list, nu_tag_list, binning_file, lmax)
 
 P = covariance.combine_P_mat(P_mat, P_mat_cross)
 
@@ -138,7 +139,7 @@ for comb in combin_level:
 vec_list = {}
 for comb in combin_level:
     vec_list[comb] = []
-    
+
 for iii in range(n_sims):
 
     vec_xar = covariance.read_x_ar_spectra_vec(sim_dir,
@@ -215,18 +216,18 @@ for spec in ["TT", "TE", "EE"]:
         sv_a, ar_a = na.split("&")
         sv_b, ar_b = nb.split("&")
 
-        plt.errorbar(lb, spec_dict_xar[spec, xar], std_dict_xar[spec, xar], fmt=".", label=f"{spec} {xar} {nu_eff[sv_a, ar_a]}x{nu_eff[sv_b, ar_b]}")
-    
+        plt.errorbar(lb, spec_dict_xar[spec, xar], std_dict_xar[spec, xar], fmt=".", label=f"{spec} {xar}")
+
     if spec == "TE":
         for xar in xar_block_order["ET"]:
             na, nb = xar.split("x")
             sv_a, ar_a = na.split("&")
             sv_b, ar_b = nb.split("&")
-            plt.errorbar(lb, spec_dict_xar["ET", xar], std_dict_xar["ET", xar], fmt=".", label=f"{spec} {xar} {nu_eff[sv_a, ar_a]}x{nu_eff[sv_b, ar_b]}")
+            plt.errorbar(lb, spec_dict_xar["ET", xar], std_dict_xar["ET", xar], fmt=".", label=f"{spec} {xar}")
 
     for xf in xfreq_block_order[spec]:
         plt.errorbar(lb, spec_dict_xfreq[spec, xf], std_dict_xfreq[spec, xf], fmt=".", label=f"{spec} {xf}")
-        
+
     if spec == "TE" or spec == "EE":
         plt.errorbar(lb, spec_dict_final[spec, "final"], std_dict_final[spec, "final"], fmt=".", label=f"{spec} final")
 
@@ -244,8 +245,8 @@ for spec in ["TT", "TE", "EE"]:
         na, nb = xar.split("x")
         sv_a, ar_a = na.split("&")
         sv_b, ar_b = nb.split("&")
-        
-        plt.errorbar(lb, std_dict_xar[spec, xar], fmt="-", label=f"{spec} {xar} {nu_eff[sv_a, ar_a]}x{nu_eff[sv_b, ar_b]}")
+
+        plt.errorbar(lb, std_dict_xar[spec, xar], fmt="-", label=f"{spec} {xar}")
 
     if spec == "TE":
         for xar in xar_block_order["ET"]:
@@ -253,11 +254,11 @@ for spec in ["TT", "TE", "EE"]:
             sv_a, ar_a = na.split("&")
             sv_b, ar_b = nb.split("&")
 
-            plt.errorbar(lb, std_dict_xar["ET", xar], fmt="-", label=f"{spec} {xar} {nu_eff[sv_a, ar_a]}x{nu_eff[sv_b, ar_b]}")
+            plt.errorbar(lb, std_dict_xar["ET", xar], fmt="-", label=f"{spec} {xar}")
 
     for xf in xfreq_block_order[spec]:
         plt.errorbar(lb, std_dict_xfreq[spec, xf], fmt="-", label=f"{spec} {xf}")
-        
+
     if spec == "TE" or spec == "EE":
         plt.errorbar(lb, std_dict_final[spec, "final"], fmt="-", label=f"{spec} final")
 
