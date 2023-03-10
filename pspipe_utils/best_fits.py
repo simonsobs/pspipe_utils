@@ -31,7 +31,7 @@ def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     return l_cmb, cmb_dict
 
 
-def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=None):
+def fg_dict_from_files(f_name_fg, array_list, lmax, spectra, lmin=2, f_name_cmb=None):
     """
     create a fg power spectrum dict from files
 
@@ -39,8 +39,8 @@ def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=Non
     __________
     f_name_fg: string
       a template for the name of the fg power spectra files
-    nu_list: list
-      list of all frequencies
+    array_list: list
+      list of all arrays
     spectra: list
       the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     lmax: integer
@@ -57,15 +57,20 @@ def fg_dict_from_files(f_name_fg, nu_list, lmax, spectra, lmin=2, f_name_cmb=Non
         l_cmb, cmb_dict = cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin)
 
     fg_dict = {}
-    for freq1 in nu_list:
-        for freq2 in nu_list:
-            l_fg, fg = so_spectra.read_ps(f_name_fg.format(freq1, freq2), spectra=spectra)
+    for i, ar1 in enumerate(array_list):
+        for j, ar2 in enumerate(array_list):
+            if i > j: array_tuple = (ar2, ar1)
+            else: array_tuple = (ar1, ar2)
+
+            l_fg, fg = so_spectra.read_ps(f_name_fg.format(*array_tuple), spectra=spectra)
             id_fg = np.where((l_fg >= lmin) & (l_fg < lmax))
-            fg_dict[freq1, freq2] = {}
+            fg_dict[ar1, ar2] = {}
             for spec in spectra:
-                fg_dict[freq1, freq2][spec] = fg[spec][id_fg]
+                if i > j:
+                    spec = spec[::-1]
+                fg_dict[ar1, ar2][spec] = fg[spec][id_fg]
                 if f_name_cmb is not None:
-                    fg_dict[freq1, freq2][spec] += cmb_dict[spec]
+                    fg_dict[ar1, ar2][spec] += cmb_dict[spec]
 
     l_fg = l_fg[id_fg]
 
@@ -146,7 +151,6 @@ def get_all_best_fit(spec_name_list,
                      l_th,
                      cmb_dict,
                      fg_dict,
-                     nu_eff,
                      spectra,
                      nl_dict=None,
                      bl_dict=None):
@@ -165,7 +169,7 @@ def get_all_best_fit(spec_name_list,
     cmb_dict: dict
         the cmb ps (format is [spec]
     fg_dict: dict of dict
-        the fg ps (format is [f1,f2][spec])
+        the fg ps (format is [sv1_ar1,sv2_ar2][spec])
     nl_dict: dict of dict
         the noise ps (format is [sv, ar1, ar2][spec])
     bl_dict: dict
@@ -179,11 +183,9 @@ def get_all_best_fit(spec_name_list,
         sv_a, ar_a = na.split("&")
         sv_b, ar_b = nb.split("&")
 
-        freq_a, freq_b = nu_eff[sv_a, ar_a], nu_eff[sv_b, ar_b]
-
         for spec in spectra:
 
-            ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec] =  cmb_dict[spec] + fg_dict[freq_a, freq_b][spec]
+            ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec] =  cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
             if bl_dict is not None:
                 ps_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec]  *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
 
@@ -203,11 +205,10 @@ def get_all_best_fit(spec_name_list,
         return l_th, ps_all_th
 
 def get_foreground_dict(ell,
-                        frequencies,
+                        external_bandpass,
                         fg_components,
                         fg_params,
-                        fg_norm=None,
-                        external_bandpass = None):
+                        fg_norm=None):
     """This function computes the foreground power spectra for a given set of multipoles,
     foreground components and parameters. It uses mflike, note that mflike do not
     support foreground in tb, and bb therefore we include it here.
@@ -217,8 +218,9 @@ def get_foreground_dict(ell,
     ----------
     ell : 1d array of float
         the multipole array
-    frequencies: 1d array of float or string
-        the frequencies we consider
+    external_bandpass: dict
+        external bandpass for each wafer
+        example : external_bandpass = {"pa4_f150": [nu_ghz, passband], ...}
     fg_components: dict
         the foreground components, one per spectrum mode for instance
         fg_components = {"tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
@@ -251,34 +253,23 @@ def get_foreground_dict(ell,
 
     fg_norm: dict
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
-    external_bandpass: dict
-        external bandpass for each wafer
-        example : external_bandpass = {"pa4_f150": [nu_ghz, passband], ...}
     """
 
     ThFo = th_mflike.TheoryForge_MFLike()
 
-    if external_bandpass:
-        order = []
-        ThFo.bandint_freqs = []
-        for array, (nu_ghz, bp) in external_bandpass.items():
-            trans_norm = np.trapz(bp * th_mflike._cmb2bb(nu_ghz), nu_ghz)
-            trans = bp * th_mflike._cmb2bb(nu_ghz) / trans_norm
-            ThFo.bandint_freqs.append([nu_ghz, trans])
-            order.append(array)
-
-    else:
-        frequencies = np.asarray(frequencies, dtype=float)
-        ThFo.bandint_freqs = frequencies
-        ThFo.freqs = ThFo.bandint_freqs
-        order = frequencies
+    # The following lines defines ThFo.bands and params to follow
+    # MFLike conventions.
+    ThFo.bands = {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k,v in external_bandpass.items()}
+    ThFo.experiments = external_bandpass.keys()
+    params = {f"bandint_shift_{exp}": 0.0 for exp in ThFo.experiments}
+    ThFo._bandpass_construction(**params)
 
     fg_norm = fg_norm or {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     fg_model = {"normalisation": fg_norm, "components": fg_components}
     ThFo.foregrounds = fg_model
     ThFo._init_foreground_model()
 
-    fg_dict = ThFo._get_foreground_model(ell=ell, freqs_order=order,  **fg_params)
+    fg_dict = ThFo._get_foreground_model(ell=ell,  **fg_params)
 
     # Let's add other foregrounds not available in mflike (BB and TB fg)
     ell_0 = fg_norm["ell_0"]
@@ -308,8 +299,8 @@ def get_foreground_dict(ell,
         {"nu": ThFo.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
         {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
     )
-    for c1, f1 in enumerate(order):
-        for c2, f2 in enumerate(order):
+    for c1, f1 in enumerate(ThFo.experiments):
+        for c2, f2 in enumerate(ThFo.experiments):
             for s in ["eb", "bb", "tb"]:
                 fg_dict[s, "all", f1, f2] = np.zeros(len(ell))
                 for comp in fg_components[s]:
@@ -317,8 +308,8 @@ def get_foreground_dict(ell,
                     fg_dict[s, "all", f1, f2] += fg_dict[s, comp, f1, f2]
 
     # Add ET, BT, BE where ET[f1, f2] = TE[f2, f1]
-    for c1, f1 in enumerate(order):
-        for c2, f2 in enumerate(order):
+    for c1, f1 in enumerate(ThFo.experiments):
+        for c2, f2 in enumerate(ThFo.experiments):
             for s in ["te", "tb", "eb"]:
                 s_r = s[::-1]
                 fg_dict[s_r, "all", f1, f2] = np.zeros(len(ell))

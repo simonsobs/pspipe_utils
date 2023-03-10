@@ -9,7 +9,7 @@ from pspy import so_spectra
 def cmb_matrix_from_file(f_name, lmax, spectra, input_type="Dl"):
     """This function read the cmb power spectra from disk and return a
      [3, 3, lmax] matrix with the cmb power spectra.
-     
+
     Parameters
     ----------
     f_name : string
@@ -27,7 +27,7 @@ def cmb_matrix_from_file(f_name, lmax, spectra, input_type="Dl"):
             if input_type == "Dl":
                 ps_theory[f1+f2] *= 2 * np.pi / (l * (l + 1))
             ps_mat[i, j][2:lmax] = ps_theory[f1+f2][:lmax-2]
-    
+
     return ps_mat
 
 
@@ -37,7 +37,7 @@ def noise_matrix_from_files(f_name_tmp, survey, arrays, lmax, nsplits, spectra, 
     and generate a three dimensional array of noise power spectra [3 * n_arrays, 3 * n_arrays, lmax]
     The measured noise spectra is supposed to be the "mean noise" so to get the split noise we have to multiply by nsplits
     Note the the function return noise matrix in "Cl", so apply an extra correction if the input is "Dl"
-    
+
     Parameters
     ----------
     f_name_tmp : string
@@ -68,13 +68,13 @@ def noise_matrix_from_files(f_name_tmp, survey, arrays, lmax, nsplits, spectra, 
                 for s2, field2 in enumerate("TEB"):
                     if input_type == "Dl":
                         nl_dict[field1 + field2] *=  2 * np.pi / (l * (l + 1))
-                        
+
                     nl_array[c1 + n_arrays * s1, c2 + n_arrays * s2, 2:lmax] = nl_dict[field1 + field2][:lmax-2] * nsplits
-                    
+
     return l, nl_array
 
 
-def foreground_matrix_from_files(f_name_tmp, freq_list, lmax, spectra, input_type="Dl"):
+def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_type="Dl"):
 
     """This function read the best fit foreground power spectra from disk
     and generate a three dimensional array of foregroung power spectra [3 * nfreqs, 3 * nfreqs, lmax].
@@ -84,8 +84,8 @@ def foreground_matrix_from_files(f_name_tmp, freq_list, lmax, spectra, input_typ
     ----------
     f_name_tmp : string
       a template name of the fg power spectra
-    freq_list: 1d array of string
-      the frequencies we consider
+    arrays_list: 1d array of string
+      the arrays we consider
     lmax: integer
       the maximum multipole for the foreground power spectra
     spectra: list of strings
@@ -96,51 +96,51 @@ def foreground_matrix_from_files(f_name_tmp, freq_list, lmax, spectra, input_typ
 
     """
 
-    nfreqs = len(freq_list)
-    fl_array = np.zeros((3 * nfreqs, 3 * nfreqs, lmax))
+    narrays = len(arrays_list)
+    fl_array = np.zeros((3 * narrays, 3 * narrays, lmax))
 
-    for c1, freq1 in enumerate(freq_list):
-        for c2, freq2 in enumerate(freq_list):
-            l, fl_dict = so_spectra.read_ps(f_name_tmp.format(freq1, freq2), spectra=spectra)
+    for c1, array1 in enumerate(arrays_list):
+        for c2, array2 in enumerate(arrays_list):
+            l, fl_dict = so_spectra.read_ps(f_name_tmp.format(array1, array2), spectra=spectra)
             assert l[0] == 2, "the file is expected to start at l=2"
 
             for s1, field1 in enumerate("TEB"):
                 for s2, field2 in enumerate("TEB"):
                     if input_type == "Dl":
                         fl_dict[field1 + field2] *=  2 * np.pi / (l * (l + 1))
-                        
-                    fl_array[c1 + nfreqs * s1, c2 + nfreqs * s2, 2:lmax] = fl_dict[field1 + field2][:lmax-2]
+
+                    fl_array[c1 + narrays * s1, c2 + narrays * s2, 2:lmax] = fl_dict[field1 + field2][:lmax-2]
 
     return l, fl_array
-    
 
-def generate_fg_alms(fg_mat, freq_list, lmax, dtype="complex64"):
+
+def generate_fg_alms(fg_mat, arrays_list, lmax, dtype="complex64"):
     """
     This function generate the alms corresponding to a fg matrix
     the alms are returned in the form of a dict with key "freq"
     the alms are in the format [T,E,B]
-    
+
     Parameters
     ----------
     fg_mat : 2d array
       the fg matrix of size [3 * nfreqs, 3 * nfreqs, lmax]
-    freq_list: 1d array of string
-      the frequencies we consider
+    arrays_list: 1d array of string
+      the arrays we consider
     lmax: integer
       the maximum multipole for the noise power spectra
     dtype: str
       the datatype of the alms (e.g complex64)
     """
 
-    nfreqs = len(freq_list)
+    narrays = len(arrays_list)
 
     fglms_all = curvedsky.rand_alm(fg_mat, lmax=lmax, dtype=dtype)
     fglm_dict = {}
-    for i, freq in enumerate(freq_list):
-        fglm_dict[freq] = [fglms_all[i + k * nfreqs] for k in range(3)]
+    for i, array in enumerate(arrays_list):
+        fglm_dict[array] = [fglms_all[i + k * narrays] for k in range(3)]
 
     return fglm_dict
-    
+
 def generate_noise_alms(noise_mat, array_list, lmax, dtype="complex64"):
     """
     This function generate the alms corresponding to a noise matrix
@@ -166,5 +166,3 @@ def generate_noise_alms(noise_mat, array_list, lmax, dtype="complex64"):
         nlm_dict[array] = [nlms_all[i + k * narrays] for k in range(3)]
 
     return nlm_dict
-
-
