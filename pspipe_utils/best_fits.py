@@ -250,7 +250,7 @@ def get_foreground_dict(ell, external_bandpass, fg_components, fg_params, fg_nor
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     """
 
-    ThFo = th_mflike.TheoryForge_MFLike()
+    ThFo = th_mflike.TheoryForge()
 
     # The following lines defines ThFo.bands and params to follow
     # MFLike conventions.
