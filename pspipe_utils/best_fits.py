@@ -2,8 +2,9 @@
 Some utility functions for the generating best fit power spectrum.
 """
 import numpy as np
-from mflike import theoryforge_MFLike as th_mflike
-from pspy import so_spectra, pspy_utils
+from mflike import theoryforge as th_mflike
+from pspy import pspy_utils, so_spectra
+
 
 def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     """
@@ -77,7 +78,7 @@ def fg_dict_from_files(f_name_fg, array_list, lmax, spectra, lmin=2, f_name_cmb=
     return l_fg, fg_dict
 
 
-def noise_dict_from_files(f_name_noise,  sv_list, arrays, lmax, spectra, n_splits=None, lmin=2):
+def noise_dict_from_files(f_name_noise, sv_list, arrays, lmax, spectra, n_splits=None, lmin=2):
     """
     create a noise power spectrum dict from files
 
@@ -99,23 +100,26 @@ def noise_dict_from_files(f_name_noise,  sv_list, arrays, lmax, spectra, n_split
         the number of splits, this is useful if we want to consider the noise
         power spectrum per split rather than the average noise power spectrum
 
-      """
+    """
 
     nl_dict = {}
     for sv in sv_list:
         for ar_a in arrays[sv]:
             for ar_b in arrays[sv]:
-                l_noise, nl = so_spectra.read_ps(f_name_noise.format(ar_a, ar_b, sv), spectra=spectra)
+                l_noise, nl = so_spectra.read_ps(
+                    f_name_noise.format(ar_a, ar_b, sv), spectra=spectra
+                )
                 id_noise = np.where((l_noise >= lmin) & (l_noise < lmax))
                 nl_dict[sv, ar_a, ar_b] = {}
                 for spec in spectra:
                     nl_dict[sv, ar_a, ar_b][spec] = nl[spec][id_noise]
                     if n_splits is not None:
-                        nl_dict[sv, ar_a, ar_b][spec] *=  n_splits[sv]
+                        nl_dict[sv, ar_a, ar_b][spec] *= n_splits[sv]
 
     l_noise = l_noise[id_noise]
 
     return l_noise, nl_dict
+
 
 def beam_dict_from_files(f_name_beam, sv_list, arrays, lmax, lmin=2):
     """
@@ -147,14 +151,7 @@ def beam_dict_from_files(f_name_beam, sv_list, arrays, lmax, lmin=2):
     return l_beam, bl_dict
 
 
-def get_all_best_fit(spec_name_list,
-                     l_th,
-                     cmb_dict,
-                     fg_dict,
-                     spectra,
-                     nl_dict=None,
-                     bl_dict=None):
-
+def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=None, bl_dict=None):
     """
     This function prepare all best fit corresponding to the spec_name_list.
     the ps_all_th and nl_all_th are in particular useful for the analytical covariance computation
@@ -184,31 +181,29 @@ def get_all_best_fit(spec_name_list,
         sv_b, ar_b = nb.split("&")
 
         for spec in spectra:
-
-            ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec] =  cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
+            ps_all_th[na, nb, spec] = (
+                cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
+            )
             if bl_dict is not None:
-                ps_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec]  *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
+                ps_all_th[na, nb, spec] *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
 
-            ps_all_th[f"{sv_b}&{ar_b}",f"{sv_a}&{ar_a}", spec]  = ps_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]
+            ps_all_th[nb, na, spec] = ps_all_th[na, nb, spec]
 
             if nl_dict is not None:
-                if (sv_a == sv_b):
-                    nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]  = nl_dict[sv_a, ar_a, ar_b][spec]
+                if sv_a == sv_b:
+                    nl_all_th[na, nb, spec] = nl_dict[sv_a, ar_a, ar_b][spec]
                 else:
-                    nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]  = 0
+                    nl_all_th[na, nb, spec] = 0
 
-                nl_all_th[f"{sv_b}&{ar_b}",f"{sv_a}&{ar_a}", spec]  = nl_all_th[f"{sv_a}&{ar_a}",f"{sv_b}&{ar_b}", spec]
+                nl_all_th[nb, na, spec] = nl_all_th[na, nb, spec]
 
     if nl_dict is not None:
         return l_th, ps_all_th, nl_all_th
     else:
         return l_th, ps_all_th
 
-def get_foreground_dict(ell,
-                        external_bandpass,
-                        fg_components,
-                        fg_params,
-                        fg_norm=None):
+
+def get_foreground_dict(ell, external_bandpass, fg_components, fg_params, fg_norm=None):
     """This function computes the foreground power spectra for a given set of multipoles,
     foreground components and parameters. It uses mflike, note that mflike do not
     support foreground in tb, and bb therefore we include it here.
@@ -259,7 +254,7 @@ def get_foreground_dict(ell,
 
     # The following lines defines ThFo.bands and params to follow
     # MFLike conventions.
-    ThFo.bands = {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k,v in external_bandpass.items()}
+    ThFo.bands = {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()}
     ThFo.experiments = external_bandpass.keys()
     params = {f"bandint_shift_{exp}": 0.0 for exp in ThFo.experiments}
     ThFo._bandpass_construction(**params)
@@ -269,7 +264,7 @@ def get_foreground_dict(ell,
     ThFo.foregrounds = fg_model
     ThFo._init_foreground_model()
 
-    fg_dict = ThFo._get_foreground_model(ell=ell,  **fg_params)
+    fg_dict = ThFo._get_foreground_model(ell=ell, **fg_params)
 
     # Let's add other foregrounds not available in mflike (BB and TB fg)
     ell_0 = fg_norm["ell_0"]
