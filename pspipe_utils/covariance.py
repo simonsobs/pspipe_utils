@@ -500,7 +500,7 @@ def read_x_ar_theory_vec(bestfit_dir,
 
             # this is slightly incaccurate in some cases
             Bbl = np.load(f"{mcm_dir}/{spec_name}_Bbl_spin0xspin0.npy")
-            Db = np.dot(Bbl[:, :-2], Dl[spec] + Dfl[spec])
+            Db = np.dot(Bbl, Dl[spec] + Dfl[spec])
 
             if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
             theory_vec = np.append(theory_vec, Db)
