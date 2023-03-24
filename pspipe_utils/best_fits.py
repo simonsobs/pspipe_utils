@@ -5,7 +5,6 @@ import numpy as np
 from mflike import theoryforge as th_mflike
 from pspy import pspy_utils, so_spectra
 
-
 def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     """
     create a cmb power spectrum dict from file
