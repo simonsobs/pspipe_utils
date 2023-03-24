@@ -2,7 +2,7 @@
 Some utility functions for the generating best fit power spectrum.
 """
 import numpy as np
-from mflike import theoryforge_MFLike as th_mflike
+from mflike import theoryforge as th_mflike
 from pspy import so_spectra, pspy_utils
 
 def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
@@ -255,7 +255,7 @@ def get_foreground_dict(ell,
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     """
 
-    ThFo = th_mflike.TheoryForge_MFLike()
+    ThFo = th_mflike.TheoryForge()
 
     # The following lines defines ThFo.bands and params to follow
     # MFLike conventions.
