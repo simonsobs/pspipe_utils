@@ -1,1 +1,2 @@
 pspipe_utils/_version.py export-subst
+pspipe_utils/visu_tools/* linguist-vendored
