@@ -16,7 +16,7 @@ setup(
     python_requires=">=3.5",
     install_requires=[
         "pspy>=1.5.3",
-        "mflike @ git+https://github.com/simonsobs/LAT_MFLike@master#egg=mflike",
+        "mflike>=0.8.2",
     ],
     package_data={"": ["data/**"]},
 )
