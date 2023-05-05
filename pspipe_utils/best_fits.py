@@ -201,7 +201,12 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=N
         return l_th, ps_all_th
 
 
-def get_foreground_dict(ell, external_bandpass, fg_components, fg_params, fg_norm=None):
+def get_foreground_dict(ell,
+                        external_bandpass,
+                        fg_components,
+                        fg_params,
+                        fg_norm=None,
+                        band_shift_dict=None):
     """This function computes the foreground power spectra for a given set of multipoles,
     foreground components and parameters. It uses mflike, note that mflike do not
     support foreground in tb, and bb therefore we include it here.
@@ -246,6 +251,8 @@ def get_foreground_dict(ell, external_bandpass, fg_components, fg_params, fg_nor
 
     fg_norm: dict
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
+    band_shift: dict
+        a dictionnary with bandpass shift parameter
     """
 
     ThFo = th_mflike.TheoryForge()
@@ -254,8 +261,8 @@ def get_foreground_dict(ell, external_bandpass, fg_components, fg_params, fg_nor
     # MFLike conventions.
     ThFo.bands = {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()}
     ThFo.experiments = external_bandpass.keys()
-    params = {f"bandint_shift_{exp}": 0.0 for exp in ThFo.experiments}
-    ThFo._bandpass_construction(**params)
+    band_shift_dict = band_shift_dict or {f"bandint_shift_{exp}": 0.0 for exp in ThFo.experiments}
+    ThFo._bandpass_construction(**band_shift_dict)
 
     fg_norm = fg_norm or {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     fg_model = {"normalisation": fg_norm, "components": fg_components}
