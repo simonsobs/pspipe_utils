@@ -251,7 +251,7 @@ def get_foreground_dict(ell,
 
     fg_norm: dict
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
-    band_shift: dict
+    band_shift_dict: dict
         a dictionnary with bandpass shift parameter
     """
 
