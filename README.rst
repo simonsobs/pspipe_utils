@@ -7,6 +7,9 @@ Useful functions for ``PSpipe``, the Simons Observatory and ACT CMB power spectr
 .. image:: https://img.shields.io/pypi/v/pspipe_utils.svg?style=flat
    :target: https://pypi.python.org/pypi/pspipe_utils
 
+.. image:: https://img.shields.io/badge/license-BSD-yellow
+   :target: https://github.com/simonsobs/pspipe_utils/blob/main/LICENSE
+
 .. image:: https://img.shields.io/github/actions/workflow/status/simonsobs/pspipe_utils/testing.yml?branch=main
    :target: https://github.com/simonsobs/pspipe_utils/actions
 
