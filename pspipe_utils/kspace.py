@@ -218,7 +218,7 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
     return map
 
 
-def get_kspace_filter(template, filter_dict):
+def get_kspace_filter(template, filter_dict, dtype=np.float64):
 
     """build the kspace filter according to a dictionnary specifying the filter parameters
     Parameters
@@ -233,9 +233,9 @@ def get_kspace_filter(template, filter_dict):
 
     shape, wcs = template.data.shape, template.data.wcs
     if filter_dict["type"] == "binary_cross":
-        filter = so_map_preprocessing.build_std_filter(shape, wcs, vk_mask=filter_dict["vk_mask"], hk_mask=filter_dict["hk_mask"], dtype=np.float64)
+        filter = so_map_preprocessing.build_std_filter(shape, wcs, vk_mask=filter_dict["vk_mask"], hk_mask=filter_dict["hk_mask"], dtype=dtype)
     elif filter_dict["type"] == "gauss":
-        filter = so_map_preprocessing.build_sigurd_filter(shape, wcs, filter_dict["lbounds"], dtype=np.float64)
+        filter = so_map_preprocessing.build_sigurd_filter(shape, wcs, filter_dict["lbounds"], dtype=dtype)
     else:
         print("you need to specify a valid filter type")
 
