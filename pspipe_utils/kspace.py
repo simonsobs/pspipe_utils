@@ -168,7 +168,7 @@ def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
     return lb, ps
 
 
-def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=1e-4, ref=0.9):
+def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=1e-4, ref=0.9, use_ducc_rfft=False):
 
     """Filter the map in Fourier space using a predefined filter. Note that we mutliply the maps by a binary mask before
     doing this operation in order to remove pathological pixels
@@ -190,16 +190,21 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
     tol, ref: floats
         only in use in the case of the weighted filter, these arg
         remove crazy pixels value in the weight applied
+    use_ducc_rfft: boolean
+        wether to use ducc real fft instead of enmap complex fft
 
     """
 
     if weighted_filter == False:
         if inv_pixwin is not None:
-            map = so_map.fourier_convolution(map, filter * inv_pixwin, binary)
+            map = so_map.fourier_convolution(map, filter * inv_pixwin, binary, use_ducc_rfft=use_ducc_rfft)
         else:
-            map = so_map.fourier_convolution(map, filter, binary)
+            map = so_map.fourier_convolution(map, filter, binary, use_ducc_rfft=use_ducc_rfft)
 
     else:
+    
+        if use_ducc_rfft == True:
+            print("ducc fft not implemented for weighted filter")
         map.data *= binary.data
         one_mf = (1 - filter)
         rhs    = enmap.ifft(one_mf * enmap.fft(map.data, normalize=True), normalize=True).real
