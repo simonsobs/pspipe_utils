@@ -190,6 +190,8 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
     tol, ref: floats
         only in use in the case of the weighted filter, these arg
         remove crazy pixels value in the weight applied
+    use_ducc_rfft: boolean
+        wether to use ducc real fft instead of enmap complex fft
 
     """
 
