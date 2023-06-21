@@ -6,14 +6,14 @@ ra0 = -130
 ra1 = 130
 dec0 = -30
 dec1 = 30
-res = 2
-apo_type_survey = "Rectangle"
+res = 10
+apo_type_survey = "C1"
 apo_radius_degree = 1
 binned_mcm = False
-lmax = 2000
-bin_size = 40
+lmax = 500
+bin_size = 100
 n_sims = 100
-
+cov_T_E_only = True
 n_splits_dr6 = 2
 
 passband_dir = "tuto_data/passbands/"
