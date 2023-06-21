@@ -335,10 +335,10 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
     P_mat = np.zeros((n_el_x_ar * n_bins, n_el_x_freq * n_bins))
 
     for id_ar, x_ar_cov_el in enumerate(x_ar_cov_list):
-        spec1, _, nu_pair1 = x_ar_cov_el # spec1 here is TT,TE,...,BB, nupair1 is the associated effective freq in format [freq1, freq2]
+        spec1, _, nu_pair1 = x_ar_cov_el # spec1 here is TT,TE,...,BB, nupair1 is the associated effective freq in format (freq1, freq2)
         
         for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
-            spec2, nu_pair2 = x_freq_cov_el # spec2 here is TT,TE,...,BB, nupair2 is the associated effective freq in format [freq1, freq2]
+            spec2, nu_pair2 = x_freq_cov_el # spec2 here is TT,TE,...,BB, nupair2 is the associated effective freq in format (freq1, freq2)
             
             # so the first part if for spectra such as TT, EE, BB
             if (spec1[0] == spec1[1]) and (spec1 == spec2):
