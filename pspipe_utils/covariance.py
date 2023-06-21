@@ -341,10 +341,9 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
             spec2, nu_pair2 = x_freq_cov_el # spec2 here is TT,TE,...,BB, nupair2 is the associated effective freq in format [freq1, freq2]
             
             # so the first part if for spectra such as TT, EE, BB
-            if (spec1[0] == spec1[1]) & (spec1 == spec2):
+            if (spec1[0] == spec1[1]) and (spec1 == spec2):
                 # for these guys we want to check that the freq pair is the same (or inverted since <TT_90x150> = <TT_150x90>)
                 if (nu_pair1 == nu_pair2) or (nu_pair1 == nu_pair2[::-1]):
-                
                     # if that's the case we will include it in the projector, what this mean is that we say that this
                     # particular x_freq spectrum will project into this particular x_ar spectrum
                     P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
@@ -355,12 +354,12 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
             # the idea is to associate ET_90x150 to TE_150x90, so reverting the frequency pair ordering
 
             # we start with the  TE, TB, EB case
-            if (spec1[0] != spec1[1]) & (spec1 == spec2):
+            if (spec1[0] != spec1[1]) and (spec1 == spec2):
                 if (nu_pair1 == nu_pair2):
                     P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
                     
             # for the ET, BT, BE case we reverse the order of the freq pair E_90 T_150 = T_150 x E_90
-            if (spec1[0] != spec1[1]) & (spec1 == spec2[::-1]):
+            if (spec1[0] != spec1[1]) and (spec1 == spec2[::-1]):
                 if (nu_pair1 == nu_pair2[::-1]):
                     P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
     return P_mat
@@ -408,7 +407,7 @@ def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lma
         spec1, nu_pair1 = x_freq_cov_el
         for id_final, final_cov_el in enumerate(final_cov_list):
             spec2, nu_pair2 = final_cov_el
-            if (spec1 == spec2) & (spec1 == "TT"):
+            if (spec1 == spec2) and (spec1 == "TT"):
                 if (nu_pair1 == nu_pair2):
                     P_mat[id_freq * n_bins: (id_freq + 1) * n_bins, id_final * n_bins: (id_final + 1) * n_bins] = np.identity(n_bins)
             else:
