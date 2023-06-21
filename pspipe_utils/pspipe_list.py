@@ -206,13 +206,12 @@ def x_freq_cov_order(freq_list,
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "EE"]
     """
+    x_freq_list = []
+
     for spec in spectra_order:
         if spec in ["ET", "BT", "BE"]:
             raise ValueError("spectra_order can not contain [ET, BT, BE] the cross freq cov matrix convention is to assign all ET, BT, BE into TE,TB,EB")
 
-    x_freq_list = []
-
-    for spec in spectra_order:
         if spec[0] == spec[1]:
             x_freq_list += [[spec, (f0, f1)] for f0, f1 in cwr(freq_list, 2)]
         else:
@@ -232,12 +231,12 @@ def final_cov_order(freq_list, spectra_order = ["TT", "TE", "EE"]):
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "EE"]
     """
+
+    final_list = []
     for spec in spectra_order:
         if spec in ["ET", "BT", "BE"]:
             raise ValueError("spectra_order can not contain [ET, BT, BE] the final cov matrix convention is to assign all ET, BT, BE into TE, TB, EB")
 
-    final_list = []
-    for spec in spectra_order:
         if spec == "TT":
             final_list += [[spec, (f0, f1)] for f0, f1 in cwr(freq_list, 2)]
         else:
