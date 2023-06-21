@@ -220,8 +220,7 @@ def x_freq_cov_order(freq_list,
 
     return x_freq_list
 
-def final_cov_order(freq_list,
-                     spectra_order = ["TT", "TE", "EE"]):
+def final_cov_order(freq_list, spectra_order = ["TT", "TE", "EE"]):
     
     """This function creates the list of spectra that enters
     the final covariance matrix.
