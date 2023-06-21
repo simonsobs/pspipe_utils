@@ -298,134 +298,125 @@ def read_covariance(cov_file,
 
     return cov
 
-def get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_tag_list, binning_file, lmax):
 
+def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax):
     """
-    The goal of this function is to build the passage matrix that will
-    help combining the cross array spectra
-    (e.g dr6&pa5_f150xdr6&pa5_f150, dr6&pa6_f150xdr6&pa6_f150, dr6&pa5_f150xdr6&pa6_f150)
-    into cross frequency spectra (150x150)
-    note that this function work for the "auto" case, i.e the TT, EE, BB cases
-    another function take care of the "cross" TE, ...,
-
+    Create a projector matrix from x_freq spectra to x_array spectra
+    To understand why we need this projector let's imagine the following problem.
+    We have x_array spectra Dl_{x_ar}, and x_freq spectra Dl_{x_freq}, the idea of combining all x_ar spectra into a set of x_freq spectra
+    rely on the following assumption Dl_{x_ar} = Dl_{x_freq} + noise; that is: all array spectra are noisy measurement of
+    underlying x_freq spectra.
+    if we want to generalize the equation to many x_freq and x_ar spectra we can write \vec{Dl_{x_ar}} = P \vec{Dl_{x_freq}} + \vec{n}
+    the idea of this routine is to build the P_matrix, that is to associate x_freq spectra to each x_ar spectra.
+    
     Parameters
-    ----------
-    freq_list: list of str
-        the frequency we consider
-    spec_name_list: list of str
-        list of the cross spectra
-    nu_tag_list: list of tuple
-        the effective frequency associated to each cross spectra
+     ----------
+    x_ar_cov_list: list of tuples
+        this list represent the order of spectra entering the x_ar covariance matrix
+        it also give some other relevant information such as the effective frequency of each spectra
+        expected format is (spec, name, nu_pair)
+        e.g ('TT', 'dr6_ar1xdr6_ar1', (150,150))
+    x_freq_cov_list: list of tuples
+        this list represent the order of spectra entering the x_freq covariance matrix
+        expected format is (spec, nu_pair)
+        e.g ('TT', (150,150))
     binning_file: str
       a binning file with format bin low, bin high, bin mean
     lmax: int
       the maximum multipole to consider
     """
 
-    n_freq = len(freq_list)
-    n_ps = len(spec_name_list)
     bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     n_bins = len(bin_hi)
-    n_cross_freq =  int(n_freq * (n_freq + 1) / 2)
+    
+    n_el_x_ar = len(x_ar_cov_list) # number of block in the x_ar cov mat
+    n_el_x_freq = len(x_freq_cov_list) # number of block in the x_freq cov mat
 
-    P_mat = np.zeros((n_cross_freq * n_bins, n_ps * n_bins))
+    P_mat = np.zeros((n_el_x_ar * n_bins, n_el_x_freq * n_bins))
 
-    cross_freq_list = [f"{f0}x{f1}" for f0, f1 in cwr(freq_list, 2)]
-    for c_id, cross_freq in enumerate(cross_freq_list):
-        id_start_cf = n_bins * (c_id)
-        id_stop_cf = n_bins * (c_id + 1)
-        for ps_id, (nu_tag, ps) in enumerate(zip(nu_tag_list, spec_name_list)):
-            na, nb = ps.split("x")
-            nu_tag_a, nu_tag_b = nu_tag
-            id_start_n = n_bins * (ps_id)
-            id_stop_n =  n_bins * (ps_id + 1)
-            if cross_freq in [f"{nu_tag_a}x{nu_tag_b}", f"{nu_tag_b}x{nu_tag_a}"]:
-                P_mat[id_start_cf:id_stop_cf, id_start_n:id_stop_n] = np.identity(n_bins)
+    for id_ar, x_ar_cov_el in enumerate(x_ar_cov_list):
+        spec1, _, nu_pair1 = x_ar_cov_el # spec1 here is TT,TE,...,BB, nupair1 is the associated effective freq in format [freq1, freq2]
+        
+        for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
+            spec2, nu_pair2 = x_freq_cov_el # spec2 here is TT,TE,...,BB, nupair2 is the associated effective freq in format [freq1, freq2]
+            
+            # so the first part if for spectra such as TT, EE, BB
+            if (spec1[0] == spec1[1]) & (spec1 == spec2):
+                # for these guys we want to check that the freq pair is the same (or inverted since <TT_90x150> = <TT_150x90>)
+                if (nu_pair1 == nu_pair2) or (nu_pair1 == nu_pair2[::-1]):
+                
+                    # if that's the case we will include it in the projector, what this mean is that we say that this
+                    # particular x_freq spectrum will project into this particular x_ar spectrum
+                    P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
+                    
+            # for cross field spectra such as TE, TB, ET, BT, EB, BE we need a bit more work
+            # the idea is to construct a xfreq cov mat with only TE, TB, EB
+            # so x_freq_cov_list do not contains any ET, BT, BE
+            # the idea is to associate ET_90x150 to TE_150x90, so reverting the frequency pair ordering
+
+            # we start with the  TE, TB, EB case
+            if (spec1[0] != spec1[1]) & (spec1 == spec2):
+                if (nu_pair1 == nu_pair2):
+                    P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
+                    
+            # for the ET, BT, BE case we reverse the order of the freq pair E_90 T_150 = T_150 x E_90
+            if (spec1[0] != spec1[1]) & (spec1 == spec2[::-1]):
+                if (nu_pair1 == nu_pair2[::-1]):
+                    P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
+    return P_mat
+    
+    
+def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lmax):
+    """
+    Create a projector matrix from final spectra to x_freq spectra
+    To understand why we need this projector let's imagine the following problem.
+    We have x_freq spectra Dl_{x_freq}, and final spectra Dl_{final}, the idea of combining all x_freq spectra into a set of final spectra
+    rely on the following assumption Dl_{x_freq} = Dl_{x_final} + noise; that is: all x_freq spectra are noisy measurement of
+    underlying final spectra.
+    Of course this make no sense in Temperature, since different x_freq spectra see different level of foreground.
+    Given how small the fg are in polarisation, it does make sense to look at spectra combination of all cross frequency
+    (mostly for plotting)
+    
+    we can write \vec{Dl_{x_freq}} = P \vec{Dl_{final}} + \vec{n}
+    the idea of this routine is to build the P matrix, which associates x_freq spectra to each final spectra.
+    
+    Parameters
+     ----------
+    x_freq_cov_list: list of tuples
+        this list represents the order of spectra entering the x_freq covariance matrix
+        expected format is (spec, nu_pair)
+        e.g ('TT', (150,150))
+    final_cov_list: list of tuples
+        this list represents the order of spectra entering the final covariance matrix
+        expected format is (spec, nu_pair) for TT
+        or (spec, None) for other spectra since the final polarisation spectra are combined across the different frequency
+        pair
+    binning_file: str
+      a binning file with format bin low, bin high, bin mean
+    lmax: int
+      the maximum multipole to consider
+    """
+    bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
+    n_bins = len(bin_hi)
+    
+    n_el_x_freq = len(x_freq_cov_list)
+    n_el_final = len(final_cov_list)
+
+    P_mat = np.zeros((n_el_x_freq * n_bins, n_el_final * n_bins))
+
+    for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
+        spec1, nu_pair1 = x_freq_cov_el
+        for id_final, final_cov_el in enumerate(final_cov_list):
+            spec2, nu_pair2 = final_cov_el
+            if (spec1 == spec2) & (spec1 == "TT"):
+                if (nu_pair1 == nu_pair2):
+                    P_mat[id_freq * n_bins: (id_freq + 1) * n_bins, id_final * n_bins: (id_final + 1) * n_bins] = np.identity(n_bins)
+            else:
+                if (spec1 == spec2):
+                    P_mat[id_freq * n_bins: (id_freq + 1) * n_bins, id_final * n_bins: (id_final + 1) * n_bins] = np.identity(n_bins)
 
     return P_mat
 
-def get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list_AB, nu_tag_list_AB, binning_file, lmax, char="&"):
-
-    """
-    The goal of this function is to build the passage matrix that will
-    help combining the x_array spectra
-    (e.g dr6&pa5_f150xdr6&pa5_f150, dr6&pa6_f150xdr6&pa6_f150, dr6&pa5_f150xdr6&pa6_f150)
-    into cross frequency spectra (150x150)
-    note that this function work for the " cross" case i.e TE, ...
-    the function take into account that TE == ET in the case of the cross spectra
-    between the same survey and array and therefore have been removed from the cov matrix
-    The goal is for the final matrix to go from an TE-ET block
-    to a TE only block, so we treat the remaining ET block as TE block with
-    reverted nu_eff order (ET 90x150 -> TE 150x90)
-    the TE block has n_freq ** 2 element instead of n_freq * (n_freq+1)/2 because
-    TE 150x90 and TE 90x150 can have different fg model
-
-    Parameters
-    ----------
-    freq_list: list of str
-        the frequency we consider
-    spec_name_list_AB: list of str
-        list of the cross spectra corresponding to AB so for example TE
-    nu_tag_list_AB: list of tuple
-        the effective frequency associated to each cross spectra
-    binning_file: str
-      a binning file with format bin low, bin high, bin mean
-    lmax: int
-      the maximum multipole to consider
-    """
-    n_freq = len(freq_list)
-    n_ps = len(spec_name_list_AB)
-    bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
-    n_bins = len(bin_hi)
-
-    n_cross_freq = n_freq ** 2
-    cross_freq_list = [f"{f0}x{f1}" for f0, f1 in product(freq_list, freq_list)]
-
-    # we need to remove ET spectrum with same sv same ar since TE == ET for these guys
-    spec_name_list_BA = spec_name_list_AB.copy()
-    nu_tag_list_BA = []
-    n_ps_same = 0
-    for nu_tag, ps in zip(nu_tag_list_AB, spec_name_list_AB):
-        na, nb = ps.split("x")
-        if (na == nb):
-            spec_name_list_BA.remove(ps)
-            n_ps_same += 1
-        else:
-            nu_tag_list_BA += [nu_tag[::-1]]
-
-    spec_name_list = np.append(spec_name_list_AB, spec_name_list_BA)
-    nu_tag_list = nu_tag_list_AB + nu_tag_list_BA
-
-    n_ps = 2 * n_ps - n_ps_same
-    P_mat_cross = np.zeros((n_cross_freq * n_bins, n_ps * n_bins))
-
-    for c_id, cross_freq in enumerate(cross_freq_list):
-        id_start_cf = n_bins * (c_id)
-        id_stop_cf = n_bins * (c_id + 1)
-        count = 0
-        for nu_tag, ps in zip(nu_tag_list, spec_name_list):
-            nu_tag_a, nu_tag_b = nu_tag
-            spec_cf_list = [f"{nu_tag_a}x{nu_tag_b}"]
-            id_start_n = n_bins * (count)
-            id_stop_n =  n_bins * (count + 1)
-            if cross_freq in spec_cf_list:
-                P_mat_cross[id_start_cf:id_stop_cf, id_start_n:id_stop_n] = np.identity(n_bins)
-            count += 1
-
-    return P_mat_cross
-
-def combine_P_mat(P_mat, P_mat_cross):
-
-    """
-    Cheap function to combine the different passage matrix of the TT - TE - EE spectra
-    """
-    shape_x, shape_y = P_mat.shape
-    shape_cross_x, shape_cross_y = P_mat_cross.shape
-    P = np.zeros((2 * shape_x + shape_cross_x, 2 * shape_y + shape_cross_y))
-    P[:shape_x,:shape_y] = P_mat
-    P[shape_x: shape_x + shape_cross_x, shape_y: shape_y + shape_cross_y] = P_mat_cross
-    P[shape_x + shape_cross_x: 2 * shape_x + shape_cross_x, shape_y + shape_cross_y: 2 * shape_y + shape_cross_y] = P_mat
-    return P
 
 def read_x_ar_spectra_vec(spec_dir,
                           spec_name_list,
@@ -522,7 +513,7 @@ def get_max_likelihood_cov(P, inv_cov, check_pos_def = False, force_sim = False)
         check wether the ml matrix is pos def and symmetric
     """
 
-    cov_ml = np.linalg.inv(P @ inv_cov @ P.T)
+    cov_ml = np.linalg.inv(P.T @ inv_cov @ P)
 
     if force_sim == True:
         temp = cov_ml.copy()
@@ -549,7 +540,7 @@ def max_likelihood_spectra(cov_ml, inv_cov, P, data_vec):
     data_vec : 1d array
         a vector made from the original spectra with order corresponding to inv_cov
     """
-    return cov_ml @ P @ inv_cov @ data_vec
+    return cov_ml @ P.T @ inv_cov @ data_vec
 
 def from_vector_and_cov_to_ps_and_std_dict(vec, cov, spectra_order, spec_block_order, binning_file, lmax):
     """
@@ -600,50 +591,3 @@ def from_vector_and_cov_to_ps_and_std_dict(vec, cov, spectra_order, spec_block_o
     return bin_c, spec_dict, std_dict
 
 
-def get_x_freq_to_final_P_mat(freq_list, binning_file, lmax):
-
-    """
-    The goal of this function is to build the passage matrix that will
-    help combining the cross frequency spectra into final spectra
-    the TT block is unchanged since it doesn't make sense to combine different TT together
-    given the mismatch in fg for different cross frequency
-    but it could make sense to combine TE and EE (at least for plotting) since foreground is not
-    that important
-
-    Parameters
-    ----------
-    freq_list: list of str
-        the frequency we consider
-    binning_file: str
-      a binning file with format bin low, bin high, bin mean
-    lmax: int
-      the maximum multipole to consider
-    """
-
-    bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
-    n_bins = len(bin_hi)
-
-    n_freq = len(freq_list)
-    n_cross_freq =  int(n_freq * (n_freq + 1) / 2)
-    n_cross_freq_TE = n_freq ** 2
-
-    P_mat_TT = np.zeros((n_cross_freq * n_bins, n_cross_freq * n_bins))
-    P_mat_EE = np.zeros((n_bins, n_cross_freq * n_bins))
-    P_mat_TE = np.zeros((n_bins, n_cross_freq_TE * n_bins))
-
-    for i in range(n_cross_freq):
-        P_mat_EE[:, n_bins * i:n_bins * (i + 1)] = np.identity(n_bins)
-        P_mat_TT[n_bins * i:n_bins * (i + 1), n_bins * i:n_bins * (i + 1)] = np.identity(n_bins)
-    for i in range(n_cross_freq_TE):
-        P_mat_TE[:, n_bins * i:n_bins * (i + 1)] = np.identity(n_bins)
-
-    s_TT_x, s_TT_y = P_mat_TT.shape
-    s_EE_x, s_EE_y = P_mat_EE.shape
-    s_TE_x, s_TE_y = P_mat_TE.shape
-
-    P_mat = np.zeros((s_TT_x + s_TE_x + s_EE_x, s_TT_y + s_TE_y + s_EE_y))
-    P_mat[:s_TT_x,:s_TT_y] = P_mat_TT
-    P_mat[s_TT_x: s_TT_x + s_TE_x, s_TT_y: s_TT_y + s_TE_y] = P_mat_TE
-    P_mat[s_TT_x + s_TE_x: s_TT_x + s_TE_x + s_EE_x, s_TT_y + s_TE_y: s_TT_y + s_TE_y + s_EE_y] = P_mat_EE
-
-    return P_mat

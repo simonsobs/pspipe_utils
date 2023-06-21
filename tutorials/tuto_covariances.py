@@ -66,6 +66,16 @@ l_cmb, ps_all_th, nl_all_th = best_fits.get_all_best_fit(spec_name_list,
                                                          spectra,
                                                          nl_dict=nl_dict,
                                                          bl_dict=bl_dict)
+                                                         
+                                                         
+                                                         
+if d["cov_T_E_only"] == True:
+    modes_for_xar_cov = ["TT", "TE", "ET", "EE"]
+    modes_for_xfreq_cov = ["TT", "TE", "EE"]
+else:
+    modes_for_xar_cov = spectra
+    modes_for_xfreq_cov = ["TT", "TE", "TB", "EE", "EB", "BB"]
+
 
 for sid1, spec1 in enumerate(spec_name_list):
     for sid2, spec2 in enumerate(spec_name_list):
@@ -99,7 +109,8 @@ for sid1, spec1 in enumerate(spec_name_list):
                                                        binning_file,
                                                        mbb_inv_ab,
                                                        mbb_inv_cd,
-                                                       binned_mcm=binned_mcm)
+                                                       binned_mcm=binned_mcm,
+                                                       cov_T_E_only=d["cov_T_E_only"])
 
         np.save(f"{result_dir}/analytic_cov_{spec1}_{spec2}.npy", analytic_cov)
 
@@ -108,163 +119,33 @@ combin_level = ["xar", "xfreq", "final"]
 cov["xar"] = covariance.read_cov_block_and_build_full_cov(spec_name_list,
                                                           result_dir,
                                                           "analytic_cov",
-                                                          spectra_order=["TT", "TE", "ET", "EE"],
+                                                          spectra_order=modes_for_xar_cov,
                                                           remove_doublon=True,
                                                           check_pos_def=True)
 
 inv_cov_xar = np.linalg.inv(cov["xar"])
 
-x_ar_list = pspipe_list.x_ar_cov_order(spec_name_list)
-#x_freq_cov_order = pspipe_list.x_freq_cov_order(freq_list)
+x_ar_cov_list = pspipe_list.x_ar_cov_order(spec_name_list, nu_tag_list, spectra_order=modes_for_xar_cov)
+x_freq_cov_list = pspipe_list.x_freq_cov_order(freq_list, spectra_order=modes_for_xfreq_cov)
+final_cov_list = pspipe_list.final_cov_order(freq_list, spectra_order=modes_for_xfreq_cov)
 
-P_mat = covariance.get_x_ar_to_x_freq_P_mat(freq_list, spec_name_list, nu_tag_list, binning_file, lmax)
-P_mat_cross = covariance.get_x_ar_to_x_freq_P_mat_cross(freq_list, spec_name_list, nu_tag_list, binning_file, lmax)
+print(x_ar_cov_list)
+print("")
+print(x_freq_cov_list)
+print("")
+print(final_cov_list)
 
-P = covariance.combine_P_mat(P_mat, P_mat_cross)
 
-cov["xfreq"] = covariance.get_max_likelihood_cov(P, inv_cov_xar, force_sim = True, check_pos_def = True)
+    
+P_mat = covariance.get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
+cov["xfreq"] = covariance.get_max_likelihood_cov(P_mat, inv_cov_xar, force_sim = True, check_pos_def = True)
 inv_cov_xfreq = np.linalg.inv(cov["xfreq"])
 
-P_final = covariance.get_x_freq_to_final_P_mat(freq_list, binning_file, lmax)
+P_final = covariance.get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lmax)
 cov["final"]  = covariance.get_max_likelihood_cov(P_final, inv_cov_xfreq, force_sim = True, check_pos_def = True)
 
-for comb in combin_level:
-    corr = so_cov.cov2corr(cov[comb], remove_diag=True)
-    #so_cov.plot_cov_matrix(corr, file_name=f"{result_dir}/sigurd_plot_corr_{comb}")
 
-#so_cov.plot_cov_matrix(P, file_name=f"{result_dir}/sigurd_plot_Pmat")
-#so_cov.plot_cov_matrix(P_final, file_name=f"{result_dir}/sigurd_plot_Pmat_final")
-
-
-vec_list = {}
-for comb in combin_level:
-    vec_list[comb] = []
-
-for iii in range(n_sims):
-
-    vec_xar = covariance.read_x_ar_spectra_vec(sim_dir,
-                                               spec_name_list,
-                                               "cross_%05d" % iii,
-                                                spectra_order = ["TT", "TE", "ET", "EE"],
-                                                type="Dl")
-
-    vec_xfreq = covariance.max_likelihood_spectra(cov["xfreq"], inv_cov_xar, P, vec_xar)
-    vec_final = covariance.max_likelihood_spectra(cov["final"], inv_cov_xfreq, P_final, vec_xfreq)
-    vec_list["xar"] += [vec_xar]
-    vec_list["xfreq"] += [vec_xfreq]
-    vec_list["final"] += [vec_final]
-
-mean = {}
-for comb in combin_level:
-    mean[comb] = np.mean(vec_list[comb], axis=0)
-    mc_cov = np.cov(vec_list[comb], rowvar=False)
-
-    plt.figure(figsize=(12,8))
-    plt.semilogy()
-    plt.plot(mc_cov.diagonal(), label="MC")
-    plt.plot(cov[comb].diagonal(), label="analytic")
-    plt.savefig(f"{result_dir}/plot_{comb}_covariance_diag.png", bbox_inches="tight")
-    plt.clf()
-    plt.close()
-
-    plt.figure(figsize=(12,8))
-    plt.plot(mc_cov.diagonal()/cov[comb].diagonal(), label="MC/analytic")
-    plt.legend()
-    plt.savefig(f"{result_dir}/plot_{comb}_covariance_ratio.png", bbox_inches="tight")
-    plt.clf()
-    plt.close()
-
-spectra_order = ["TT", "TE", "ET", "EE"]
-xar_block_order = {}
-xar_block_order["TT"] = spec_name_list
-xar_block_order["TE"] = spec_name_list
-xar_block_order["ET"] = spec_name_list_ET
-xar_block_order["EE"] = spec_name_list
-lb, spec_dict_xar, std_dict_xar = covariance.from_vector_and_cov_to_ps_and_std_dict(mean["xar"],
-                                                                                    cov["xar"],
-                                                                                    spectra_order,
-                                                                                    xar_block_order,
-                                                                                    binning_file,
-                                                                                    lmax)
-spectra_order = ["TT", "TE", "EE"]
-xfreq_block_order = {}
-xfreq_block_order["TT"] = [f"{f0}x{f1}" for f0, f1 in cwr(freq_list, 2)]
-xfreq_block_order["TE"] = [f"{f0}x{f1}" for f0, f1 in product(freq_list, freq_list)]
-xfreq_block_order["EE"] = [f"{f0}x{f1}" for f0, f1 in cwr(freq_list, 2)]
-lb, spec_dict_xfreq, std_dict_xfreq = covariance.from_vector_and_cov_to_ps_and_std_dict(mean["xfreq"],
-                                                                                        cov["xfreq"],
-                                                                                        spectra_order,
-                                                                                        xfreq_block_order,
-                                                                                        binning_file,
-                                                                                        lmax)
-spectra_order = ["TT", "TE", "EE"]
-final_block_order = {}
-final_block_order["TT"] = [f"{f0}x{f1}" for f0, f1 in cwr(freq_list, 2)]
-final_block_order["TE"] = ["final"]
-final_block_order["EE"] = ["final"]
-lb, spec_dict_final, std_dict_final = covariance.from_vector_and_cov_to_ps_and_std_dict(mean["final"],
-                                                                                        cov["final"],
-                                                                                        spectra_order,
-                                                                                        final_block_order,
-                                                                                        binning_file,
-                                                                                        lmax)
-
-for spec in ["TT", "TE", "EE"]:
-    plt.figure(figsize=(12,8))
-    for xar in xar_block_order[spec]:
-        na, nb = xar.split("x")
-        sv_a, ar_a = na.split("&")
-        sv_b, ar_b = nb.split("&")
-
-        plt.errorbar(lb, spec_dict_xar[spec, xar], std_dict_xar[spec, xar], fmt=".", label=f"{spec} {xar}")
-
-    if spec == "TE":
-        for xar in xar_block_order["ET"]:
-            na, nb = xar.split("x")
-            sv_a, ar_a = na.split("&")
-            sv_b, ar_b = nb.split("&")
-            plt.errorbar(lb, spec_dict_xar["ET", xar], std_dict_xar["ET", xar], fmt=".", label=f"{spec} {xar}")
-
-    for xf in xfreq_block_order[spec]:
-        plt.errorbar(lb, spec_dict_xfreq[spec, xf], std_dict_xfreq[spec, xf], fmt=".", label=f"{spec} {xf}")
-
-    if spec == "TE" or spec == "EE":
-        plt.errorbar(lb, spec_dict_final[spec, "final"], std_dict_final[spec, "final"], fmt=".", label=f"{spec} final")
-
-    plt.xlabel(r"$\ell$",fontsize=22)
-    plt.ylabel(r"$D_\ell$",fontsize=22)
-    plt.legend()
-    plt.savefig(f"{result_dir}/plot_spectra_{spec}.png", bbox_inches="tight")
-    plt.clf()
-    plt.close()
-
-for spec in ["TT", "TE", "EE"]:
-    plt.figure(figsize=(12,8))
-    plt.semilogy()
-    for xar in xar_block_order[spec]:
-        na, nb = xar.split("x")
-        sv_a, ar_a = na.split("&")
-        sv_b, ar_b = nb.split("&")
-
-        plt.errorbar(lb, std_dict_xar[spec, xar], fmt="-", label=f"{spec} {xar}")
-
-    if spec == "TE":
-        for xar in xar_block_order["ET"]:
-            na, nb = xar.split("x")
-            sv_a, ar_a = na.split("&")
-            sv_b, ar_b = nb.split("&")
-
-            plt.errorbar(lb, std_dict_xar["ET", xar], fmt="-", label=f"{spec} {xar}")
-
-    for xf in xfreq_block_order[spec]:
-        plt.errorbar(lb, std_dict_xfreq[spec, xf], fmt="-", label=f"{spec} {xf}")
-
-    if spec == "TE" or spec == "EE":
-        plt.errorbar(lb, std_dict_final[spec, "final"], fmt="-", label=f"{spec} final")
-
-    plt.xlabel(r"$\ell$",fontsize=22)
-    plt.ylabel(r"$\sigma_\ell$",fontsize=22)
-    plt.legend()
-    plt.savefig(f"{result_dir}/plot_std_{spec}.png", bbox_inches="tight")
-    plt.clf()
-    plt.close()
+plt.matshow(P_mat)
+plt.show()
+plt.matshow(P_final)
+plt.show()
