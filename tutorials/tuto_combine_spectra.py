@@ -133,7 +133,7 @@ lscaling["EE"] = 1
 lscaling["EB"] = 0
 lscaling["BB"] = 0
 
-for spec in ["TT", "TE", "TB", "EE", "EB", "BB"]:
+for spec in modes_for_xfreq_cov:
         x_freq_list = []
         if spec[0] == spec[1]:
             x_freq_list += [(f0, f1) for f0, f1 in cwr(freq_list, 2)]
