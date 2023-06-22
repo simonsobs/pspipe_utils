@@ -590,3 +590,30 @@ def from_vector_and_cov_to_ps_and_std_dict(vec, cov, spectra_order, spec_block_o
     return bin_c, spec_dict, std_dict
 
 
+def plot_P_matrix(P_mat,
+                  cov_list_in,
+                  cov_list_out,
+                  file_name="test"):
+
+    n_spec_in = len(cov_list_in)
+    n_spec_out = len(cov_list_out)
+
+    nbins = int(P_mat.shape[0]/n_spec_out)
+    x_tick_loc = np.arange(n_spec_in) * nbins + nbins/2 - 1
+    y_tick_loc = np.arange(n_spec_out) * nbins + nbins/2 - 1
+    
+    name_in = []
+    for el in cov_list_in:
+        name_in += [f"{el[0]} {el[1]}"]
+    name_out = []
+    for el in cov_list_out:
+        name_out += [f"{el[0]} {el[1]}"]
+
+    import pylab as plt
+    fig, ax = plt.subplots(figsize=(8, 12))
+    plt.imshow(P_mat)
+    plt.xticks(ticks=x_tick_loc, labels=name_in, rotation=90)
+    plt.yticks(ticks=y_tick_loc, labels=name_out)
+    plt.savefig(f"{file_name}.pdf")
+    plt.clf()
+    plt.close()
