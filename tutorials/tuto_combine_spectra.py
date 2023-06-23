@@ -52,10 +52,11 @@ x_ar_cov_list = pspipe_list.x_ar_cov_order(spec_name_list, nu_tag_list, spectra_
 x_freq_cov_list = pspipe_list.x_freq_cov_order(freq_list, spectra_order=modes_for_xfreq_cov)
 final_cov_list = pspipe_list.final_cov_order(freq_list, spectra_order=modes_for_xfreq_cov)
 
+print("x_array list:")
 print(x_ar_cov_list)
-print("")
+print("x_freq list:")
 print(x_freq_cov_list)
-print("")
+print("final_cov_list:")
 print(final_cov_list)
 
 P_mat = covariance.get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
@@ -65,15 +66,10 @@ inv_cov_xfreq = np.linalg.inv(cov["xfreq"])
 P_final = covariance.get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lmax)
 cov["final"]  = covariance.get_max_likelihood_cov(P_final, inv_cov_xfreq, force_sim = True, check_pos_def = True)
 
-covariance.plot_P_matrix(P_mat, x_freq_cov_list, x_ar_cov_list, file_name=f"{cov_dir}/x_ar_to_x_freq")
-covariance.plot_P_matrix(P_final, final_cov_list, x_freq_cov_list, file_name=f"{cov_dir}/x_freq_to_final")
+covariance.plot_P_matrix(P_mat, x_freq_cov_list, x_ar_cov_list, file_name=f"{cov_dir}/P_mat_x_ar_to_x_freq")
+covariance.plot_P_matrix(P_final, final_cov_list, x_freq_cov_list, file_name=f"{cov_dir}/P_mat_x_freq_to_final")
 
-for comb in combin_level:
-    corr = so_cov.cov2corr(cov[comb], remove_diag=True)
-    plt.matshow(corr)
-    plt.savefig(f"{cov_dir}/corr_{comb}")
-    plt.clf()
-    plt.close()
+
     
 for iii in range(n_sims):
     if iii == 0:
@@ -95,6 +91,7 @@ for iii in range(n_sims):
     
 mean = {}
 for comb in combin_level:
+
     mean[comb] = np.mean(vec_list[comb], axis=0)
     mc_cov = np.cov(vec_list[comb], rowvar=False)
 
@@ -114,6 +111,9 @@ for comb in combin_level:
     plt.clf()
     plt.close()
     
+    corr = so_cov.cov2corr(cov[comb], remove_diag=True)
+    so_cov.plot_cov_matrix(corr, file_name=f"{cov_dir}/corr_{comb}")
+
     
 bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
 n_bins = len(bin_hi)
@@ -123,7 +123,6 @@ def select_spec(spec_vec, cov, id, n_bins):
     cov_block = cov[id * n_bins: (id + 1) * n_bins, id * n_bins: (id + 1) * n_bins]
     std = np.sqrt(cov_block.diagonal())
     return mean, std
-
 
 lscaling = {}
 lscaling["TT"] = 2

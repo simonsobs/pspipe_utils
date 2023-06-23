@@ -26,3 +26,4 @@ then e.g
 .. code:: shell
 
     python tuto_covariances.py global_tuto.dict
+    python tuto_combine_spectra.py global_tuto.dict
