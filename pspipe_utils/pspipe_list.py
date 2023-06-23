@@ -166,6 +166,7 @@ def get_freq_list(dict):
 
 
 def x_ar_cov_order(spec_name_list,
+                   nu_tag_list,
                    spectra_order = ["TT", "TE", "ET", "EE"]):
 
     """This function creates the list of spectra that enters
@@ -183,11 +184,10 @@ def x_ar_cov_order(spec_name_list,
     """
     x_ar_list = []
     for spec in spectra_order:
-        for spec_name in spec_name_list:
-            print(spec_name)
+        for spec_name, nu_tag in zip(spec_name_list, nu_tag_list):
             na, nb = spec_name.split("x")
             if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
-            x_ar_list += [f"{spec}_{spec_name}"]
+            x_ar_list += [[spec, spec_name, nu_tag]]
 
     return x_ar_list
 
@@ -206,16 +206,40 @@ def x_freq_cov_order(freq_list,
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "EE"]
     """
+    x_freq_list = []
+
     for spec in spectra_order:
         if spec in ["ET", "BT", "BE"]:
             raise ValueError("spectra_order can not contain [ET, BT, BE] the cross freq cov matrix convention is to assign all ET, BT, BE into TE,TB,EB")
 
-    x_freq_list = []
-
-    for spec in spectra_order:
         if spec[0] == spec[1]:
-            x_freq_list += [f"{spec}_{f0}x{f1}" for f0, f1 in cwr(freq_list, 2)]
+            x_freq_list += [[spec, (f0, f1)] for f0, f1 in cwr(freq_list, 2)]
         else:
-            x_freq_list +=  [f"{spec}_{f0}x{f1}" for f0, f1 in product(freq_list, freq_list)]
+            x_freq_list +=  [[spec, (f0, f1)] for f0, f1 in product(freq_list, freq_list)]
 
     return x_freq_list
+
+def final_cov_order(freq_list, spectra_order = ["TT", "TE", "EE"]):
+    
+    """This function creates the list of spectra that enters
+    the final covariance matrix.
+
+    Parameters
+    ----------
+    freq_list: list of str
+        the frequency we consider
+    spectra_order: list of str
+        the order of the spectra e.g  ["TT", "TE", "EE"]
+    """
+
+    final_list = []
+    for spec in spectra_order:
+        if spec in ["ET", "BT", "BE"]:
+            raise ValueError("spectra_order can not contain [ET, BT, BE] the final cov matrix convention is to assign all ET, BT, BE into TE, TB, EB")
+
+        if spec == "TT":
+            final_list += [[spec, (f0, f1)] for f0, f1 in cwr(freq_list, 2)]
+        else:
+            final_list += [[spec, None]]
+            
+    return  final_list

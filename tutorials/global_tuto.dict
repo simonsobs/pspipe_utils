@@ -7,18 +7,18 @@ ra1 = 130
 dec0 = -30
 dec1 = 30
 res = 2
-apo_type_survey = "Rectangle"
+apo_type_survey = "C1"
 apo_radius_degree = 1
 binned_mcm = False
 lmax = 2000
-bin_size = 40
+bin_size = 50
 n_sims = 100
-
+cov_T_E_only = False
 n_splits_dr6 = 2
 
 passband_dir = "tuto_data/passbands/"
-bandwidth_dr6_ar1 = 30
-bandwidth_dr6_ar2 = 30
+bandwidth_dr6_ar1 = 20
+bandwidth_dr6_ar2 = 20
 bandwidth_dr6_ar3 = 20
 
 do_bandpass_integration = True
@@ -26,13 +26,13 @@ freq_info_dr6_ar1 = {"freq_tag": 150, "passband": passband_dir + "passband_dr6_a
 freq_info_dr6_ar2 = {"freq_tag": 150, "passband": passband_dir + "passband_dr6_ar2.dat"}
 freq_info_dr6_ar3 = {"freq_tag": 90, "passband": passband_dir + "passband_dr6_ar3.dat"}
 
-rms_uKarcmin_T_dr6_ar1 = 10
-rms_uKarcmin_T_dr6_ar2 = 20
-rms_uKarcmin_T_dr6_ar3 = 5
+rms_uKarcmin_T_dr6_ar1 = 40
+rms_uKarcmin_T_dr6_ar2 = 50
+rms_uKarcmin_T_dr6_ar3 = 30
 
 beam_fwhm_dr6_ar1 = 3
-beam_fwhm_dr6_ar2 = 4
-beam_fwhm_dr6_ar3 = 6
+beam_fwhm_dr6_ar2 = 3
+beam_fwhm_dr6_ar3 = 5
 
 r_xar = 0.3
 r_xcomp = 0.2
@@ -41,4 +41,4 @@ cosmo_params = {"cosmomc_theta":0.0104085, "logA": 3.044, "ombh2": 0.02237, "omc
 
 fg_components = {"tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"], "te": ["radio", "dust"], "ee": ["radio", "dust"], "bb": ["radio", "dust"], "tb": ["radio", "dust"],"eb": []}
 
-fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60,"a_p": 6.90, "beta_p": 2.08, "a_c": 4.90, "beta_c": 2.20, "a_s": 3.10, "xi": 0.1,  "T_d": 9.60,  "a_gtt": 2.79, "a_gte": 0.36, "a_pste": 0.05,"a_gee": 0.13, "a_psee": 0.05, "a_gbb": 0.13, "a_psbb": 0.05, "a_gtb": 0.36, "a_pstb": 0.05}
+fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60,"a_p": 6.90, "beta_p": 2.08, "a_c": 4.90, "beta_c": 2.20, "a_s": 3.10, "xi": 0.1,  "T_d": 9.60,  "a_gtt": 2.79, "a_gte": 0., "a_pste": 0.,"a_gee": 0., "a_psee": 0., "a_gbb": 0., "a_psbb": 0., "a_gtb": 0., "a_pstb": 0.}
