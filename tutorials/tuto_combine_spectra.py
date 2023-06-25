@@ -158,11 +158,9 @@ for spec in modes_for_xfreq_cov:
 
             for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
                 spec2, nu_pair2 = x_freq_cov_el
-                if (spec2 == spec):
-                    if (x_freq == nu_pair2):
-                    
-                        mean, std = select_spec(vec_xfreq, cov["xfreq"], id_freq, n_bins)
-                        plt.errorbar(lb, mean * lb ** lscaling[spec], std * lb ** lscaling[spec], label=x_freq_cov_el)
+                if (spec2 == spec) and (x_freq == nu_pair2):
+                    mean, std = select_spec(vec_xfreq, cov["xfreq"], id_freq, n_bins)
+                    plt.errorbar(lb, mean * lb ** lscaling[spec], std * lb ** lscaling[spec], label=x_freq_cov_el)
 
             plt.legend()
             plt.xlabel(r"$\ell$", fontsize=12)
