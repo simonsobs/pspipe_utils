@@ -32,6 +32,8 @@ def leakage_correction(lth,
         the expected leakage of the alpha array
     var_gamma_alpha: dict with three key "TETE", "TBTB", "TETB" each corresponding to a 1d array
         the variance of the leakage beam, if not corrected for, could include a bias
+        not that the term is non zero only if alpha == beta, this is because we assume zero
+        correlation between alpha and beta leakage measurement
     gamma_beta: dict with two key "TE", and "TB" each corresponding to a 1d array
         the expected leakage of the beta array
     lmax: integer
