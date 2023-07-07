@@ -1,0 +1,604 @@
+\documentclass[a4paper, 11pt]{article}
+
+\usepackage[applemac]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage[frenchb]{babel}
+\usepackage{geometry}
+\geometry{hmargin=2cm, vmargin=2cm}
+\usepackage{wrapfig}
+\usepackage{subfigure}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{textcomp}
+\usepackage{epsfig}
+\usepackage{bm}
+
+\def\Box{\mathord{\dalemb{7.9}{8}\hbox{\hskip1pt}}}
+\def\dalemb#1#2{{\vbox{\hrule height.#2pt
+        \hbox{\vrule width.#2pt height#1pt \kern#1pt \vrule width.#2pt}
+        \hrule height.#2pt}}}
+
+\def\eop{\mathcal{E}}
+\def\bop{\mathcal{B}}
+\def\vl{\vec{\ell}}
+\def\ba{\begin{eqnarray}}
+\def\ea{\end{eqnarray}}
+\def\be{\begin{equation}}
+\def\ee{\end{equation}}
+\def\tr{{\rm tr}}
+\def\Var{{\rm Var}}
+\def\gtorder{\mathrel{\raise.3ex\hbox{$>$}\mkern-14mu
+             \lower0.6ex\hbox{$\sim$}}}
+\def\ltorder{\mathrel{\raise.3ex\hbox{$<$}\mkern-14mu
+             \lower0.6ex\hbox{$\sim$}}}
+
+\def\bb{{\mathfrak b}}
+\newcommand{\ellb }{\boldsymbol{\ell }}
+
+
+
+
+\begin{document}
+
+\title{\textbf{pspipe notes: leakage}}
+\author{Louis Thibaut}
+\maketitle
+
+\section{Mean leakage} 
+
+We represent the beam leakage affecting a given array $\alpha$ using two functions $\gamma^{\alpha}_{\rm TE}$, $\gamma^{\alpha}_{\rm TB}$
+so that
+\ba
+\tilde{E^{\alpha}}_{\ell m} &=& E_{\ell m} + \gamma^{\alpha}_{\ell, \rm TE} T_{\ell m} \\
+\tilde{B^{\alpha}}_{\ell m} &=& B_{\ell m} + \gamma^{\alpha}_{\ell, \rm TB} T_{\ell m}  \\
+\ea
+Let's consider the cross spectra between two arrays ($\alpha$, $\beta$), in our notation $C^{T_\alpha E_\beta}_{\ell}$ is the true cross spectrum between array $\alpha$ and array $\beta$ and $\tilde{C}^{T_\alpha E_\beta}_{\ell}$ is the spectrum affected by leakage,  the leakage will act the power spectra as follow,
+\ba
+\tilde{C}^{T_\alpha T_\beta}_{\ell} &=& C^{T_\alpha T_\beta}_{\ell}            \\
+\tilde{C}^{T_\alpha E_\beta}_{\ell}  &=& C^{T_\alpha E_\beta}_{\ell}  +    \gamma^{\beta}_{\ell, \rm TE}    C^{T_\alpha T_\beta}_{\ell}   \\
+\tilde{C}^{T_\alpha B_\beta}_{\ell} &=& C^{T_\alpha B_\beta}_{\ell}   +    \gamma^{\beta}_{\ell, \rm TB}    C^{T_\alpha T_\beta}_{\ell}       \\
+\tilde{C}^{E_\alpha T_\beta}_{\ell} &=& C^{E_\alpha T_\beta}_{\ell}  +    \gamma^{\alpha}_{\ell, \rm TE}    C^{T_\alpha T_\beta}_{\ell}                \\
+\tilde{C}^{B_\alpha T_\beta}_{\ell}  &=& C^{B_\alpha T_\beta}_{\ell}  +    \gamma^{\alpha}_{\ell, \rm TB}    C^{T_\alpha T_\beta}_{\ell}                \\
+\tilde{C}^{E_\alpha E_\beta}_{\ell}  &=& C^{E_\alpha E_\beta}_{\ell}  +   \gamma^{\beta}_{\ell, \rm TE}    C^{E_\alpha T_\beta}_{\ell}  +   \gamma^{\alpha}_{\ell, \rm TE}    C^{T_\alpha E_\beta}_{\ell}  +   \gamma^{\beta}_{\ell, \rm TE}   \gamma^{\alpha}_{\ell, \rm TE}    C^{T_\alpha T_\beta}_{\ell}  \\
+\tilde{C}^{E_\alpha B_\beta}_{\ell} &=& C^{E_\alpha B_\beta}_{\ell}   +   \gamma^{\alpha}_{\ell, \rm TE} C^{T_\alpha B_\beta}_{\ell}   +    \gamma^{\beta}_{\ell, \rm TB}    C^{E_\alpha T_\beta}_{\ell} +  \gamma^{\alpha}_{\ell, \rm TE}   \gamma^{\beta}_{\ell, \rm TB} C^{T_\alpha T_\beta}_{\ell}     \\
+\tilde{C}^{B_\alpha E_\beta}_{\ell} &=& C^{B_\alpha E_\beta}_{\ell}    +   \gamma^{\alpha}_{\ell, \rm TB} C^{T_\alpha E_\beta}_{\ell}  +  \gamma^{\beta}_{\ell, \rm TE} C^{B_\alpha T_\beta}_{\ell}  +  \gamma^{\alpha}_{\ell, \rm TB}   \gamma^{\beta}_{\ell, \rm TE} C^{T_\alpha T_\beta}_{\ell}          \\
+\tilde{C}^{B_\alpha B_\beta}_{\ell} &=&  C^{B_\alpha B_\beta}_{\ell}  +   \gamma^{\beta}_{\ell, \rm TB}    C^{B_\alpha T_\beta}_{\ell}  +   \gamma^{\alpha}_{\ell, \rm TB}    C^{T_\alpha B_\beta}_{\ell}  +   \gamma^{\beta}_{\ell, \rm TB}   \gamma^{\alpha}_{\ell, \rm TB}    C^{T_\alpha T_\beta}_{\ell}            
+\ea
+We can write this in matricial form as
+\ba
+\bm{\tilde{C}^{\alpha \beta}_{\ell} } = (\mathbb{I}  + \bm{\Gamma})\bm{C^{\alpha \beta}_{\ell} }
+\ea
+with
+\ba
+\bm{\Gamma}= 
+\begin{pmatrix} 
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\gamma^{\beta}_{\ell, \rm TE}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\gamma^{\beta}_{\ell, \rm TB}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\gamma^{\alpha}_{\ell, \rm TE} & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+ \gamma^{\alpha}_{\ell, \rm TB}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+ \gamma^{\beta}_{\ell, \rm TE}   \gamma^{\alpha}_{\ell, \rm TE}   & 
+ \gamma^{\alpha}_{\ell, \rm TE} &
+0 &
+ \gamma^{\beta}_{\ell, \rm TE}  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+ \gamma^{\alpha}_{\ell, \rm TE}   \gamma^{\beta}_{\ell, \rm TB} & 
+0 &
+\gamma^{\alpha}_{\ell, \rm TE} &
+  \gamma^{\beta}_{\ell, \rm TB}  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\gamma^{\alpha}_{\ell, \rm TB}   \gamma^{\beta}_{\ell, \rm TE} & 
+\gamma^{\alpha}_{\ell, \rm TB} &
+0 &
+0 &
+\gamma^{\beta}_{\ell, \rm TE} &
+0 &
+0 &
+0 &
+0 &
+\cr
+\gamma^{\beta}_{\ell, \rm TB}   \gamma^{\alpha}_{\ell, \rm TB} & 
+0 &
+ \gamma^{\alpha}_{\ell, \rm TB} &
+0 &
+ \gamma^{\beta}_{\ell, \rm TB}   &
+0 &
+0 &
+0 &
+0 &
+\end{pmatrix}
+\ea
+Another potential useful form is the symbolic form
+\ba
+\tilde{C}^{X_{\alpha} Y_{\beta}}_{\ell} &=&  C^{X_{\alpha} Y_{\beta}}_{\ell}   + (\delta_{XE}\gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\gamma^{\alpha}_{\ell, \rm TB}) C^{T_{\alpha} Y_{\beta}}_{\ell} +  (\delta_{YE}\gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\gamma^{\beta}_{\ell, \rm TB})C^{X_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&+&  (\delta_{XE}\gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\gamma^{\alpha}_{\ell, \rm TB}) (\delta_{YE}\gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\gamma^{\beta}_{\ell, \rm TB})C^{T_{\alpha} T_{\beta}}_{\ell}  
+\ea
+Note that we keep the second order term in $\gamma$ because it multiples $C^{T_{\alpha} T_{\beta}}_{\ell}  $ which is large.
+
+
+\section{Propagating uncertainties due to  leakage} 
+
+In reality the $\gamma^{\alpha}$ are noisy measurements of the true beam leakage
+\ba
+\gamma^{\alpha}_{\ell, X} = \bar{\gamma}^{\alpha}_{\ell, X} + \Delta \gamma^{\alpha}_{\ell, X} 
+\ea
+\subsubsection{Bias}
+An estimator for beam leakage corrected spectra can be written 
+\ba
+\bm{\hat{C}^{\alpha \beta}_{\ell} } = \bm{\tilde{C}^{\alpha \beta}_{\ell} } - \bm{\bar{\Gamma}} \bm{C^{\alpha \beta}_{\ell} } &=&  \left[\mathbb{I}  + (\bm{\Gamma}  - \bm{\bar{\Gamma}} )\right] \bm{C^{\alpha \beta}_{\ell} } \\
+&=&  \left[\mathbb{I}  + \Delta \bm{\Gamma} \right] \bm{C^{\alpha \beta}_{\ell} }
+\ea
+Where we would use the average measurement for constructing  $\bm{\bar{\Gamma}}$
+\ba
+\Delta \bm{\Gamma} = 
+\begin{pmatrix} 
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta \gamma^{\beta}_{\ell, \rm TE}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta \gamma^{\beta}_{\ell, \rm TB}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta \gamma^{\alpha}_{\ell, \rm TE} & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta  \gamma^{\alpha}_{\ell, \rm TB}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+ \Delta \gamma^{\beta}_{\ell, \rm TE}  \bar{ \gamma}^{\alpha}_{\ell, \rm TE}  +  \bar{ \gamma}^{\beta}_{\ell, \rm TE}  \Delta \gamma^{\alpha}_{\ell, \rm TE} +   \Delta \gamma^{\beta}_{\ell, \rm TE}  \Delta \gamma^{\alpha}_{\ell, \rm TE}& 
+ \Delta \gamma^{\alpha}_{\ell, \rm TE} &
+0 &
+\Delta  \gamma^{\beta}_{\ell, \rm TE}  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta \gamma^{\alpha}_{\ell, \rm TE}   \bar{\gamma}^{\beta}_{\ell, \rm TB} + \bar{ \gamma}^{\alpha}_{\ell, \rm TE}  \Delta \gamma^{\beta}_{\ell, \rm TB} +  \Delta \gamma^{\alpha}_{\ell, \rm TE}  \Delta \gamma^{\beta}_{\ell, \rm TB} & 
+0 &
+\Delta \gamma^{\alpha}_{\ell, \rm TE} &
+\Delta \gamma^{\beta}_{\ell, \rm TB}  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta \gamma^{\alpha}_{\ell, \rm TB}  \bar{ \gamma}^{\beta}_{\ell, \rm TE} + \bar{ \gamma}^{\alpha}_{\ell, \rm TB}  \Delta \gamma^{\beta}_{\ell, \rm TE} + \Delta \gamma^{\alpha}_{\ell, \rm TB} \Delta \gamma^{\beta}_{\ell, \rm TE} & 
+\Delta \gamma^{\alpha}_{\ell, \rm TB} &
+0 &
+0 &
+\Delta \gamma^{\beta}_{\ell, \rm TE} &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Delta \gamma^{\beta}_{\ell, \rm TB}   \bar{\gamma}^{\alpha}_{\ell, \rm TB} +  \bar{\gamma}^{\beta}_{\ell, \rm TB} \Delta  \gamma^{\alpha}_{\ell, \rm TB} + \Delta \gamma^{\beta}_{\ell, \rm TB} \Delta  \gamma^{\alpha}_{\ell, \rm TB} & 
+0 &
+ \Delta \gamma^{\alpha}_{\ell, \rm TB} &
+0 &
+\Delta  \gamma^{\beta}_{\ell, \rm TB}   &
+0 &
+0 &
+0 &
+0 &
+\end{pmatrix}
+\ea
+Note that the estimator is biased since $\langle \Delta \bm{\Gamma}  \rangle$ is non zero for some of the elements
+\ba
+\langle \Delta \bm{\Gamma}\rangle &=& 
+\begin{pmatrix} 
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\langle  \Delta \gamma^{\beta}_{\ell, \rm TE}  \Delta \gamma^{\alpha}_{\ell, \rm TE} \rangle& 
+0&
+0 &
+0  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\langle  \Delta \gamma^{\alpha}_{\ell, \rm TE}  \Delta \gamma^{\beta}_{\ell, \rm TB} \rangle & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\langle \Delta \gamma^{\alpha}_{\ell, \rm TB} \Delta \gamma^{\beta}_{\ell, \rm TE} \rangle& 
+0 &
+0 &
+0 &
+0&
+0 &
+0 &
+0 &
+0 &
+\cr
+\langle \Delta \gamma^{\beta}_{\ell, \rm TB} \Delta  \gamma^{\alpha}_{\ell, \rm TB} \rangle & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\end{pmatrix} \\
+&=&
+\begin{pmatrix} 
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Sigma^{\beta \alpha}_{\ell, \rm  TE TE} &
+0&
+0 &
+0  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Sigma^{ \alpha \beta}_{\ell, \rm  TE TB} & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\Sigma^{ \alpha \beta}_{\ell, \rm  TB TE} &
+0 &
+0 &
+0 &
+0&
+0 &
+0 &
+0 &
+0 &
+\cr
+\Sigma^{\beta \alpha}_{\ell, \rm  TB TB} & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\end{pmatrix} 
+\ea
+An unbiased estimator is given by
+\ba
+\bm{\hat{C}^{\alpha \beta}_{\ell} } = \bm{\tilde{C}^{\alpha \beta}_{\ell} } - \bm{\Lambda} \bm{C^{\alpha \beta}_{\ell} } 
+\ea
+
+
+\ba
+\bm{\Lambda}= 
+\begin{pmatrix} 
+0& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{\gamma}^{\beta}_{\ell, \rm TE}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{\gamma}^{\beta}_{\ell, \rm TB}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{\gamma}^{\alpha}_{\ell, \rm TE} & 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{ \gamma}^{\alpha}_{\ell, \rm TB}& 
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{ \gamma}^{\beta}_{\ell, \rm TE}  \bar{ \gamma}^{\alpha}_{\ell, \rm TE}  + \Sigma^{\beta \alpha}_{\ell, \rm  TE TE} & 
+\bar{ \gamma}^{\alpha}_{\ell, \rm TE} &
+0 &
+\bar{ \gamma}^{\beta}_{\ell, \rm TE}  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{ \gamma}^{\alpha}_{\ell, \rm TE}  \bar{ \gamma}^{\beta}_{\ell, \rm TB} + \Sigma^{ \alpha \beta}_{\ell, \rm  TE TB}  & 
+0 &
+\bar{ \gamma}^{\alpha}_{\ell, \rm TE} &
+\bar{   \gamma}^{\beta}_{\ell, \rm TB}  &
+0 &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{ \gamma}^{\alpha}_{\ell, \rm TB}  \bar{  \gamma}^{\beta}_{\ell, \rm TE} + \Sigma^{ \alpha \beta}_{\ell, \rm  TB TE}& 
+\bar{ \gamma}^{\alpha}_{\ell, \rm TB} &
+0 &
+0 &
+\bar{ \gamma}^{\beta}_{\ell, \rm TE} &
+0 &
+0 &
+0 &
+0 &
+\cr
+\bar{ \gamma}^{\beta}_{\ell, \rm TB}  \bar{  \gamma}^{\alpha}_{\ell, \rm TB} + \Sigma^{\beta \alpha}_{\ell, \rm  TB TB} & 
+0 &
+ \bar{ \gamma}^{\alpha}_{\ell, \rm TB} &
+0 &
+\bar{  \gamma}^{\beta}_{\ell, \rm TB}   &
+0 &
+0 &
+0 &
+0 &
+\end{pmatrix}
+\ea
+
+
+Let's go back to the symbolic form 
+\ba
+\tilde{C}^{X_{\alpha} Y_{\beta}}_{\ell} &=&  C^{X_{\alpha} Y_{\beta}}_{\ell}   + (\delta_{XE}\gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\gamma^{\alpha}_{\ell, \rm TB}) C^{T_{\alpha} Y_{\beta}}_{\ell} +  (\delta_{YE}\gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\gamma^{\beta}_{\ell, \rm TB})C^{X_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&+&  (\delta_{XE}\gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\gamma^{\alpha}_{\ell, \rm TB}) (\delta_{YE}\gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\gamma^{\beta}_{\ell, \rm TB})C^{T_{\alpha} T_{\beta}}_{\ell}  
+\ea
+and expand the last term
+\ba
+\tilde{C}^{X_{\alpha} Y_{\beta}}_{\ell} &=&  C^{X_{\alpha} Y_{\beta}}_{\ell}   + (\delta_{XE}\gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\gamma^{\alpha}_{\ell, \rm TB}) C^{T_{\alpha} Y_{\beta}}_{\ell} +  (\delta_{YE}\gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\gamma^{\beta}_{\ell, \rm TB})C^{X_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&+&  (\delta_{XE} \delta_{YE} \gamma^{\alpha}_{\ell, \rm TE}  \gamma^{\beta}_{\ell, \rm TE}  +  \delta_{XB} \delta_{YB}\gamma^{\alpha}_{\ell, \rm TB} \gamma^{\beta}_{\ell, \rm TB} + \delta_{XB}\delta_{YE}\gamma^{\alpha}_{\ell, \rm TB} \gamma^{\beta}_{\ell, \rm TE} + \delta_{XE}\delta_{YB}\gamma^{\alpha}_{\ell, \rm TE}  \gamma^{\beta}_{\ell, \rm TB}  )C^{T_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+\ea
+The leakage beam corrected spectra can be written
+\ba
+\hat{C}^{X_{\alpha} Y_{\beta}}_{\ell}  &=& \tilde{C}^{X_{\alpha} Y_{\beta}}_{\ell}  - \Lambda^{X_{\alpha} Y_{\beta}}_{W_{\mu} Z_{\nu}} C^{W_{\mu} Z_{\nu}}_{\ell}  \\
+ &=&  C^{X_{\alpha} Y_{\beta}}_{\ell}   + (\delta_{XE} \Delta \gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\Delta \gamma^{\alpha}_{\ell, \rm TB}) C^{T_{\alpha} Y_{\beta}}_{\ell} +  (\delta_{YE}\Delta \gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\Delta \gamma^{\beta}_{\ell, \rm TB})C^{X_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&+&  [\delta_{XE} \delta_{YE} (\gamma^{\alpha}_{\ell, \rm TE}  \gamma^{\beta}_{\ell, \rm TE} -  \bar{\gamma}^{\alpha}_{\ell, \rm TE}  \bar{\gamma}^{\beta}_{\ell, \rm TE} - \Sigma^{\beta \alpha}_{\ell, \rm  TE TE} ) +  \delta_{XB} \delta_{YB}(\gamma^{\alpha}_{\ell, \rm TB} \gamma^{\beta}_{\ell, \rm TB} - \bar{\gamma}^{\alpha}_{\ell, \rm TB} \bar{\gamma}^{\beta}_{\ell, \rm TB} -  \Sigma^{\beta \alpha}_{\ell, \rm  TB TB} ]C^{T_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&+& [\delta_{XB}\delta_{YE}(\gamma^{\alpha}_{\ell, \rm TB} \gamma^{\beta}_{\ell, \rm TE} - \bar{\gamma}^{\alpha}_{\ell, \rm TB} \bar{\gamma}^{\beta}_{\ell, \rm TE} - \Sigma^{ \alpha \beta}_{\ell, \rm  TB TE})  + \delta_{XE}\delta_{YB}(\gamma^{\alpha}_{\ell, \rm TE}  \gamma^{\beta}_{\ell, \rm TB} - \bar{\gamma}^{\alpha}_{\ell, \rm TE}  \bar{\gamma}^{\beta}_{\ell, \rm TB} - \Sigma^{ \alpha \beta}_{\ell, \rm  TE TB})  ]C^{T_{\alpha} T_{\beta}}_{\ell}  \nonumber \\\ea
+
+\subsubsection{Covariance}
+
+The covariance of the leakage corrected spectrum will be given by
+\ba
+&&\rm Cov( \hat{C}^{X_{\alpha} Y_{\beta}}_{\ell} , \hat{C}^{W_{\mu} Z_{\nu}}_{\ell'} ) = \langle ( \hat{C}^{X_{\alpha} Y_{\beta}}_{\ell}  - C^{X_{\alpha} Y_{\beta}}_{\ell} )( \hat{C}^{W_{\mu} Z_{\nu}}_{\ell'}  - C^{W_{\mu} Z_{\nu}}_{\ell'} ) \rangle  \\
+&=&  \langle [(\delta_{XE} \Delta \gamma^{\alpha}_{\ell, \rm TE}  + \delta_{XB}\Delta \gamma^{\alpha}_{\ell, \rm TB}) C^{T_{\alpha} Y_{\beta}}_{\ell} +  (\delta_{YE}\Delta \gamma^{\beta}_{\ell, \rm TE}  + \delta_{YB}\Delta \gamma^{\beta}_{\ell, \rm TB})C^{X_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&& +  [\delta_{XE} \delta_{YE} (\gamma^{\alpha}_{\ell, \rm TE}  \gamma^{\beta}_{\ell, \rm TE} -  \bar{\gamma}^{\alpha}_{\ell, \rm TE}  \bar{\gamma}^{\beta}_{\ell, \rm TE} - \Sigma^{\beta \alpha}_{\ell, \rm  TE TE} ) +  \delta_{XB} \delta_{YB}(\gamma^{\alpha}_{\ell, \rm TB} \gamma^{\beta}_{\ell, \rm TB} - \bar{\gamma}^{\alpha}_{\ell, \rm TB} \bar{\gamma}^{\beta}_{\ell, \rm TB} -  \Sigma^{\beta \alpha}_{\ell, \rm  TB TB} ]C^{T_{\alpha} T_{\beta}}_{\ell}  \nonumber \\
+&& + [\delta_{XB}\delta_{YE}(\gamma^{\alpha}_{\ell, \rm TB} \gamma^{\beta}_{\ell, \rm TE} - \bar{\gamma}^{\alpha}_{\ell, \rm TB} \bar{\gamma}^{\beta}_{\ell, \rm TE} - \Sigma^{ \alpha \beta}_{\ell, \rm  TB TE})  + \delta_{XE}\delta_{YB}(\gamma^{\alpha}_{\ell, \rm TE}  \gamma^{\beta}_{\ell, \rm TB} - \bar{\gamma}^{\alpha}_{\ell, \rm TE}  \bar{\gamma}^{\beta}_{\ell, \rm TB} - \Sigma^{ \alpha \beta}_{\ell, \rm  TE TB})  ]C^{T_{\alpha} T_{\beta}}_{\ell}]   \nonumber \\
+ &&[(\delta_{WE} \Delta \gamma^{\mu}_{\ell', \rm TE}  + \delta_{WB}\Delta \gamma^{\mu}_{\ell', \rm TB}) C^{T_{\mu} Z_{\nu}}_{\ell'} +  (\delta_{ZE}\Delta \gamma^{\nu}_{\ell', \rm TE}  + \delta_{ZB}\Delta \gamma^{\nu}_{\ell', \rm TB})C^{W_{\mu} T_{\nu}}_{\ell'}  \nonumber \\
+&& +  [\delta_{WE} \delta_{ZE} (\gamma^{\mu}_{\ell', \rm TE}  \gamma^{\nu}_{\ell', \rm TE} -  \bar{\gamma}^{\mu}_{\ell', \rm TE}  \bar{\gamma}^{\nu}_{\ell', \rm TE} - \Sigma^{\nu \mu}_{\ell', \rm  TE TE} ) +  \delta_{WB} \delta_{ZB}(\gamma^{\mu}_{\ell', \rm TB} \gamma^{\nu}_{\ell', \rm TB} - \bar{\gamma}^{\mu}_{\ell', \rm TB} \bar{\gamma}^{\nu}_{\ell', \rm TB} -  \Sigma^{\nu \mu}_{\ell', \rm  TB TB} ]C^{T_{\mu} T_{\nu}}_{\ell'}  \nonumber \\
+&& + [\delta_{WB}\delta_{ZE}(\gamma^{\mu}_{\ell', \rm TB} \gamma^{\nu}_{\ell', \rm TE} - \bar{\gamma}^{\mu}_{\ell', \rm TB} \bar{\gamma}^{\nu}_{\ell', \rm TE} - \Sigma^{ \mu \nu}_{\ell', \rm  TB TE})  + \delta_{WE}\delta_{ZB}(\gamma^{\mu}_{\ell', \rm TE}  \gamma^{\nu}_{\ell', \rm TB} - \bar{\gamma}^{\mu}_{\ell', \rm TE}  \bar{\gamma}^{\nu}_{\ell', \rm TB} - \Sigma^{ \mu \nu}_{\ell', \rm  TE TB})  ]C^{T_{\mu} T_{\nu}}_{\ell'}]  \rangle  \nonumber \\
+\ea
+\end{document}
+
+
