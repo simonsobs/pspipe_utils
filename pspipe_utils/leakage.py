@@ -18,9 +18,9 @@ def leakage_correction(lth,
     We are applying the leakage model to theoretical cross spectra of the form
     X_alpha Y_beta, where X,Y in {T,E,B} and alpha and beta are two different detectors array
     gamma is defined such as
-    {E_alpha} = E_alpha + gamma_T_alphaE_alpha T_alpha
-    see the available documentation in pspipe_utils
+    {alm^E} = alm^E+ gamma_TE * alm^T
     where the curly bracket means including leakage
+    see the available documentation in pspipe_utils
     
     Parameters
     ----------
@@ -28,16 +28,16 @@ def leakage_correction(lth,
         array of mutlipole corresponding to ps_dict_th
     ps_dict_th: dict
       dict containing the different theoretical power spectra
-    gamma_alpha: dict with two key "TE", and "TB"
+    gamma_alpha: dict with two key "TE", and "TB" each corresponding to a 1d array
         the expected leakage of the alpha array
-    var_gamma_alpha: dict with three key "TETE", "TBTB", "TETB"
+    var_gamma_alpha: dict with three key "TETE", "TBTB", "TETB" each corresponding to a 1d array
         the variance of the leakage beam, if not corrected for, could include a bias
-        
-        
+    gamma_beta: dict with two key "TE", and "TB" each corresponding to a 1d array
+        the expected leakage of the beta array
     lmax: integer
         max multipole to consider
     return_residual: boolean
-        if True, only return the leakage model correction
+        if True, only return the leakage model correction, otherwise return modified theory
     binning_file: str (optionnal)
         the name of the binning file you want to use to bin the spectra
     """
