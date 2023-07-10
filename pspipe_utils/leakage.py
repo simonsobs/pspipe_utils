@@ -52,8 +52,6 @@ def leakage_correction(lth,
     gB_b = gamma_beta["TB"]
     
     ps_dict_th_leak = {}
-
-    if binning_file is None: l = lth
     
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     for spec in spectra:
@@ -74,6 +72,9 @@ def leakage_correction(lth,
             ps_dict_th_leak[spec] -= ps_dict_th[spec]
         if binning_file is not None:
             l, ps_dict_th_leak[spec] = pspy_utils.naive_binning(lth, ps_dict_th_leak[spec], binning_file, lmax)
+    
+    if binning_file is None: l = lth
+
     return l, ps_dict_th_leak
 
 def apply_leakage_model_to_alm(alms, gamma_TE, gamma_TB):
