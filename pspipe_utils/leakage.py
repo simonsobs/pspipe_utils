@@ -51,10 +51,11 @@ def leakage_correction(lth,
     gB_a = gamma_alpha["TB"]
     gB_b = gamma_beta["TB"]
     
-    spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     ps_dict_th_leak = {}
 
     if binning_file is None: l = lth
+    
+    spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     for spec in spectra:
         X, Y = spec
         ps_dict_th[spec] = ps_dict_th[spec][:lmax]
@@ -143,7 +144,7 @@ def error_modes_to_cov(error_modes):
         the error modes corresponding to the leakage measurement (lmax, nmodes)
     """
     
-    return error_modes.dot(error_modes.T)
+    return error_modes @ error_modes.T
 
 def leakage_beam_sim(mean, error_modes):
     """
