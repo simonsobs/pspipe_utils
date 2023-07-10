@@ -53,11 +53,9 @@ def leakage_correction(lth,
     
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
     ps_dict_th_leak = {}
-    
-    if binning_file is None: l = lth
 
+    if binning_file is None: l = lth
     for spec in spectra:
-    
         X, Y = spec
         ps_dict_th[spec] = ps_dict_th[spec][:lmax]
         
@@ -65,18 +63,16 @@ def leakage_correction(lth,
         ps_dict_th_leak[spec] +=  (so_cov.delta2(X,"E") * gE_a + so_cov.delta2(X,"B") * gB_a) *  ps_dict_th[f"T{Y}"]
         ps_dict_th_leak[spec] +=  (so_cov.delta2(Y,"E") * gE_b + so_cov.delta2(Y,"B") * gB_b) *  ps_dict_th[f"{X}T"]
         ps_dict_th_leak[spec] +=  (so_cov.delta2(X,"E") * gE_a + so_cov.delta2(X,"B") * gB_a) * (so_cov.delta2(Y,"E") * gE_b + so_cov.delta2(Y,"B") * gB_b) * ps_dict_th["TT"]
-        if np.all(gE_a == gE_b) & np.all(gB_a == gB_b):
+        if np.all(gE_a == gE_b) :
             ps_dict_th_leak[spec] += so_cov.delta2(X,"E") * so_cov.delta2(Y,"E") * var_gamma_alpha["TETE"] * ps_dict_th["TT"]
             ps_dict_th_leak[spec] += so_cov.delta2(X,"B") * so_cov.delta2(Y,"B") * var_gamma_alpha["TBTB"] * ps_dict_th["TT"]
             ps_dict_th_leak[spec] += so_cov.delta2(X,"B") * so_cov.delta2(Y,"E") * var_gamma_alpha["TETB"] * ps_dict_th["TT"]
             ps_dict_th_leak[spec] += so_cov.delta2(X,"E") * so_cov.delta2(Y,"B") * var_gamma_alpha["TETB"] * ps_dict_th["TT"]
 
-    
         if return_residual:
             ps_dict_th_leak[spec] -= ps_dict_th[spec]
         if binning_file is not None:
             l, ps_dict_th_leak[spec] = pspy_utils.naive_binning(lth, ps_dict_th_leak[spec], binning_file, lmax)
-
     return l, ps_dict_th_leak
 
 def apply_leakage_model_to_alm(alms, gamma_TE, gamma_TB):
@@ -131,6 +127,7 @@ def read_leakage_model(leakage_file_dir, file_name, lmax, lmin=0, include_error_
     else:
         error_modes_gTE = np.zeros((gamma_TE.shape, 3))
         error_modes_gTB = np.zeros((gamma_TE.shape, 3))
+    
         
     return l, gamma_TE, error_modes_gTE,  gamma_TB, error_modes_gTB
 
