@@ -21,84 +21,42 @@ class CovarianceTest(unittest.TestCase):
         bin_cent = (bin_high + bin_low) / 2
         np.savetxt(self.binning_file, np.array([bin_low, bin_high, bin_cent]).T)
 
-    def test_compute_chi2(self):
-        chi2 = compute_chi2(
-            self.data_vec,
-            self.theory_vec,
-            self.cov,
+        self.kwargs = dict(
+            data_vec=self.data_vec,
+            theory_vec=self.theory_vec,
+            cov=self.cov,
             binning_file=self.binning_file,
             lmax=np.inf,
             spec_name_list=self.spec_name_list,
             spectra_order=self.spectra_order,
         )
+
+    def test_compute_chi2(self):
+        chi2 = compute_chi2(**self.kwargs)
         self.assertAlmostEqual(chi2, np.sum(self.data_vec**2))
 
     def test_compute_chi2_excluding_spectra(self):
-        chi2 = compute_chi2(
-            self.data_vec,
-            self.theory_vec,
-            self.cov,
-            binning_file=self.binning_file,
-            lmax=np.inf,
-            spec_name_list=self.spec_name_list,
-            spectra_order=self.spectra_order,
-            excluded_spectra=["TE", "EE"],
-        )
+        chi2 = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"])
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:150] ** 2))
 
     def test_compute_chi2_selecting_spectra(self):
-        chi2 = compute_chi2(
-            self.data_vec,
-            self.theory_vec,
-            self.cov,
-            binning_file=self.binning_file,
-            lmax=np.inf,
-            spec_name_list=self.spec_name_list,
-            spectra_order=self.spectra_order,
-            selected_spectra=["TE", "EE"],
-        )
+        chi2 = compute_chi2(**self.kwargs, selected_spectra=["TE", "EE"])
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[150:] ** 2))
 
     def test_compute_chi2_excluding_arrays(self):
-        chi2 = compute_chi2(
-            self.data_vec,
-            self.theory_vec,
-            self.cov,
-            binning_file=self.binning_file,
-            lmax=np.inf,
-            spec_name_list=self.spec_name_list,
-            spectra_order=self.spectra_order,
-            excluded_spectra=["TE", "EE"],
-            excluded_arrays=["ar2"],
-        )
+        chi2 = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"], excluded_arrays=["ar2"])
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:50] ** 2))
 
     def test_compute_chi2_selecting_arrays(self):
-        chi2 = compute_chi2(
-            self.data_vec,
-            self.theory_vec,
-            self.cov,
-            binning_file=self.binning_file,
-            lmax=np.inf,
-            spec_name_list=self.spec_name_list,
-            spectra_order=self.spectra_order,
-            excluded_spectra=["TE", "EE"],
-            selected_arrays=["ar1"],
-        )
+        chi2 = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"], selected_arrays=["ar1"])
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:100] ** 2))
 
     def test_compute_chi2_with_multipole_cuts(self):
         chi2 = compute_chi2(
-            self.data_vec,
-            self.theory_vec,
-            self.cov,
-            binning_file=self.binning_file,
-            lmax=np.inf,
-            spec_name_list=self.spec_name_list,
-            spectra_order=self.spectra_order,
+            **self.kwargs,
             spectra_cuts={"ar1": {"T": [10, 25], "P": [0, 25]}},
             excluded_spectra=["TE"],
-            excluded_arrays=["ar2"],
+            excluded_arrays=["ar2"]
         )
         self.assertAlmostEqual(
             chi2, np.sum(self.data_vec[9:22] ** 2) + np.sum(self.data_vec[300:322] ** 2)
