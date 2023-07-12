@@ -497,9 +497,14 @@ def read_x_ar_theory_vec(bestfit_dir,
 
 def get_indices(
     bin_low,
+    bin_high,
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
+    selected_spectra=None,
+    excluded_spectra=None,
+    selected_arrays=None,
+    excluded_arrays=None
 ):
     """
     This function returns the covariance and spectra indices selected given a set of multipole cuts
@@ -512,30 +517,61 @@ def get_indices(
         list of the cross spectra
     spec_cuts: dict
         the dictionnary holding the multipole cuts. Its general form must be
-        '{"array1": {"T": lmin1, "P": lmin2}...}'
+        '{"array1": {"T": [lmin1, lmax1], "P": [lmin2, lmax2]}...}'
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
     """
+    if selected_spectra and excluded_spectra:
+        raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
+    if selected_spectra:
+        excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
+    excluded_spectra = excluded_spectra or []
+
+    selected_arrays = selected_arrays or set(sum([name.split("x") for name in spec_name_list], []))
+    excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
     indices = []
 
+    nbins = len(bin_low)
+    shift_indices = 0
     for spec in spectra_order:
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
-            if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb):
+            if spec in ["ET", "BT", "BE"] and na == nb:
+                continue
+            if spec in excluded_spectra:
+                shift_indices += nbins
+                continue
+
+            if na not in selected_arrays and nb not in selected_arrays:
+                shift_indices += nbins
+                continue
+
+            if na in excluded_arrays or nb in excluded_arrays:
+                shift_indices += nbins
                 continue
 
             ca, cb = spectra_cuts.get(na, {}), spectra_cuts.get(nb, {})
-            if "T" not in spec:
-                lmin = max(ca.get("P", 0), cb.get("P", 0))
-            elif "E" in spec or "B" in spec:
-                lmin = max(list(ca.values()) + list(cb.values()), default=0)
-            else:
-                lmin = max(ca.get("T", 0), cb.get("T", 0))
 
-            idx = np.arange(len(bin_low))[lmin < bin_low]
-            indices = np.append(indices, idx + len(indices))
+            def _get_extrema(field, idx):
+                return [c.get(field, [0, np.inf])[idx] for c in [ca, cb]]
+
+            if "T" not in spec:
+                lmins = _get_extrema("P", 0)
+                lmaxs = _get_extrema("P", 1)
+            elif "E" in spec or "B" in spec:
+                lmins = _get_extrema("T", 0) + _get_extrema("P", 0)
+                lmaxs = _get_extrema("T", 1) + _get_extrema("P", 1)
+            else:
+                lmins = _get_extrema("T", 0)
+                lmaxs = _get_extrema("T", 1)
+
+            lmin, lmax = max(lmins), min(lmaxs)
+
+            idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            indices = np.append(indices, idx + shift_indices)
+            shift_indices += nbins
 
     return indices.astype(int)
 
@@ -548,6 +584,10 @@ def compute_chi2(
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
+    selected_spectra=None,
+    excluded_spectra=None,
+    selected_arrays=None,
+    excluded_arrays=None
 ):
     """
     This function computes the chi2 value between data/sim spectra wrt theory spectra given
@@ -573,8 +613,18 @@ def compute_chi2(
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
     """
-    bin_lox, *_ = pspy_utils.read_binning_file(binning_file, lmax)
-    indices = get_indices(bin_low, spec_name_list, spectra_cuts=spectra_cuts, spectra_cuts=spectra_cuts)
+    bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
+    indices = get_indices(
+        bin_low,
+        bin_high,
+        spec_name_list,
+        spectra_cuts=spectra_cuts,
+        spectra_order=spectra_order,
+        selected_spectra=selected_spectra,
+        excluded_spectra=excluded_spectra,
+        selected_arrays=selected_arrays,
+        excluded_arrays=excluded_arrays,
+    )
 
     delta = data_vec[indices] - theory_vec[indices]
     cov = cov[np.ix_(indices, indices)]
