@@ -515,11 +515,19 @@ def get_indices(
         the low values of the data binning
     spec_name_list: list of str
         list of the cross spectra
-    spec_cuts: dict
+    spectra_cuts: dict
         the dictionnary holding the multipole cuts. Its general form must be
         '{"array1": {"T": [lmin1, lmax1], "P": [lmin2, lmax2]}...}'
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    selected_spectra: list of str
+        the list of spectra to be kept
+    excluded_spectra: list of str
+        the list of spectra to be excluded
+    selected_arrays: list of str
+        the list of arrays to be kept
+    excluded_arrays: list of str
+        the list of arrays to be excluded
     """
     if selected_spectra and excluded_spectra:
         raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
@@ -607,11 +615,19 @@ def compute_chi2(
       the maximum multipole to consider
     spec_name_list: list of str
         list of the cross spectra
-    spec_cuts: dict
-        the dictionnary holding the multipole cuts. Its general form must
-        be '{"array1": {"T": lmin1, "P": lmin2}...}'
+    spectra_cuts: dict
+        the dictionnary holding the multipole cuts. Its general form must be
+        '{"array1": {"T": [lmin1, lmax1], "P": [lmin2, lmax2]}...}'
     spectra_order: list of str
         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    selected_spectra: list of str
+        the list of spectra to be kept
+    excluded_spectra: list of str
+        the list of spectra to be excluded
+    selected_arrays: list of str
+        the list of arrays to be kept
+    excluded_arrays: list of str
+        the list of arrays to be excluded
     """
     bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
     indices = get_indices(
