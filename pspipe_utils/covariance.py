@@ -646,7 +646,8 @@ def compute_chi2(
     cov = cov[np.ix_(indices, indices)]
 
     chi2 = delta @ np.linalg.inv(cov) @ delta
-    return chi2
+    ndof = len(indices)
+    return chi2, ndof
 
 def get_max_likelihood_cov(P, inv_cov, check_pos_def=False, force_sim=False):
 

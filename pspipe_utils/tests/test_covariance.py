@@ -32,27 +32,36 @@ class CovarianceTest(unittest.TestCase):
         )
 
     def test_compute_chi2(self):
-        chi2 = compute_chi2(**self.kwargs)
+        chi2, ndof = compute_chi2(**self.kwargs)
         self.assertAlmostEqual(chi2, np.sum(self.data_vec**2))
+        self.assertEqual(ndof, len(self.data_vec))
 
     def test_compute_chi2_excluding_spectra(self):
-        chi2 = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"])
+        chi2, ndof = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"])
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:150] ** 2))
+        self.assertEqual(ndof, 150)
 
     def test_compute_chi2_selecting_spectra(self):
-        chi2 = compute_chi2(**self.kwargs, selected_spectra=["TE", "EE"])
+        chi2, ndof = compute_chi2(**self.kwargs, selected_spectra=["TE", "EE"])
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[150:] ** 2))
+        self.assertEqual(ndof, len(self.data_vec) - 150)
 
     def test_compute_chi2_excluding_arrays(self):
-        chi2 = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"], excluded_arrays=["ar2"])
+        chi2, ndof = compute_chi2(
+            **self.kwargs, excluded_spectra=["TE", "EE"], excluded_arrays=["ar2"]
+        )
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:50] ** 2))
+        self.assertEqual(ndof, 50)
 
     def test_compute_chi2_selecting_arrays(self):
-        chi2 = compute_chi2(**self.kwargs, excluded_spectra=["TE", "EE"], selected_arrays=["ar1"])
+        chi2, ndof = compute_chi2(
+            **self.kwargs, excluded_spectra=["TE", "EE"], selected_arrays=["ar1"]
+        )
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:100] ** 2))
+        self.assertEqual(ndof, 100)
 
     def test_compute_chi2_with_multipole_cuts(self):
-        chi2 = compute_chi2(
+        chi2, ndof = compute_chi2(
             **self.kwargs,
             spectra_cuts={"ar1": {"T": [10, 25], "P": [0, 25]}},
             excluded_spectra=["TE"],
@@ -61,3 +70,4 @@ class CovarianceTest(unittest.TestCase):
         self.assertAlmostEqual(
             chi2, np.sum(self.data_vec[9:22] ** 2) + np.sum(self.data_vec[300:322] ** 2)
         )
+        self.assertEqual(ndof, 13 + 22)
