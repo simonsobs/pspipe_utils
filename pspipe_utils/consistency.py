@@ -323,7 +323,9 @@ def get_calibration_amplitudes(spectra_vec,
 
 def get_ps_and_cov_dict(ar_list,
                         ps_template,
-                        cov_template):
+                        cov_template,
+                        spectra_order=["TT", "TE", "ET", "EE"],
+                        skip_auto=False):
     """
     Load power spectra and covariances for
     arrays listed in `ar_list`.
@@ -338,15 +340,17 @@ def get_ps_and_cov_dict(ar_list,
     cov_template: str
         Template for the name of the covariance files
         ex : "covariances/analytic_cov_{}x{}_{}x{}.npy"
+    spectra_order: list
+    skip_auto: bool
     """
     ps_dict = {}
     cov_dict = {}
 
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
-    modes = ["TT", "TE", "ET", "EE"]
 
     for i, (ar1, ar2) in enumerate(cwr(ar_list, 2)):
 
+        if skip_auto and (ar1==ar2): continue
         try:
             tuple_name1 = (ar1, ar2)
             ps_file = ps_template.format(*tuple_name1)
@@ -356,9 +360,10 @@ def get_ps_and_cov_dict(ar_list,
             ps_file = ps_template.format(*tuple_name1)
             lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
 
-        ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in modes}}
+        ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in spectra_order}}
 
         for j, (ar3, ar4) in enumerate(cwr(ar_list, 2)):
+            if skip_auto and (ar3==ar4): continue
             if i < j: continue
 
             try:
@@ -382,9 +387,9 @@ def get_ps_and_cov_dict(ar_list,
                     cov_file = cov_template.format(*tuple_name2, *tuple_name1)
                     cov = np.load(cov_file)
             t1, t2 = tuple_order
-            for m1, m2 in cwr(modes, 2):
+            for m1, m2 in cwr(spectra_order, 2):
 
-                cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, modes, n_bins=len(lb), block = m1+m2)
+                cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m1+m2)
 
     ps_dict["ell"] = lb
 
