@@ -25,17 +25,16 @@ lmax = d["lmax"]
 lmax_sim = lmax + 500
 n_sims = d["n_sims"]
 
+write_split_spectra = d["write_split_spectra"]
 binning_file = f"{tuto_data_dir}/binning.dat"
 
 spec_name_list = pspipe_list.get_spec_name_list(d)
-#freq_list = pspipe_list.get_freq_list(d)
 
 f_name_cmb = tuto_data_dir + "/cmb.dat"
 f_name_noise = tuto_data_dir + "/mean_{}x{}_{}_noise.dat"
 f_name_fg = tuto_data_dir + "/fg_{}x{}.dat"
 f_name_beam = tuto_data_dir + "/beam_{}_{}.dat"
 
-#arrays, bl, nu_eff, window = {}, {}, {}, {}
 arrays, bl, window = {}, {}, {}
 for sv in surveys:
     arrays[sv] = d[f"arrays_{sv}"]
@@ -108,6 +107,9 @@ for iii in range(n_sims):
                                                 mbb_inv=mbb_inv,
                                                 spectra=spectra,
                                                 binned_mcm=binned_mcm)
+                if write_split_spectra:
+                    spec_name_split = f"{type}_{spec_name}_{s1}{s2}_{iii:05d}"
+                    so_spectra.write_ps(f"{result_dir}/{spec_name_split}.dat", lb, ps, type, spectra=spectra)
 
                 for count, spec in enumerate(spectra):
                     if (s1 == s2) & (sv_a == sv_b): ps_dict[spec, "auto"] += [ps[spec]]
