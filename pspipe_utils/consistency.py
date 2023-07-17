@@ -155,7 +155,8 @@ def plot_residual(lb,
                   lrange = None,
                   l_pow = 0,
                   overplot_theory_lines = None,
-                  expected_res = 0.):
+                  expected_res = 0.,
+                  return_chi2=False):
     """
     Plot the residual power spectrum and
     save it at a png file
@@ -178,25 +179,37 @@ def plot_residual(lb,
     expected_res: float
       Expected value for the residual
       ex: 0 for ps differences and 1 for a ratio of two ps
+    return_chi2: bool
     """
     colors = ["#ebac23", "#b80058", "#008cf9"]
+
+    if overplot_theory_lines:
+        lb_th, res_th = overplot_theory_lines
+        assert len(lb) == len(lb_th), "Mismatch between expected residual and data"
+    else:
+        res_th = np.ones(len(lb)) * expected_res
+
+    if return_chi2:
+        chi2_dict = {}
 
     plt.figure(figsize = (8, 6))
     plt.axhline(expected_res, color = "k", ls = "--")
     for i, (name, res_cov) in enumerate(res_cov_dict.items()):
         if lrange is not None:
-            chi2 = (res_spec[lrange] - expected_res) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - expected_res)
+            chi2 = (res_spec[lrange] - res_th[lrange]) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - res_th[lrange])
             ndof = len(lb[lrange])
         else:
-            chi2 = (res_spec - expected_res) @ np.linalg.inv(res_cov) @ (res_spec - expected_res)
+            chi2 = (res_spec - res_th) @ np.linalg.inv(res_cov) @ (res_spec - res_th)
             ndof = len(lb)
 
-        print(res_cov.diagonal().shape, lb.shape, title, file_name)
         plt.errorbar(lb, res_spec * lb ** l_pow,
                      yerr = np.sqrt(res_cov.diagonal()) * lb ** l_pow,
                      ls = "None", marker = ".", ecolor = colors[i],
                      color = "k",
                      label = f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
+
+        if return_chi2:
+            chi2_dict[name] = {"chi2": chi2, "ndof": ndof}
 
     if lrange is not None:
         xleft, xright = lb[lrange][0], lb[lrange][-1]
@@ -221,6 +234,9 @@ def plot_residual(lb,
     plt.savefig(f"{file_name}.png", dpi = 300)
     plt.clf()
     plt.close()
+
+    if return_chi2:
+        return chi2_dict
 
 def get_calibration_amplitudes(spectra_vec,
                                full_cov,
