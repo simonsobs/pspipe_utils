@@ -147,12 +147,13 @@ def get_chi2(spectra_vec,
         return res_spec @ np.linalg.inv(res_cov) @ res_spec
 
 def plot_residual(lb,
-                  res_spec,
+                  res_ps_dict,
                   res_cov_dict,
                   mode,
                   title,
                   file_name,
                   lrange = None,
+                  ylims=None,
                   l_pow = 0,
                   overplot_theory_lines = None,
                   expected_res = 0.,
@@ -164,15 +165,16 @@ def plot_residual(lb,
     Parameters
     ----------
     lb: 1D array
-    res_spec: 1D array
-      Residual power spectrum
-    res_cov: 2D array
-      Residual covariance matrix
+    res_ps_dict: dict
+      Dict containing residual power spectra
+    res_cov_dict: dict
+      Dict containing residual covariance matrices
     mode: string
     title: string
     fileName: string
     lrange: 1D array
       selected multipole indices
+    ylims: tuple
     l_pow: float
       apply a ell^{l_pow} scaling to the plot
     overplot_theory_lines: tuple (lb, Cl)
@@ -181,7 +183,7 @@ def plot_residual(lb,
       ex: 0 for ps differences and 1 for a ratio of two ps
     return_chi2: bool
     """
-    colors = ["#ebac23", "#b80058", "#008cf9"]
+    colors = ["darkorange", "navy", "forestgreen"]
 
     if overplot_theory_lines:
         lb_th, res_th = overplot_theory_lines
@@ -195,6 +197,7 @@ def plot_residual(lb,
     plt.figure(figsize = (8, 6))
     plt.axhline(expected_res, color = "k", ls = "--")
     for i, (name, res_cov) in enumerate(res_cov_dict.items()):
+        res_spec = res_ps_dict[name]
         if lrange is not None:
             chi2 = (res_spec[lrange] - res_th[lrange]) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - res_th[lrange])
             ndof = len(lb[lrange])
@@ -205,7 +208,7 @@ def plot_residual(lb,
         plt.errorbar(lb, res_spec * lb ** l_pow,
                      yerr = np.sqrt(res_cov.diagonal()) * lb ** l_pow,
                      ls = "None", marker = ".", ecolor = colors[i],
-                     color = "k",
+                     color = colors[i],
                      label = f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
 
         if return_chi2:
@@ -227,6 +230,7 @@ def plot_residual(lb,
 
     plt.title(title)
     plt.xlim(0, 1.05*lb[-1])
+    plt.ylim(*ylims)
     plt.xlabel(r"$\ell$", fontsize=18)
     plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode), fontsize=18)
     plt.tight_layout()
