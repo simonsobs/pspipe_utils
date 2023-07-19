@@ -176,12 +176,20 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=N
 
     for spec_name in spec_name_list:
         na, nb = spec_name.split("x")
-        sv_a, ar_a = na.split("&")
-        sv_b, ar_b = nb.split("&")
+        if len(na.split("&")) == 2:
+            sv_a, ar_a = na.split("&")
+            sv_b, ar_b = nb.split("&")
+            noise_key_a = ar_a
+            noise_key_b = ar_b
+        elif len(na.split("&")) == 3:
+            sv_a, ar_a, split_a = na.split("&")
+            sv_b, ar_b, split_b = nb.split("&")
+            noise_key_a = f"{ar_a}_{split_a}"
+            noise_key_b = f"{ar_b}_{split_b}"
 
         for spec in spectra:
             ps_all_th[na, nb, spec] = cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
-            
+
             if bl_dict is not None:
                 ps_all_th[na, nb, spec] *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
 
@@ -189,7 +197,7 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=N
 
             if nl_dict is not None:
                 if sv_a == sv_b:
-                    nl_all_th[na, nb, spec] = nl_dict[sv_a, ar_a, ar_b][spec]
+                    nl_all_th[na, nb, spec] = nl_dict[sv_a, noise_key_a, noise_key_b][spec]
                 else:
                     nl_all_th[na, nb, spec] = 0
 
