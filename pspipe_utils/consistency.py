@@ -152,11 +152,11 @@ def plot_residual(lb,
                   mode,
                   title,
                   file_name,
-                  lrange = None,
+                  lrange=None,
                   ylims=None,
-                  l_pow = 0,
-                  overplot_theory_lines = None,
-                  expected_res = 0.,
+                  l_pow=0,
+                  overplot_theory_lines=None,
+                  expected_res=0.,
                   return_chi2=False):
     """
     Plot the residual power spectrum and
@@ -194,10 +194,13 @@ def plot_residual(lb,
     if return_chi2:
         chi2_dict = {}
 
-    plt.figure(figsize = (8, 6))
-    plt.axhline(expected_res, color = "k", ls = "--")
+    plt.figure(figsize=(8, 6))
+    plt.axhline(expected_res, color="k", ls="--")
     for i, (name, res_cov) in enumerate(res_cov_dict.items()):
-        res_spec = res_ps_dict[name]
+        if isinstance(res_ps_dict, dict):
+            res_spec = res_ps_dict[name]
+        else:
+            res_spec = res_ps_dict
         if lrange is not None:
             chi2 = (res_spec[lrange] - res_th[lrange]) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - res_th[lrange])
             ndof = len(lb[lrange])
@@ -205,27 +208,28 @@ def plot_residual(lb,
             chi2 = (res_spec - res_th) @ np.linalg.inv(res_cov) @ (res_spec - res_th)
             ndof = len(lb)
 
+        color = colors[i] if isinstance(res_ps_dict, dict) else "k"
         plt.errorbar(lb, res_spec * lb ** l_pow,
-                     yerr = np.sqrt(res_cov.diagonal()) * lb ** l_pow,
-                     ls = "None", marker = ".", ecolor = colors[i],
-                     color = colors[i],
-                     label = f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
+                     yerr=np.sqrt(res_cov.diagonal()) * lb ** l_pow,
+                     ls="None", marker = ".", ecolor = colors[i],
+                     color=color,
+                     label=f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
 
         if return_chi2:
             chi2_dict[name] = {"chi2": chi2, "ndof": ndof}
 
     if lrange is not None:
         xleft, xright = lb[lrange][0], lb[lrange][-1]
-        plt.axvspan(xmin = 0, xmax = xleft,
-                    color = "gray", alpha = 0.7)
+        plt.axvspan(xmin=0, xmax=xleft,
+                    color="gray", alpha=0.7)
         if xright != lb[-1]:
-            plt.axvspan(xmin = xright, xmax = lb[-1],
-                        color = "gray", alpha = 0.7)
+            plt.axvspan(xmin=xright, xmax=lb[-1],
+                        color="gray", alpha=0.7)
 
     if overplot_theory_lines:
 
         l_th, ps_th = overplot_theory_lines
-        plt.plot(l_th, ps_th * l_th ** l_pow, color = "gray")
+        plt.plot(l_th, ps_th * l_th ** l_pow, color="gray")
 
 
     plt.title(title)
@@ -235,7 +239,7 @@ def plot_residual(lb,
     plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode), fontsize=18)
     plt.tight_layout()
     plt.legend()
-    plt.savefig(f"{file_name}.png", dpi = 300)
+    plt.savefig(f"{file_name}.png", dpi=300)
     plt.clf()
     plt.close()
 
