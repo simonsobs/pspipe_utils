@@ -168,9 +168,9 @@ def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
     return lb, ps
 
 
-def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=1e-4, ref=0.9, use_ducc_rfft=False):
+def filter_map(map, filter, window, inv_pixwin=None, weighted_filter=False, tol=1e-4, ref=0.9, use_ducc_rfft=False):
 
-    """Filter the map in Fourier space using a predefined filter. Note that we mutliply the maps by a binary mask before
+    """Filter the map in Fourier space using a predefined filter. Note that we mutliply the maps by a window  before
     doing this operation in order to remove pathological pixels
     We also include an option for removing the pixel window function
 
@@ -180,9 +180,8 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
         the map to be filtered
     filter: 2d array
         a filter applied in fourier space
-    binary:  ``so_map``
-        a binary mask removing pathological pixels
-
+    window:  ``so_map``
+        a window removing pathological pixels
     inv_pixwin: 2d array
         the inverse of the pixel window function in fourier space
     weighted_filter: boolean
@@ -197,20 +196,20 @@ def filter_map(map, filter, binary, inv_pixwin=None, weighted_filter=False, tol=
 
     if weighted_filter == False:
         if inv_pixwin is not None:
-            map = so_map.fourier_convolution(map, filter * inv_pixwin, binary, use_ducc_rfft=use_ducc_rfft)
+            map = so_map.fourier_convolution(map, filter * inv_pixwin, window, use_ducc_rfft=use_ducc_rfft)
         else:
-            map = so_map.fourier_convolution(map, filter, binary, use_ducc_rfft=use_ducc_rfft)
+            map = so_map.fourier_convolution(map, filter, window, use_ducc_rfft=use_ducc_rfft)
 
     else:
     
         if use_ducc_rfft == True:
             print("ducc fft not implemented for weighted filter")
-        map.data *= binary.data
+        map.data *= window.data
         one_mf = (1 - filter)
         rhs    = enmap.ifft(one_mf * enmap.fft(map.data, normalize=True), normalize=True).real
-        div    = enmap.ifft(one_mf * enmap.fft(binary.data, normalize=True), normalize=True).real
+        div    = enmap.ifft(one_mf * enmap.fft(window.data, normalize=True), normalize=True).real
         del one_mf
-        div    = np.maximum(div, np.percentile(binary.data[::10, ::10], ref * 100) * tol)
+        div    = np.maximum(div, np.percentile(window.data[::10, ::10], ref * 100) * tol)
         map.data -= rhs / div
         del rhs
         del div
