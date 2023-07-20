@@ -114,7 +114,7 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
     return l, fl_array
 
 
-def generate_fg_alms(fg_mat, arrays_list, lmax, dtype="complex64"):
+def generate_fg_alms(fg_mat, arrays_list, lmax, seed=None, dtype="complex64"):
     """
     This function generate the alms corresponding to a fg matrix
     the alms are returned in the form of a dict with key "freq"
@@ -128,20 +128,22 @@ def generate_fg_alms(fg_mat, arrays_list, lmax, dtype="complex64"):
       the arrays we consider
     lmax: integer
       the maximum multipole for the noise power spectra
+    seed: integer
+      integer seed
     dtype: str
       the datatype of the alms (e.g complex64)
     """
 
     narrays = len(arrays_list)
 
-    fglms_all = curvedsky.rand_alm(fg_mat, lmax=lmax, dtype=dtype)
+    fglms_all = curvedsky.rand_alm(fg_mat, lmax=lmax, seed=seed, dtype=dtype)
     fglm_dict = {}
     for i, array in enumerate(arrays_list):
         fglm_dict[array] = [fglms_all[i + k * narrays] for k in range(3)]
 
     return fglm_dict
 
-def generate_noise_alms(noise_mat, array_list, lmax, dtype="complex64"):
+def generate_noise_alms(noise_mat, array_list, lmax, seed=None, dtype="complex64"):
     """
     This function generate the alms corresponding to a noise matrix
     the alms are returned in the form of a dict with key "array"
@@ -160,7 +162,7 @@ def generate_noise_alms(noise_mat, array_list, lmax, dtype="complex64"):
     """
 
     narrays = len(array_list)
-    nlms_all = curvedsky.rand_alm(noise_mat, lmax=lmax, dtype=dtype)
+    nlms_all = curvedsky.rand_alm(noise_mat, lmax=lmax, seed=seed, dtype=dtype)
     nlm_dict = {}
     for i, array in enumerate(array_list):
         nlm_dict[array] = [nlms_all[i + k * narrays] for k in range(3)]
