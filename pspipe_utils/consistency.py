@@ -1,4 +1,5 @@
 from itertools import combinations_with_replacement as cwr
+from itertools import product
 from getdist.mcsamples import loadMCSamples
 from pspipe_utils import misc, covariance
 from pspy import so_spectra, so_cov
@@ -147,15 +148,17 @@ def get_chi2(spectra_vec,
         return res_spec @ np.linalg.inv(res_cov) @ res_spec
 
 def plot_residual(lb,
-                  res_spec,
+                  res_ps_dict,
                   res_cov_dict,
                   mode,
                   title,
                   file_name,
-                  lrange = None,
-                  l_pow = 0,
-                  overplot_theory_lines = None,
-                  expected_res = 0.):
+                  lrange=None,
+                  ylims=None,
+                  l_pow=0,
+                  overplot_theory_lines=None,
+                  expected_res=0.,
+                  return_chi2=False):
     """
     Plot the residual power spectrum and
     save it at a png file
@@ -163,64 +166,86 @@ def plot_residual(lb,
     Parameters
     ----------
     lb: 1D array
-    res_spec: 1D array
-      Residual power spectrum
-    res_cov: 2D array
-      Residual covariance matrix
+    res_ps_dict: dict
+      Dict containing residual power spectra
+    res_cov_dict: dict
+      Dict containing residual covariance matrices
     mode: string
     title: string
     fileName: string
     lrange: 1D array
       selected multipole indices
+    ylims: tuple
     l_pow: float
       apply a ell^{l_pow} scaling to the plot
     overplot_theory_lines: tuple (lb, Cl)
     expected_res: float
       Expected value for the residual
       ex: 0 for ps differences and 1 for a ratio of two ps
+    return_chi2: bool
     """
-    colors = ["#ebac23", "#b80058", "#008cf9"]
+    colors = ["darkorange", "navy", "forestgreen"]
 
-    plt.figure(figsize = (8, 6))
-    plt.axhline(expected_res, color = "k", ls = "--")
+    if overplot_theory_lines:
+        lb_th, res_th = overplot_theory_lines
+        assert len(lb) == len(lb_th), "Mismatch between expected residual and data"
+    else:
+        res_th = np.ones(len(lb)) * expected_res
+
+    if return_chi2:
+        chi2_dict = {}
+
+    plt.figure(figsize=(8, 6))
+    plt.axhline(expected_res, color="k", ls="--")
     for i, (name, res_cov) in enumerate(res_cov_dict.items()):
+        if isinstance(res_ps_dict, dict):
+            res_spec = res_ps_dict[name]
+        else:
+            res_spec = res_ps_dict
         if lrange is not None:
-            chi2 = (res_spec[lrange] - expected_res) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - expected_res)
+            chi2 = (res_spec[lrange] - res_th[lrange]) @ np.linalg.inv(res_cov[np.ix_(lrange, lrange)]) @ (res_spec[lrange] - res_th[lrange])
             ndof = len(lb[lrange])
         else:
-            chi2 = (res_spec - expected_res) @ np.linalg.inv(res_cov) @ (res_spec - expected_res)
+            chi2 = (res_spec - res_th) @ np.linalg.inv(res_cov) @ (res_spec - res_th)
             ndof = len(lb)
 
-        print(res_cov.diagonal().shape, lb.shape, title, file_name)
+        color = colors[i] if isinstance(res_ps_dict, dict) else "k"
         plt.errorbar(lb, res_spec * lb ** l_pow,
-                     yerr = np.sqrt(res_cov.diagonal()) * lb ** l_pow,
-                     ls = "None", marker = ".", ecolor = colors[i],
-                     color = "k",
-                     label = f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
+                     yerr=np.sqrt(res_cov.diagonal()) * lb ** l_pow,
+                     ls="None", marker = ".", ecolor = colors[i],
+                     color=color,
+                     label=f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
+
+        if return_chi2:
+            chi2_dict[name] = {"chi2": chi2, "ndof": ndof}
 
     if lrange is not None:
         xleft, xright = lb[lrange][0], lb[lrange][-1]
-        plt.axvspan(xmin = 0, xmax = xleft,
-                    color = "gray", alpha = 0.7)
+        plt.axvspan(xmin=0, xmax=xleft,
+                    color="gray", alpha=0.7)
         if xright != lb[-1]:
-            plt.axvspan(xmin = xright, xmax = lb[-1],
-                        color = "gray", alpha = 0.7)
+            plt.axvspan(xmin=xright, xmax=lb[-1],
+                        color="gray", alpha=0.7)
 
     if overplot_theory_lines:
 
         l_th, ps_th = overplot_theory_lines
-        plt.plot(l_th, ps_th * l_th ** l_pow, color = "gray")
+        plt.plot(l_th, ps_th * l_th ** l_pow, color="gray")
 
 
     plt.title(title)
     plt.xlim(0, 1.05*lb[-1])
+    plt.ylim(*ylims)
     plt.xlabel(r"$\ell$", fontsize=18)
     plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode), fontsize=18)
     plt.tight_layout()
     plt.legend()
-    plt.savefig(f"{file_name}.png", dpi = 300)
+    plt.savefig(f"{file_name}.png", dpi=300)
     plt.clf()
     plt.close()
+
+    if return_chi2:
+        return chi2_dict
 
 def get_calibration_amplitudes(spectra_vec,
                                full_cov,
@@ -307,7 +332,9 @@ def get_calibration_amplitudes(spectra_vec,
 
 def get_ps_and_cov_dict(ar_list,
                         ps_template,
-                        cov_template):
+                        cov_template,
+                        spectra_order=["TT", "TE", "ET", "EE"],
+                        skip_auto=False):
     """
     Load power spectra and covariances for
     arrays listed in `ar_list`.
@@ -322,15 +349,17 @@ def get_ps_and_cov_dict(ar_list,
     cov_template: str
         Template for the name of the covariance files
         ex : "covariances/analytic_cov_{}x{}_{}x{}.npy"
+    spectra_order: list
+    skip_auto: bool
     """
     ps_dict = {}
     cov_dict = {}
 
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
-    modes = ["TT", "TE", "ET", "EE"]
 
     for i, (ar1, ar2) in enumerate(cwr(ar_list, 2)):
 
+        if skip_auto and (ar1==ar2): continue
         try:
             tuple_name1 = (ar1, ar2)
             ps_file = ps_template.format(*tuple_name1)
@@ -340,9 +369,10 @@ def get_ps_and_cov_dict(ar_list,
             ps_file = ps_template.format(*tuple_name1)
             lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
 
-        ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in modes}}
+        ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in spectra_order}}
 
         for j, (ar3, ar4) in enumerate(cwr(ar_list, 2)):
+            if skip_auto and (ar3==ar4): continue
             if i < j: continue
 
             try:
@@ -366,9 +396,8 @@ def get_ps_and_cov_dict(ar_list,
                     cov_file = cov_template.format(*tuple_name2, *tuple_name1)
                     cov = np.load(cov_file)
             t1, t2 = tuple_order
-            for m1, m2 in cwr(modes, 2):
-
-                cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, modes, n_bins=len(lb), block = m1+m2)
+            for m1, m2 in product(spectra_order, spectra_order):
+                cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m1+m2)
 
     ps_dict["ell"] = lb
 

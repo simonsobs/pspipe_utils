@@ -15,6 +15,7 @@ bin_size = 50
 n_sims = 100
 cov_T_E_only = False
 n_splits_dr6 = 2
+write_split_spectra=True
 
 passband_dir = "tuto_data/passbands/"
 bandwidth_dr6_ar1 = 20
