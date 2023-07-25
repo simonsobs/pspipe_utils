@@ -1,4 +1,5 @@
 from itertools import combinations_with_replacement as cwr
+from itertools import product
 from getdist.mcsamples import loadMCSamples
 from pspipe_utils import misc, covariance
 from pspy import so_spectra, so_cov
@@ -395,8 +396,7 @@ def get_ps_and_cov_dict(ar_list,
                     cov_file = cov_template.format(*tuple_name2, *tuple_name1)
                     cov = np.load(cov_file)
             t1, t2 = tuple_order
-            for m1, m2 in cwr(spectra_order, 2):
-
+            for m1, m2 in product(spectra_order, spectra_order):
                 cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m1+m2)
 
     ps_dict["ell"] = lb
