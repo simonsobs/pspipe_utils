@@ -1,15 +1,12 @@
 import numpy as np
 import pylab as plt
-from pspy import so_cov, so_spectra
-from pspy import pspy_utils
-from itertools import combinations_with_replacement as cwr
-from itertools import product
+from pspy import pspy_utils, so_cov, so_spectra
 
 
 def read_cov_block_and_build_dict(spec_name_list,
                                   cov_dir,
                                   cov_type,
-                                  spectra_order = ["TT", "TE", "ET", "EE"]):
+                                  spectra_order=["TT", "TE", "ET", "EE"]):
 
     """
     Read the different block covariances corresponding to spec_name_list
@@ -43,9 +40,9 @@ def read_cov_block_and_build_dict(spec_name_list,
 
 def cov_dict_to_full_cov(cov_dict,
                          spec_name_list,
-                         spectra_order = ["TT", "TE", "ET", "EE"],
-                         remove_doublon = False,
-                         check_pos_def = False):
+                         spectra_order=["TT", "TE", "ET", "EE"],
+                         remove_doublon=False,
+                         check_pos_def=False):
 
     """
     Build the full covariance matrix corresponding to spec_name_list using the covariance dictionnary
@@ -115,9 +112,9 @@ def cov_dict_to_full_cov(cov_dict,
 def read_cov_block_and_build_full_cov(spec_name_list,
                                       cov_dir,
                                       cov_type,
-                                      spectra_order = ["TT", "TE", "ET", "EE"],
-                                      remove_doublon = False,
-                                      check_pos_def = False):
+                                      spectra_order=["TT", "TE", "ET", "EE"],
+                                      remove_doublon=False,
+                                      check_pos_def=False):
 
     """
     Build the full covariance matrix corresponding to spec_name_list from files
@@ -161,7 +158,7 @@ def read_cov_block_and_build_full_cov(spec_name_list,
 def full_cov_to_cov_dict(full_cov,
                          spec_name_list,
                          n_bins,
-                         spectra_order = ["TT", "TE", "ET", "EE"]):
+                         spectra_order=["TT", "TE", "ET", "EE"]):
 
     """
     Decompose the full covariance into a covariance dict, note that
@@ -202,7 +199,7 @@ def cov_dict_to_file(cov_dict,
                      spec_name_list,
                      cov_dir,
                      cov_type,
-                     spectra_order = ["TT", "TE", "ET", "EE"]):
+                     spectra_order=["TT", "TE", "ET", "EE"]):
 
     """
     Write a cov dict into a bunch of files corresponding to cov mat block
@@ -242,7 +239,7 @@ def cov_dict_to_file(cov_dict,
 
 def correct_analytical_cov(an_full_cov,
                            mc_full_cov,
-                           only_diag_corrections = False):
+                           only_diag_corrections=False):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We keep the correlation structure of the analytical covariance matrices, rescaling
@@ -308,7 +305,7 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
     underlying x_freq spectra.
     if we want to generalize the equation to many x_freq and x_ar spectra we can write \vec{Dl_{x_ar}} = P \vec{Dl_{x_freq}} + \vec{n}
     the idea of this routine is to build the P_matrix, that is to associate x_freq spectra to each x_ar spectra.
-    
+
     Parameters
      ----------
     x_ar_cov_list: list of tuples
@@ -328,7 +325,7 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
 
     bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     n_bins = len(bin_hi)
-    
+
     n_el_x_ar = len(x_ar_cov_list) # number of block in the x_ar cov mat
     n_el_x_freq = len(x_freq_cov_list) # number of block in the x_freq cov mat
 
@@ -336,10 +333,10 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
 
     for id_ar, x_ar_cov_el in enumerate(x_ar_cov_list):
         spec1, _, nu_pair1 = x_ar_cov_el # spec1 here is TT,TE,...,BB, nupair1 is the associated effective freq in format (freq1, freq2)
-        
+
         for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
             spec2, nu_pair2 = x_freq_cov_el # spec2 here is TT,TE,...,BB, nupair2 is the associated effective freq in format (freq1, freq2)
-            
+
             # so the first part if for spectra such as TT, EE, BB
             if (spec1[0] == spec1[1]) and (spec1 == spec2):
                 # for these guys we want to check that the freq pair is the same (or inverted since <TT_90x150> = <TT_150x90>)
@@ -347,7 +344,7 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
                     # if that's the case we will include it in the projector, what this mean is that we say that this
                     # particular x_freq spectrum will project into this particular x_ar spectrum
                     P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
-                    
+
             # for cross field spectra such as TE, TB, ET, BT, EB, BE we need a bit more work
             # the idea is to construct a xfreq cov mat with only TE, TB, EB
             # so x_freq_cov_list do not contains any ET, BT, BE
@@ -357,14 +354,14 @@ def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax)
             if (spec1[0] != spec1[1]) and (spec1 == spec2):
                 if (nu_pair1 == nu_pair2):
                     P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
-                    
+
             # for the ET, BT, BE case we reverse the order of the freq pair E_90 T_150 = T_150 x E_90
             if (spec1[0] != spec1[1]) and (spec1 == spec2[::-1]):
                 if (nu_pair1 == nu_pair2[::-1]):
                     P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
     return P_mat
-    
-    
+
+
 def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lmax):
     """
     Create a projector matrix from final spectra to x_freq spectra
@@ -375,10 +372,10 @@ def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lma
     Of course this make no sense in Temperature, since different x_freq spectra see different level of foreground.
     Given how small the fg are in polarisation, it does make sense to look at spectra combination of all cross frequency
     (mostly for plotting)
-    
+
     we can write \vec{Dl_{x_freq}} = P \vec{Dl_{final}} + \vec{n}
     the idea of this routine is to build the P matrix, which associates x_freq spectra to each final spectra.
-    
+
     Parameters
      ----------
     x_freq_cov_list: list of tuples
@@ -397,7 +394,7 @@ def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lma
     """
     bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     n_bins = len(bin_hi)
-    
+
     n_el_x_freq = len(x_freq_cov_list)
     n_el_final = len(final_cov_list)
 
@@ -420,7 +417,7 @@ def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lma
 def read_x_ar_spectra_vec(spec_dir,
                           spec_name_list,
                           end_of_file,
-                          spectra_order = ["TT", "TE", "ET", "EE"],
+                          spectra_order=["TT", "TE", "ET", "EE"],
                           type="Dl"):
 
 
@@ -458,7 +455,7 @@ def read_x_ar_theory_vec(bestfit_dir,
                          mcm_dir,
                          spec_name_list,
                          lmax,
-                         spectra_order = ["TT", "TE", "ET", "EE"]):
+                         spectra_order=["TT", "TE", "ET", "EE"]):
 
     """
     This function read the theory and fg model from disk and bin it to create a vector that correspond
@@ -498,7 +495,161 @@ def read_x_ar_theory_vec(bestfit_dir,
     return theory_vec
 
 
-def get_max_likelihood_cov(P, inv_cov, check_pos_def = False, force_sim = False):
+def get_indices(
+    bin_low,
+    bin_high,
+    spec_name_list,
+    spectra_cuts=None,
+    spectra_order=["TT", "TE", "ET", "EE"],
+    selected_spectra=None,
+    excluded_spectra=None,
+    selected_arrays=None,
+    excluded_arrays=None
+):
+    """
+    This function returns the covariance and spectra indices selected given a set of multipole cuts
+
+    Parameters
+    ----------
+    bin_low: 1d array
+        the low values of the data binning
+    spec_name_list: list of str
+        list of the cross spectra
+    spectra_cuts: dict
+        the dictionnary holding the multipole cuts. Its general form must be
+        '{"array1": {"T": [lmin1, lmax1], "P": [lmin2, lmax2]}...}'
+    spectra_order: list of str
+        the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    selected_spectra: list of str
+        the list of spectra to be kept
+    excluded_spectra: list of str
+        the list of spectra to be excluded
+    selected_arrays: list of str
+        the list of arrays to be kept
+    excluded_arrays: list of str
+        the list of arrays to be excluded
+    """
+    if selected_spectra and excluded_spectra:
+        raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
+    if selected_spectra:
+        excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
+    excluded_spectra = excluded_spectra or []
+
+    selected_arrays = selected_arrays or set(sum([name.split("x") for name in spec_name_list], []))
+    excluded_arrays = excluded_arrays or []
+
+    spectra_cuts = spectra_cuts or {}
+    indices = []
+
+    nbins = len(bin_low)
+    shift_indices = 0
+    for spec in spectra_order:
+        for spec_name in spec_name_list:
+            na, nb = spec_name.split("x")
+            if spec in ["ET", "BT", "BE"] and na == nb:
+                continue
+            if spec in excluded_spectra:
+                shift_indices += nbins
+                continue
+
+            if na not in selected_arrays and nb not in selected_arrays:
+                shift_indices += nbins
+                continue
+
+            if na in excluded_arrays or nb in excluded_arrays:
+                shift_indices += nbins
+                continue
+
+            ca, cb = spectra_cuts.get(na, {}), spectra_cuts.get(nb, {})
+
+            def _get_extrema(field, idx):
+                return [c.get(field, [0, np.inf])[idx] for c in [ca, cb]]
+
+            if "T" not in spec:
+                lmins = _get_extrema("P", 0)
+                lmaxs = _get_extrema("P", 1)
+            elif "E" in spec or "B" in spec:
+                lmins = _get_extrema("T", 0) + _get_extrema("P", 0)
+                lmaxs = _get_extrema("T", 1) + _get_extrema("P", 1)
+            else:
+                lmins = _get_extrema("T", 0)
+                lmaxs = _get_extrema("T", 1)
+
+            lmin, lmax = max(lmins), min(lmaxs)
+
+            idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            indices = np.append(indices, idx + shift_indices)
+            shift_indices += nbins
+
+    return indices.astype(int)
+
+def compute_chi2(
+    data_vec,
+    theory_vec,
+    cov,
+    binning_file,
+    lmax,
+    spec_name_list,
+    spectra_cuts=None,
+    spectra_order=["TT", "TE", "ET", "EE"],
+    selected_spectra=None,
+    excluded_spectra=None,
+    selected_arrays=None,
+    excluded_arrays=None
+):
+    """
+    This function computes the chi2 value between data/sim spectra wrt theory spectra given
+    the data covariance and a set of multipole cuts
+
+    Parameters
+    ----------
+    data_vec: 1d array
+      the vector holding the data spectra
+    theory_vec: 1d array
+      the vector holding the theoritical spectra
+    cov: 2d array
+      the covariance matrix
+    binning_file: str
+      a binning file with format bin low, bin high, bin mean
+    lmax: int
+      the maximum multipole to consider
+    spec_name_list: list of str
+        list of the cross spectra
+    spectra_cuts: dict
+        the dictionnary holding the multipole cuts. Its general form must be
+        '{"array1": {"T": [lmin1, lmax1], "P": [lmin2, lmax2]}...}'
+    spectra_order: list of str
+        the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    selected_spectra: list of str
+        the list of spectra to be kept
+    excluded_spectra: list of str
+        the list of spectra to be excluded
+    selected_arrays: list of str
+        the list of arrays to be kept
+    excluded_arrays: list of str
+        the list of arrays to be excluded
+    """
+    bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
+    indices = get_indices(
+        bin_low,
+        bin_high,
+        spec_name_list,
+        spectra_cuts=spectra_cuts,
+        spectra_order=spectra_order,
+        selected_spectra=selected_spectra,
+        excluded_spectra=excluded_spectra,
+        selected_arrays=selected_arrays,
+        excluded_arrays=excluded_arrays,
+    )
+
+    delta = data_vec[indices] - theory_vec[indices]
+    cov = cov[np.ix_(indices, indices)]
+
+    chi2 = delta @ np.linalg.inv(cov) @ delta
+    ndof = len(indices)
+    return chi2, ndof
+
+def get_max_likelihood_cov(P, inv_cov, check_pos_def=False, force_sim=False):
 
     """
     Get the maximum likelihood cov mat associated to inv_cov and the passage matrix P
@@ -601,7 +752,7 @@ def plot_P_matrix(P_mat,
     nbins = int(P_mat.shape[0]/n_spec_out)
     x_tick_loc = np.arange(n_spec_in) * nbins + nbins/2 - 1
     y_tick_loc = np.arange(n_spec_out) * nbins + nbins/2 - 1
-    
+
     name_in = []
     for el in cov_list_in:
         name_in += [f"{el[0]} {el[1]}"]
@@ -609,7 +760,6 @@ def plot_P_matrix(P_mat,
     for el in cov_list_out:
         name_out += [f"{el[0]} {el[1]}"]
 
-    import pylab as plt
     fig, ax = plt.subplots(figsize=(8, 12))
     plt.imshow(P_mat)
     plt.xticks(ticks=x_tick_loc, labels=name_in, rotation=90)
