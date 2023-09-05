@@ -132,7 +132,7 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
     
     
 
-def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
+def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra, xtra_corr=None):
 
     """This function deconvolve the kspace filter transfer matrix
      
@@ -154,6 +154,10 @@ def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
         a 9 * n_bins, 9 * n_bins matrix that encode the effect of the kspace filter
     spectra: list of str
         the spectra list ["TT","TE".....]
+    xtra_corr: a dictionnary with spectra
+        this term account for an xtra correction for the effect of kspace filter
+        in particular, tf_TE is not perfectly equal to sqrt(tf_TT * tf_EE)
+        so we might want to correct for this
     """
 
     n_bins = len(lb)
@@ -165,6 +169,9 @@ def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra):
     vec = np.dot(inv_kspace_mat, vec)
     ps = so_spectra.vec2spec_dict(n_bins, vec, spectra)
 
+    if xtra_corr is not None:
+        for f in spectra:
+            ps[f] -= xtra_corr[f]
     return lb, ps
 
 
