@@ -258,7 +258,7 @@ def get_map_set_list(d):
     """
     
     map_set_list = []
-    for sv in surveys:
+    for sv in d["surveys"]:
         for ar in d[f"arrays_{sv}"]:
             map_set_list.append(f"{sv}_{ar}")
     return map_set_list
