@@ -448,7 +448,8 @@ def compare_spectra(ar_list,
                     op,
                     ps_dict,
                     cov_dict,
-                    mode = "TT"):
+                    mode = "TT",
+                    return_chi2 = True):
     """
     Compare two power spectra according
     to the operation specified in `op`.
@@ -523,7 +524,10 @@ def compare_spectra(ar_list,
         expect = 0
         res_ps, res_cov = project_spectra_vec_and_cov(ps_vec, full_cov, proj_pattern)
 
-    chi2 = (res_ps - expect) @ np.linalg.inv(res_cov) @ (res_ps - expect)
-    pte = 1 - ss.chi2.cdf(chi2, len(lb))
-
-    return lb, res_ps, res_cov, chi2, pte
+ 
+    if return_chi2:
+        chi2 = (res_ps - expect) @ np.linalg.inv(res_cov) @ (res_ps - expect)
+        pte = 1 - ss.chi2.cdf(chi2, len(lb))
+        return lb, res_ps, res_cov, chi2, pte
+    else:
+        return lb, res_ps, res_cov
