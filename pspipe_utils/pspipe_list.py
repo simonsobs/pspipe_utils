@@ -5,6 +5,7 @@ from itertools import combinations_with_replacement as cwr
 from itertools import product
 import numpy as np
 
+
 def get_arrays_list(dict):
     """This function creates the lists over which mpi is done
     when we parallelized over each arrays
@@ -243,3 +244,50 @@ def final_cov_order(freq_list, spectra_order = ["TT", "TE", "EE"]):
             final_list += [[spec, None]]
             
     return  final_list
+
+
+def get_map_set_list(d):
+    """
+    construct a list of all map data sets specified in the dictionnary
+    a map set is for example: dr6_pa4_f150, planck_f143, etc
+    
+    Parameters
+    ----------
+    dict : dict
+        the global dictionnary file used in pspipe
+    """
+    
+    map_set_list = []
+    for sv in surveys:
+        for ar in d[f"arrays_{sv}"]:
+            map_set_list.append(f"{sv}_{ar}")
+    return map_set_list
+
+def get_null_list(d, spectra):
+
+    """
+    construct a list of all valid null test between the different map data set specified in the dictionnary
+    note that we exclude null test if they contains T at different frequency
+        
+    Parameters
+    ----------
+    dict : dict
+        the global dictionnary file used in pspipe
+    """
+    
+    map_set_list = get_map_set_list(d)
+    null_list = []
+    for i, (ms1, ms2) in enumerate(cwr(map_set_list, 2)):
+        for j, (ms3, ms4) in enumerate(cwr(map_set_list, 2)):
+
+            if j <= i: continue
+            f1, f2 = d[f"freq_info_{ms1}"]["freq_tag"], d[f"freq_info_{ms2}"]["freq_tag"]
+            f3, f4 = d[f"freq_info_{ms3}"]["freq_tag"], d[f"freq_info_{ms4}"]["freq_tag"]
+
+            for m in spectra:
+                m0, m1 = m[0], m[1]
+                if (f1 != f3) and (m0 == "T"): continue
+                if (f2 != f4) and (m1 == "T"): continue
+                null_list += [[m, ms1, ms2, ms3, ms4]]
+                    
+    return null_list
