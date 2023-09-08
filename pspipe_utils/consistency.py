@@ -225,13 +225,13 @@ def plot_residual(lb,
         else:
             chi2 = (res_spec - res_th) @ np.linalg.inv(res_cov) @ (res_spec - res_th)
             ndof = len(lb)
-
+        pte = 1 - ss.chi2(ndof).cdf(chi2)
         color = colors[i] if isinstance(res_ps_dict, dict) else "k"
         plt.errorbar(lb, res_spec * lb ** l_pow,
                      yerr=np.sqrt(res_cov.diagonal()) * lb ** l_pow,
                      ls="None", marker = ".", ecolor = colors[i],
                      color=color,
-                     label=f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$]")
+                     label=f"{name} [$\chi^2 = {{{chi2:.1f}}}/{{{ndof}}}$ (${{{pte:.3f}}}$)]")
 
         if return_chi2:
             chi2_dict[name] = {"chi2": chi2, "ndof": ndof}
