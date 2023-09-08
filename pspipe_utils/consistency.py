@@ -21,33 +21,45 @@ def append_spectra_and_cov(ps_dict,
     ----------
     ps_dict: dict
       dict containing the different power spectra
-    cov_list: dict
+      if set to None, will only combine the covariances
+    cov_dict: dict
       dict containing the covariances
+      if set to None, will only combine the spectra
     spec_list: list
       list containing the name of the spectra
 
     """
+
+    cov_only = (ps_dict is None) and (cov_dict is not None)
+    ps_only = (cov_dict is None) and (ps_dict is not None)
+
+
     n_bins = len(ps_dict[spec_list[0]])
     n_spec = len(spec_list)
 
-    spectra_vec = np.zeros(n_bins * n_spec)
-    full_cov = np.zeros((n_bins * n_spec,
-                         n_bins * n_spec))
+    spectra_vec = None if cov_only else np.zeros(n_bins * n_spec)
+
+    full_cov = None if ps_only else np.zeros((n_bins * n_spec,
+                                              n_bins * n_spec))
 
     for i, key1 in enumerate(spec_list):
-        spectra_vec[i*n_bins:(i+1)*n_bins] = ps_dict[key1]
+        if not cov_only:
+            spectra_vec[i*n_bins:(i+1)*n_bins] = ps_dict[key1]
         for j, key2 in enumerate(spec_list):
             if j < i: continue
-            try:
-                full_cov[i*n_bins:(i+1)*n_bins,
-                         j*n_bins:(j+1)*n_bins] = cov_dict[key1, key2]
-            except:
-                full_cov[i*n_bins:(i+1)*n_bins,
-                         j*n_bins:(j+1)*n_bins] = cov_dict[key2, key1]
 
-    full_cov = np.triu(full_cov)
-    transpose_cov = full_cov.T
-    full_cov += transpose_cov - np.diag(full_cov.diagonal())
+            if not ps_only:
+                try:
+                    full_cov[i*n_bins:(i+1)*n_bins,
+                            j*n_bins:(j+1)*n_bins] = cov_dict[key1, key2]
+                except:
+                    full_cov[i*n_bins:(i+1)*n_bins,
+                            j*n_bins:(j+1)*n_bins] = cov_dict[key2, key1]
+
+    if not ps_only:
+        full_cov = np.triu(full_cov)
+        transpose_cov = full_cov.T
+        full_cov += transpose_cov - np.diag(full_cov.diagonal())
 
     return spectra_vec, full_cov
 
@@ -91,8 +103,10 @@ def project_spectra_vec_and_cov(spectra_vec,
     ----------
     spectra_vec: 1D array
       spectra vector
+      if set to None, will only project cov
     full_cov: 2D array
       full covariance matrix associated with spectra_vec
+      if set to None, will only project spectra
     proj_pattern: 1D array
       If the spectra vector is a concatenation
       of three spectra psA, psB, psC; and
@@ -109,8 +123,11 @@ def project_spectra_vec_and_cov(spectra_vec,
         calib_vec = np.ones(len(proj_pattern))
     projector_cal = get_projector(n_bins, proj_pattern * calib_vec)
 
-    res_spectrum = projector_cal @ spectra_vec
-    res_cov = projector_uncal @ full_cov @ projector_uncal.T
+    ps_only = (full_cov is None) and (spectra_vec is not None)
+    cov_only = (spectra_vec is None) and (full_cov is not None)
+
+    res_spectrum = None if cov_only else projector_cal @ spectra_vec
+    res_cov = None if ps_only else projector_uncal @ full_cov @ projector_uncal.T
 
     return res_spectrum, res_cov
 
@@ -346,60 +363,69 @@ def get_ps_and_cov_dict(ar_list,
     ps_template: str
         Template for the name of the power spectra files
         ex : "spectra/Dl_{}x{}_cross.dat"
+        if set to None, the returned ps_dict is set to None
     cov_template: str
         Template for the name of the covariance files
         ex : "covariances/analytic_cov_{}x{}_{}x{}.npy"
+        if set to None, the returned cov_dict is set to None
     spectra_order: list
     skip_auto: bool
     """
-    ps_dict = {}
-    cov_dict = {}
+
+    ps_only = (cov_template is None) and (ps_template is not None)
+    cov_only = (ps_template is None) and (cov_template is not None)
+
+    ps_dict = None if cov_only else {}
+    cov_dict = None if ps_only else {}
 
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 
     for i, (ar1, ar2) in enumerate(cwr(ar_list, 2)):
 
         if skip_auto and (ar1==ar2): continue
-        try:
-            tuple_name1 = (ar1, ar2)
-            ps_file = ps_template.format(*tuple_name1)
-            lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
-        except:
-            tuple_name1 = (ar2, ar1)
-            ps_file = ps_template.format(*tuple_name1)
-            lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
 
-        ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in spectra_order}}
-
-        for j, (ar3, ar4) in enumerate(cwr(ar_list, 2)):
-            if skip_auto and (ar3==ar4): continue
-            if i < j: continue
-
+        if not cov_only:
             try:
-                tuple_name2 = (ar3, ar4)
-                try:
-                    tuple_order = [tuple_name1, tuple_name2]
-                    cov_file = cov_template.format(*tuple_name1, *tuple_name2)
-                    cov = np.load(cov_file)
-                except:
-                    tuple_order = [tuple_name2, tuple_name1]
-                    cov_file = cov_template.format(*tuple_name2, *tuple_name1)
-                    cov = np.load(cov_file)
+                tuple_name1 = (ar1, ar2)
+                ps_file = ps_template.format(*tuple_name1)
+                lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
             except:
-                tuple_name2 = (ar4, ar3)
-                try:
-                    tuple_order = [tuple_name1, tuple_name2]
-                    cov_file = cov_template.format(*tuple_name1, *tuple_name2)
-                    cov = np.load(cov_file)
-                except:
-                    tuple_order = [tuple_name2, tuple_name1]
-                    cov_file = cov_template.format(*tuple_name2, *tuple_name1)
-                    cov = np.load(cov_file)
-            t1, t2 = tuple_order
-            for m1, m2 in product(spectra_order, spectra_order):
-                cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m1+m2)
+                tuple_name1 = (ar2, ar1)
+                ps_file = ps_template.format(*tuple_name1)
+                lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
 
-    ps_dict["ell"] = lb
+            ps_dict = {**ps_dict, **{(*tuple_name1, m): ps[m] for m in spectra_order}}
+
+        if not ps_only:
+            for j, (ar3, ar4) in enumerate(cwr(ar_list, 2)):
+                if skip_auto and (ar3==ar4): continue
+                if i < j: continue
+
+                try:
+                    tuple_name2 = (ar3, ar4)
+                    try:
+                        tuple_order = [tuple_name1, tuple_name2]
+                        cov_file = cov_template.format(*tuple_name1, *tuple_name2)
+                        cov = np.load(cov_file)
+                    except:
+                        tuple_order = [tuple_name2, tuple_name1]
+                        cov_file = cov_template.format(*tuple_name2, *tuple_name1)
+                        cov = np.load(cov_file)
+                except:
+                    tuple_name2 = (ar4, ar3)
+                    try:
+                        tuple_order = [tuple_name1, tuple_name2]
+                        cov_file = cov_template.format(*tuple_name1, *tuple_name2)
+                        cov = np.load(cov_file)
+                    except:
+                        tuple_order = [tuple_name2, tuple_name1]
+                        cov_file = cov_template.format(*tuple_name2, *tuple_name1)
+                        cov = np.load(cov_file)
+                t1, t2 = tuple_order
+                for m1, m2 in product(spectra_order, spectra_order):
+                    cov_dict[(*t1, m1), (*t2, m2)] = so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m1+m2)
+    if not cov_only:
+        ps_dict["ell"] = lb
 
     return ps_dict, cov_dict
 
@@ -466,7 +492,9 @@ def compare_spectra(ar_list,
             - Map differences : "aa+bb-2ab"
             - PS ratio : "ab/cd"
     ps_dict: dict
+        if set to None, will only provide the covmat corresponding to `op`
     cov_dict: dict
+        if set to None, will only provide the residual ps corresponding to `op`
     mode: str
         Default: "TT"
     """
@@ -478,6 +506,8 @@ def compare_spectra(ar_list,
     spec_list = []
 
     op_is_ratio = False
+    ps_only = (cov_dict is None) and (ps_dict is not None)
+    cov_only = (ps_dict is None) and (cov_dict is not None)
 
     # Power spectra difference
     if re.match("[a-z]{2}-[a-z]{2}", op):
@@ -513,9 +543,11 @@ def compare_spectra(ar_list,
         raise ValueError(f"Invalid operation : {op}")
 
     ps_vec, full_cov = append_spectra_and_cov(ps_dict, cov_dict, spec_list)
-    lb = ps_dict["ell"]
+    lb = None if cov_only else ps_dict["ell"]
 
     if op_is_ratio:
+        if ps_only or cov_only:
+            raise ValueError("Can't estimate the ps ratio or its covariance without both ps and cov.")
         expect = 1
         res_ps, res_cov, snr_cut = compute_ps_and_cov_ratio(ps_dict, cov_dict, spec_list)
         lb = lb[snr_cut]
@@ -523,7 +555,13 @@ def compare_spectra(ar_list,
         expect = 0
         res_ps, res_cov = project_spectra_vec_and_cov(ps_vec, full_cov, proj_pattern)
 
-    chi2 = (res_ps - expect) @ np.linalg.inv(res_cov) @ (res_ps - expect)
-    pte = 1 - ss.chi2.cdf(chi2, len(lb))
+    if not (ps_only or cov_only):
+        chi2 = (res_ps - expect) @ np.linalg.inv(res_cov) @ (res_ps - expect)
+        pte = 1 - ss.chi2.cdf(chi2, len(lb))
 
-    return lb, res_ps, res_cov, chi2, pte
+    if ps_only:
+        return lb, res_ps
+    elif cov_only:
+        return res_cov
+    else:
+        return lb, res_ps, res_cov, chi2, pte
