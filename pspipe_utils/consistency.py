@@ -158,7 +158,8 @@ def plot_residual(lb,
                   l_pow=0,
                   overplot_theory_lines=None,
                   expected_res=0.,
-                  return_chi2=False):
+                  return_chi2=False,
+                  remove_dof=0):
     """
     Plot the residual power spectrum and
     save it at a png file
@@ -195,6 +196,7 @@ def plot_residual(lb,
     if return_chi2:
         chi2_dict = {}
 
+    pte_list = []
     plt.figure(figsize=(8, 6))
     plt.axhline(expected_res, color="k", ls="--")
     for i, (name, res_cov) in enumerate(res_cov_dict.items()):
@@ -208,6 +210,9 @@ def plot_residual(lb,
         else:
             chi2 = (res_spec - res_th) @ np.linalg.inv(res_cov) @ (res_spec - res_th)
             ndof = len(lb)
+            
+        ndof -= remove_dof
+        
         pte = 1 - ss.chi2(ndof).cdf(chi2)
         color = colors[i] if isinstance(res_ps_dict, dict) else "k"
         plt.errorbar(lb, res_spec * lb ** l_pow,
@@ -218,7 +223,9 @@ def plot_residual(lb,
 
         if return_chi2:
             chi2_dict[name] = {"chi2": chi2, "ndof": ndof}
-
+        
+        pte_list += [pte]
+        
     if lrange is not None:
         xleft, xright = lb[lrange][0], lb[lrange][-1]
         plt.axvspan(xmin=0, xmax=xleft,
@@ -239,7 +246,20 @@ def plot_residual(lb,
     plt.xlabel(r"$\ell$", fontsize=18)
     plt.ylabel(r"$\ell^{%d} \Delta D_\ell^\mathrm{%s}$" % (l_pow, mode), fontsize=18)
     plt.tight_layout()
-    plt.legend()
+    
+    
+    leg = plt.legend()
+    for pte, text in zip(pte_list,leg.get_texts()):
+    
+        text.set_color("green")
+
+        if (pte < 0.01) or (pte > 0.99):
+            text.set_color("orange")
+        if (pte < 0.001) or (pte > 0.999):
+            text.set_color("red")
+    
+
+
     plt.savefig(f"{file_name}.png", dpi=300)
     plt.clf()
     plt.close()
