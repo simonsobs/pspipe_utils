@@ -1,0 +1,86 @@
+\documentclass[a4paper, 11pt]{article}
+
+\usepackage[applemac]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage[frenchb]{babel}
+\usepackage{geometry}
+\geometry{hmargin=2cm, vmargin=2cm}
+\usepackage{wrapfig}
+\usepackage{subfigure}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{textcomp}
+\usepackage{epsfig}
+\usepackage{bm}
+
+\def\Box{\mathord{\dalemb{7.9}{8}\hbox{\hskip1pt}}}
+\def\dalemb#1#2{{\vbox{\hrule height.#2pt
+        \hbox{\vrule width.#2pt height#1pt \kern#1pt \vrule width.#2pt}
+        \hrule height.#2pt}}}
+
+\def\eop{\mathcal{E}}
+\def\bop{\mathcal{B}}
+\def\vl{\vec{\ell}}
+\def\ba{\begin{eqnarray}}
+\def\ea{\end{eqnarray}}
+\def\be{\begin{equation}}
+\def\ee{\end{equation}}
+\def\tr{{\rm tr}}
+\def\Var{{\rm Var}}
+\def\gtorder{\mathrel{\raise.3ex\hbox{$>$}\mkern-14mu
+             \lower0.6ex\hbox{$\sim$}}}
+\def\ltorder{\mathrel{\raise.3ex\hbox{$<$}\mkern-14mu
+             \lower0.6ex\hbox{$\sim$}}}
+
+\def\bb{{\mathfrak b}}
+\newcommand{\ellb }{\boldsymbol{\ell }}
+
+
+
+
+\begin{document}
+
+\title{\textbf{pspipe notes: pol angle}}
+\author{Louis Thibaut}
+\maketitle
+
+\section{Angle} 
+
+When polarisation angles are rotated uniformly over the sky by an angle $\phi_{\alpha}$, spherical harmonics coefficients observed by the detector array $\alpha$ are related to the intrinsic ones by
+\ba
+a^{E, \alpha}_{\ell m} &=& a^{E}_{\ell m} \cos 2\phi_{\alpha} -  a^{B}_{\ell m} \sin 2\phi_{\alpha} \\
+a^{B, \alpha}_{\ell m} &=& a^{E}_{\ell m} \sin 2\phi_{\alpha} +  a^{B}_{\ell m} \cos 2\phi_{\alpha}
+\ea
+The EB power spectrum between detector array $\alpha$ and detector array $\beta$ is given by
+
+\ba
+C^{E_{\alpha} B_{\beta}}_{\ell} &=& C^{EE}_{\ell} \cos 2\phi_{\alpha}  \sin 2\phi_{\beta} - C^{BB}_{\ell} \sin 2\phi_{\alpha}  \cos 2\phi_{\beta} + C^{EB}_{\ell}(\cos 2\phi_{\alpha} \cos 2\phi_{\beta} -  \sin 2\phi_{\alpha}  \sin 2\phi_{\beta}) \nonumber \\
+&=&  C^{EE}_{\ell} \cos 2\phi_{\alpha}  \sin 2\phi_{\beta} - C^{BB}_{\ell} \sin 2\phi_{\alpha}  \cos 2\phi_{\beta} + C^{EB}_{\ell}  \cos 2 (\phi_{\alpha} + \phi_{\beta})
+\ea
+Similarly
+\ba
+C^{B_{\alpha} E_{\beta}}_{\ell}  &=&  C^{EE}_{\ell} \sin 2\phi_{\alpha}  \cos 2\phi_{\beta} - C^{BB}_{\ell} \cos 2\phi_{\alpha}  \sin 2\phi_{\beta} + C^{EB}_{\ell}  \cos 2 (\phi_{\alpha} + \phi_{\beta})
+\ea
+Assuming the angle are small and the native $C^{EB}_{\ell}$  is small we get
+\ba
+C^{E_{\alpha} B_{\beta}}_{\ell}  \sim 2\phi_{\beta}C^{EE}_{\ell}   \\
+C^{B_{\alpha} E_{\beta}}_{\ell}  \sim 2\phi_{\alpha}C^{EE}_{\ell}   
+\ea
+
+Similarly for TB we have
+\ba
+C^{T_{\alpha} B_{\beta}}_{\ell} &=& C^{TE}_{\ell}  \sin 2\phi_{\beta} + C^{TB}_{\ell}   \cos 2\phi_{\beta} \\
+C^{B_{\alpha} T_{\beta}}_{\ell} &=& C^{TE}_{\ell}  \sin 2\phi_{\alpha} + C^{TB}_{\ell}   \cos 2\phi_{\alpha}
+\ea
+\ba
+C^{T_{\alpha} B_{\beta}}_{\ell} \sim 2\phi_{\beta}C^{TE}_{\ell}      \\
+C^{B_{\alpha} T_{\beta}}_{\ell}  \sim 2\phi_{\alpha}C^{TE}_{\ell}      
+\ea
+
+
+\end{document}
+
+
