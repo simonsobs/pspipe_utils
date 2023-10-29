@@ -157,7 +157,7 @@ def beam_dict_from_files(f_name_beam_T, f_name_beam_pol, sv_list, arrays, lmax, 
     return l_beam, bl_dict
 
 
-def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, char="&", nl_dict=None, bl_dict=None):
+def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, delimiter="&", nl_dict=None, bl_dict=None):
     """
     This function prepare all best fit corresponding to the spec_name_list.
     the ps_all_th and nl_all_th are in particular useful for the analytical covariance computation
@@ -175,7 +175,7 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, char="&",
         the fg ps (format is [sv1_ar1,sv2_ar2][spec])
     spectra: list
       the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
-    char: string
+    delimiter: string
         serve to split the map_set into survey and array
         a bit annoying to have to keep this, in principle we could work only
         with map_set, but noise for different survey should be set to zero since
@@ -190,14 +190,14 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, char="&",
 
     for spec_name in spec_name_list:
         ms_a, ms_b = spec_name.split("x")
-        if len(ms_a.split(char)) == 2:
-            sv_a, ar_a = ms_a.split(char)
-            sv_b, ar_b = ms_b.split(char)
+        if len(ms_a.split(delimiter)) == 2:
+            sv_a, ar_a = ms_a.split(delimiter)
+            sv_b, ar_b = ms_b.split(delimiter)
             noise_key_a = ar_a
             noise_key_b = ar_b
-        elif len(ms_a.split(char)) == 3:
-            sv_a, ar_a, split_a = ms_a.split(char)
-            sv_b, ar_b, split_b = ms_b.split(char)
+        elif len(ms_a.split(delimiter)) == 3:
+            sv_a, ar_a, split_a = ms_a.split(delimiter)
+            sv_b, ar_b, split_b = ms_b.split(delimiter)
             noise_key_a = f"{ar_a}_{split_a}"
             noise_key_b = f"{ar_b}_{split_b}"
 
