@@ -37,9 +37,14 @@ for sv in surveys:
         rms_uKarcmin_T[sv, f"{ar}x{ar}"] = d[f"rms_uKarcmin_T_{sv}_{ar}"]
 
         fwhm =  d[f"beam_fwhm_{sv}_{ar}"]
-        l_beam, bl[sv, ar] = pspy_utils.beam_from_fwhm(fwhm, lmax_sim)
-        f_name = f"{tuto_data_dir}/beam_{sv}_{ar}.dat"
-        np.savetxt(f_name, np.transpose([l_beam, bl[sv, ar]]))
+        l_beam, bl[sv, ar, "T"] = pspy_utils.beam_from_fwhm(fwhm, lmax_sim)
+        l_beam, bl[sv, ar, "E"] = pspy_utils.beam_from_fwhm(fwhm * 1.3, lmax_sim)
+
+        f_name = f"{tuto_data_dir}/beam_{sv}_{ar}_T.dat"
+        np.savetxt(f_name, np.transpose([l_beam, bl[sv, ar, "T"]]))
+        
+        f_name = f"{tuto_data_dir}/beam_{sv}_{ar}_pol.dat"
+        np.savetxt(f_name, np.transpose([l_beam, bl[sv, ar, "E"]]))
 
 
 for sv in surveys:
@@ -124,7 +129,7 @@ for id_sv_a, sv_a in enumerate(surveys):
         # we need both the window for T and pol, here we assume they are the same
 
         window_tuple_a = (window[sv_a, ar_a], window[sv_a, ar_a])
-        bl_a = (bl[sv_a, ar_a], bl[sv_a, ar_a])
+        bl_a = (bl[sv_a, ar_a, "T"], bl[sv_a, ar_a, "E"])
 
         for id_sv_b, sv_b in enumerate(surveys):
             for id_ar_b, ar_b in enumerate(arrays[sv_b]):
@@ -138,7 +143,7 @@ for id_sv_a, sv_a in enumerate(surveys):
                 # the mode coupling matrices for sv1 x sv2 are the same as the one for sv2 x sv1
                 # identically, within a survey, the mode coupling matrix for ar1 x ar2 =  ar2 x ar1
                 window_tuple_b = (window[sv_b, ar_b], window[sv_b, ar_b])
-                bl_b = (bl[sv_b, ar_b], bl[sv_b, ar_b])
+                bl_b = (bl[sv_b, ar_b, "T"], bl[sv_b, ar_b, "E"])
 
                 mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0and2(window_tuple_a,
                                                             win2 = window_tuple_b,

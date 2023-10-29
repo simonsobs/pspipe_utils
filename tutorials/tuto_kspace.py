@@ -9,6 +9,7 @@ import pspipe_utils
 from pspipe_utils import simulation, best_fits, kspace
 from pixell import curvedsky, enmap
 import os, time
+import misc
 
 test_dir = "result_leakage"
 pspy_utils.create_directory(test_dir)
@@ -20,7 +21,7 @@ data_path = os.path.join(os.path.dirname(os.path.abspath(pspipe_utils.__file__))
 
 ncomp = 3
 niter = 0
-n_sims = 40
+n_sims = 4
 spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 binning_file = f"{data_path}/binning_files/BIN_ACTPOL_50_4_SC_large_bin_at_low_ell"
 vk_mask = [-90, 90]
@@ -52,23 +53,26 @@ fg_params = {"a_tSZ": 3.30, "a_kSZ": 1.60,"a_p": 6.90, "beta_p": 2.08, "a_c": 4.
 survey = "dr6"
 arrays = ["pa4_f150", "pa4_f220", "pa5_f090", "pa5_f150", "pa6_f090", "pa6_f150"]
 nu_effs = {}
-nu_effs["dr6", "pa4_f150"] = 150
-nu_effs["dr6", "pa4_f220"] = 220
-nu_effs["dr6", "pa5_f090"] = 90
-nu_effs["dr6", "pa5_f150"] = 150
-nu_effs["dr6", "pa6_f090"] = 90
-nu_effs["dr6", "pa6_f150"] = 150
+nu_effs["dr6_pa4_f150"] = 150
+nu_effs["dr6_pa4_f220"] = 220
+nu_effs["dr6_pa5_f090"] = 90
+nu_effs["dr6_pa5_f150"] = 150
+nu_effs["dr6_pa6_f090"] = 90
+nu_effs["dr6_pa6_f150"] = 150
 
 ##########################################################################################################
 # let's generate the filter, the spactial window function and compute the associated mode coupling matrices
 ###########################################################################################################
 
-window_tuple, mcm_inv, Bbl, filter_std, binary, bl = {}, {}, {}, {}, {}, {}
+window_tuple, mcm_inv, Bbl, filter_std, binary, bl, passbands = {}, {}, {}, {}, {}, {}, {}
 spec_name_list = []
+map_set_list = []
 
 for ar in arrays:
 
-    binary[ar] = so_map.read_map(f"{data_path}/binaries/binary_dr6_{ar}_downgraded.fits")
+    map_set = f"{survey}_{ar}"
+
+    binary[ar] = so_map.read_map(f"{data_path}/binaries/binary_{map_set}_downgraded.fits")
     lmax = int(binary[ar].get_lmax_limit())
 
     template = binary[ar].copy()
@@ -86,30 +90,34 @@ for ar in arrays:
     mask = so_window.create_apodization(mask, apo_type="C1", apo_radius_degree=0.3)
     window.data *= mask.data
 
-    window.plot(file_name=f"{test_dir}/window_dr6_{ar}")
+    window.plot(file_name=f"{test_dir}/window_{map_set}")
 
-    binary[ar].plot(file_name=f"{test_dir}/binary_{ar}")
+    binary[ar].plot(file_name=f"{test_dir}/binary_{map_set}")
     window_tuple[ar] = (window, window)
     
-    l, bl[ar] = pspy_utils.read_beam_file(f"{data_path}/beams/coadd_{ar}_night_beam_tform_jitter_cmb.txt")
+    l, bl[ar] = misc.read_beams(f"{data_path}/beams/coadd_{ar}_night_beam_tform_jitter_cmb.txt",
+                                f"{data_path}/beams/coadd_{ar}_night_beam_tform_jitter_cmb.txt")
 
     mcm_inv[ar], Bbl[ar] = so_mcm.mcm_and_bbl_spin0and2(window_tuple[ar],
-                                                    bl1 = (bl[ar], bl[ar]),
-                                                    binning_file = binning_file,
-                                                    lmax=lmax,
-                                                    type=type,
-                                                    niter=niter,
-                                                    binned_mcm=binned_mcm)
+                                                        bl1 = (bl[ar]["T"], bl[ar]["E"]),
+                                                        binning_file = binning_file,
+                                                        lmax=lmax,
+                                                        type=type,
+                                                        niter=niter,
+                                                        binned_mcm=binned_mcm)
 
     filter_std[ar] = so_map_preprocessing.build_std_filter(template.data.shape,
                                                            template.data.wcs,
                                                            vk_mask,
                                                            hk_mask,
                                                            dtype=np.float64)
-                                                           
-    spec_name = f"{survey}&{ar}x{survey}&{ar}"
-    spec_name_list += [spec_name]
+                                          
+    passbands[f"{map_set}"] = np.array([nu_effs[f"{map_set}"]]), np.array([1])
     
+    spec_name_list += [f"{survey}&{ar}x{survey}&{ar}"]
+    map_set_list += [map_set]
+
+
 ############################################################################
 # let's prepare the theory and foreground matrix used to generate simulation
 ############################################################################
@@ -120,22 +128,17 @@ f_name_cmb = test_dir + "/cmb.dat"
 so_spectra.write_ps(f_name_cmb, l_th, ps_dict, type, spectra=spectra)
 ps_mat = simulation.cmb_matrix_from_file(f_name_cmb, lmax, spectra)
 
-freq_list = []
-for ar in arrays:
-    freq_list += [nu_effs[survey, ar]]
-freq_list = list(dict.fromkeys(freq_list))
 
-fg_dict = best_fits.get_foreground_dict(l_th, freq_list, fg_components, fg_params, fg_norm=None)
-fg= {}
-for freq1 in freq_list:
-    for freq2 in freq_list:
-        fg[freq1, freq2] = {}
+fg_dict = best_fits.get_foreground_dict(l_th, passbands, fg_components, fg_params, fg_norm=None)
+for ms1 in map_set_list:
+    for ms2 in map_set_list:
+        fg = {}
         for spec in spectra:
-            fg[freq1,freq2][spec] = fg_dict[spec.lower(), "all", freq1, freq2]
-        so_spectra.write_ps(f"{test_dir}/fg_{freq1}x{freq2}.dat", l_th, fg[freq1,freq2], type, spectra=spectra)
+            fg[spec] = fg_dict[spec.lower(), "all", ms1, ms2]
+        so_spectra.write_ps(f"{test_dir}/fg_{ms1}x{ms2}.dat", l_th, fg, type, spectra=spectra)
 
 f_name_fg = test_dir + "/fg_{}x{}.dat"
-l, fg_mat = simulation.foreground_matrix_from_files(f_name_fg, freq_list, lmax, spectra)
+l, fg_mat = simulation.foreground_matrix_from_files(f_name_fg, map_set_list, lmax, spectra)
 
 #################################
 # let's generate the simulations
@@ -151,16 +154,16 @@ for iii in range(n_sims):
     t = time.time()
     
     alms_cmb = curvedsky.rand_alm(ps_mat, lmax=lmax, dtype="complex64")
-    fglms = simulation.generate_fg_alms(fg_mat, freq_list, lmax)
+    fglms = simulation.generate_fg_alms(fg_mat, map_set_list, lmax)
 
     for scenario in scenarios:
 
         for ar in arrays:
         
             alms_beamed = alms_cmb.copy()
-            alms_beamed += fglms[nu_effs[survey, ar]]
+            alms_beamed += fglms[f"{survey}_{ar}"]
         
-            alms_beamed = curvedsky.almxfl(alms_beamed, bl[ar])
+            alms_beamed = misc.apply_beams(alms_beamed, bl[ar])
             
             if scenario == "noE": alms_beamed[1] *= 0
             if scenario == "noB": alms_beamed[2] *= 0
@@ -240,12 +243,11 @@ plt.clf()
 plt.close()
 
 l_cmb, cmb_dict = best_fits.cmb_dict_from_file(f_name_cmb, lmax + 2, spectra)
-l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, freq_list, lmax + 2, spectra)
+l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, map_set_list, lmax + 2, spectra)
 l_cmb, ps_all_th = best_fits.get_all_best_fit(spec_name_list,
                                               l_cmb,
                                               cmb_dict,
                                               fg_dict,
-                                              nu_effs,
                                               spectra)
 
 for ar in arrays:

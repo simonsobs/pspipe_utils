@@ -2,10 +2,11 @@
 """
 import numpy as np
 import pylab as plt
-from pspipe_utils import simulation, best_fits, pspipe_list
+from pspipe_utils import simulation, pspipe_list
 from pspy import pspy_utils, so_spectra, sph_tools, so_map, so_cov, so_window, so_mcm, so_dict
 from pixell import curvedsky
 import time, sys
+import misc, best_fits
 
 d = so_dict.so_dict()
 d.read_from_file(sys.argv[1])
@@ -33,14 +34,14 @@ spec_name_list = pspipe_list.get_spec_name_list(d)
 f_name_cmb = tuto_data_dir + "/cmb.dat"
 f_name_noise = tuto_data_dir + "/mean_{}x{}_{}_noise.dat"
 f_name_fg = tuto_data_dir + "/fg_{}x{}.dat"
-f_name_beam = tuto_data_dir + "/beam_{}_{}.dat"
+f_name_beam_T = tuto_data_dir + "/beam_{}_{}_T.dat"
+f_name_beam_pol = tuto_data_dir + "/beam_{}_{}_pol.dat"
 
 arrays, bl, window = {}, {}, {}
 for sv in surveys:
     arrays[sv] = d[f"arrays_{sv}"]
     for ar in arrays[sv]:
-        l, bl[sv, ar] = np.loadtxt(f"{f_name_beam.format(sv, ar)}", unpack=True)
-        #nu_eff[sv, ar] = d[f"nu_eff_{sv}_{ar}"]
+        l, bl[sv, ar] = misc.read_beams(f_name_beam_T.format(sv, ar), f_name_beam_pol.format(sv, ar))
         window[sv, ar] = so_map.read_map(f"{tuto_data_dir}/window_{sv}_{ar}.fits")
 
 ps_mat = simulation.cmb_matrix_from_file(f_name_cmb, lmax_sim, spectra)
@@ -68,8 +69,7 @@ for iii in range(n_sims):
         signal_alms = {}
         for ar in arrays[sv]:
             signal_alms[ar] = alms_cmb + fglms[f"{sv}_{ar}"]
-            for i in range(3):
-                signal_alms[ar][i] = curvedsky.almxfl(signal_alms[ar][i], bl[sv, ar])
+            signal_alms[ar] = misc.apply_beams(signal_alms[ar], bl[sv, ar])
 
         for k in range(n_splits[sv]):
             noise_alms = simulation.generate_noise_alms(noise_mat[sv], arrays[sv], lmax_sim)
@@ -150,7 +150,7 @@ for iii in range(n_sims):
 l_cmb, cmb_dict = best_fits.cmb_dict_from_file(f_name_cmb, lmax, spectra)
 l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, array_list, lmax, spectra)
 l_noise, nl_dict = best_fits.noise_dict_from_files(f_name_noise,  surveys, arrays, lmax, spectra)
-l_beam, bl_dict = best_fits.beam_dict_from_files(f_name_beam, surveys, arrays, lmax)
+l_beam, bl_dict = best_fits.beam_dict_from_files(f_name_beam_T, f_name_beam_pol, surveys, arrays, lmax)
 
 l_cmb, ps_all_th, nl_all_th = best_fits.get_all_best_fit(spec_name_list,
                                                          l_cmb,
@@ -173,6 +173,8 @@ for spec_name in spec_name_list:
         plt.figure(figsize=(18, 14))
 
         for count, spec in enumerate(spectra):
+            X, Y = spec
+
             mc_cov_select = so_cov.selectblock(mc_cov, spectra, n_bins, block=spec+spec)
             std = np.sqrt(mc_cov_select.diagonal())
             plt.subplot(3, 3, count + 1)
@@ -188,7 +190,7 @@ for spec_name in spec_name_list:
                 plt.title(spec_name)
                 plt.legend(fontsize=14)
             else:
-                plt.plot(l_cmb, nl_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec] / (bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]))
+                plt.plot(l_cmb, nl_all_th[f"{sv_a}&{ar_a}", f"{sv_b}&{ar_b}", spec] / (bl_dict[sv_a, ar_a][X] * bl_dict[sv_b, ar_b][Y]))
                 plt.xlabel("$\ell$", fontsize=14)
                 plt.ylabel("$DN^{%s}_\ell$" % spec, fontsize=16)
 
