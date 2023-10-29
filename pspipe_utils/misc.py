@@ -19,7 +19,6 @@ def str_replace(my_str, old, new):
         what will replace old
     """
 
-    my_new_str = my_str
     my_new_str = my_str.replace(old, new)
     if my_new_str == my_str:
         error = f" the name '{my_str}' does not contain '{old}' so I can't replace '{old}' by '{new}'"
