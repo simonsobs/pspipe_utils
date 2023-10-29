@@ -195,7 +195,7 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, char="&",
             sv_b, ar_b = ms_b.split(char)
             noise_key_a = ar_a
             noise_key_b = ar_b
-        elif len(ms_a.split("&")) == 3:
+        elif len(ms_a.split(char)) == 3:
             sv_a, ar_a, split_a = ms_a.split(char)
             sv_b, ar_b, split_b = ms_b.split(char)
             noise_key_a = f"{ar_a}_{split_a}"
@@ -217,7 +217,7 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, char="&",
                 if sv_a == sv_b:
                     nl_all_th[ms_a, ms_b, spec] = nl_dict[sv_a, noise_key_a, noise_key_b][spec]
                 else:
-                    nl_all_th[ms_a, ms_b, spec] = 0
+                    nl_all_th[ms_a, ms_b, spec] = 0.0
 
                 nl_all_th[ms_b, ms_a, spec] = nl_all_th[ms_a, ms_b, spec]
 
