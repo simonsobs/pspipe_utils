@@ -86,14 +86,14 @@ def get_covariances_list(dict):
 
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, char="&", kind=None, freq_pair=None, remove_same_ar_and_sv=False, return_nu_tag=False):
+def get_spec_name_list(dict, delimiter="&", kind=None, freq_pair=None, remove_same_ar_and_sv=False, return_nu_tag=False):
     """This function creates a list with the name of all spectra we consider
 
     Parameters
     ----------
     dict : dict
         the global dictionnary file used in pspipe
-    char: str
+    delimiter: str
         a character that separate the suvey and array name
     kind : str
         if "noise" or "auto" won't return
@@ -136,7 +136,7 @@ def get_spec_name_list(dict, char="&", kind=None, freq_pair=None, remove_same_ar
                     if remove_same_ar_and_sv == True:
                         if (sv1 == sv2) & (ar1 == ar2): continue
 
-                    spec_name_list += [f"{sv1}{char}{ar1}x{sv2}{char}{ar2}"]
+                    spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
                     nu_tag_list += [(nu_tag1, nu_tag2)]
 
     if return_nu_tag == False:
