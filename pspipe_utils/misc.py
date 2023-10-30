@@ -35,6 +35,8 @@ def read_beams(f_name_beam_T, f_name_beam_pol, lmax=None):
         the filename of the temperature beam file
     f_name_beam_pol: string
         the filename of the polarisation beam file
+    lmax : integer
+        the maximum multipole to consider (note that usually beam file start at l=0)
     """
 
     bl = {}
