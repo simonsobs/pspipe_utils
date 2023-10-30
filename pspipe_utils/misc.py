@@ -25,7 +25,7 @@ def str_replace(my_str, old, new):
         raise NameError(error)
     return my_new_str
 
-def read_beams(f_name_beam_T, f_name_beam_pol):
+def read_beams(f_name_beam_T, f_name_beam_pol, lmax=None):
     """
     read T and pol beams and return a beam dictionnary with entry T, E, B
 
@@ -38,8 +38,8 @@ def read_beams(f_name_beam_T, f_name_beam_pol):
     """
 
     bl = {}
-    l, bl["T"] = pspy_utils.read_beam_file(f_name_beam_T)
-    l, bl["E"] = pspy_utils.read_beam_file(f_name_beam_pol)
+    l, bl["T"] = pspy_utils.read_beam_file(f_name_beam_T, lmax=lmax)
+    l, bl["E"] = pspy_utils.read_beam_file(f_name_beam_pol, lmax=lmax)
     bl["B"] = bl["E"]
     return l, bl
 
