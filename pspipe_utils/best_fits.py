@@ -4,6 +4,7 @@ Some utility functions for the generating best fit power spectrum.
 import numpy as np
 from mflike import theoryforge as th_mflike
 from pspy import pspy_utils, so_spectra
+from pspipe_utils import misc
 
 def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     """
@@ -31,7 +32,7 @@ def cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin=2):
     return l_cmb, cmb_dict
 
 
-def fg_dict_from_files(f_name_fg, array_list, lmax, spectra, lmin=2, f_name_cmb=None):
+def fg_dict_from_files(f_name_fg, map_set_list, lmax, spectra, lmin=2, f_name_cmb=None):
     """
     create a fg power spectrum dict from files
 
@@ -39,10 +40,8 @@ def fg_dict_from_files(f_name_fg, array_list, lmax, spectra, lmin=2, f_name_cmb=
     __________
     f_name_fg: string
       a template for the name of the fg power spectra files
-    array_list: list
-      list of all arrays
-    spectra: list
-      the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+    map_set_list: list
+      list of all map set we will consider, format is {survey}_{array}
     lmax: integer
       the maximum multipole to consider (not inclusive)
     spectra: list
@@ -57,20 +56,20 @@ def fg_dict_from_files(f_name_fg, array_list, lmax, spectra, lmin=2, f_name_cmb=
         l_cmb, cmb_dict = cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin)
 
     fg_dict = {}
-    for i, ar1 in enumerate(array_list):
-        for j, ar2 in enumerate(array_list):
-            if i > j: array_tuple = (ar2, ar1)
-            else: array_tuple = (ar1, ar2)
+    for i, ms_1 in enumerate(map_set_list):
+        for j, ms_2 in enumerate(map_set_list):
+            if i > j: ms_tuple = (ms_2, ms_1)
+            else: ms_tuple = (ms_1, ms_2)
 
-            l_fg, fg = so_spectra.read_ps(f_name_fg.format(*array_tuple), spectra=spectra)
+            l_fg, fg = so_spectra.read_ps(f_name_fg.format(*ms_tuple), spectra=spectra)
             id_fg = np.where((l_fg >= lmin) & (l_fg < lmax))
-            fg_dict[ar1, ar2] = {}
+            fg_dict[ms_1, ms_2] = {}
             for spec in spectra:
                 if i > j:
                     spec = spec[::-1]
-                fg_dict[ar1, ar2][spec] = fg[spec][id_fg]
+                fg_dict[ms_1, ms_2][spec] = fg[spec][id_fg]
                 if f_name_cmb is not None:
-                    fg_dict[ar1, ar2][spec] += cmb_dict[spec]
+                    fg_dict[ms_1, ms_2][spec] += cmb_dict[spec]
 
     l_fg = l_fg[id_fg]
 
@@ -120,14 +119,16 @@ def noise_dict_from_files(f_name_noise, sv_list, arrays, lmax, spectra, n_splits
     return l_noise, nl_dict
 
 
-def beam_dict_from_files(f_name_beam, sv_list, arrays, lmax, lmin=2):
+def beam_dict_from_files(f_name_beam_T, f_name_beam_pol, sv_list, arrays, lmax, lmin=2):
     """
     create a beam dict from files
 
     Parameters
     __________
-    f_name_beam: string
-        a template for the name of the beam files
+    f_name_beam_T: string
+        a template for the name of the temperature beam files
+    f_name_beam_pol: string
+        a template for the name of the polarisation beam files
     sv_list: list
         list of the surveys to consider
     arrays: dict
@@ -141,16 +142,22 @@ def beam_dict_from_files(f_name_beam, sv_list, arrays, lmax, lmin=2):
     bl_dict = {}
     for sv in sv_list:
         for ar in arrays[sv]:
-            l_beam, bl = pspy_utils.read_beam_file(f_name_beam.format(sv, ar))
+            
+            l_beam, bl = misc.read_beams(f_name_beam_T.format(sv, ar),
+                                         f_name_beam_pol.format(sv, ar))
+            
             id_beam = np.where((l_beam >= lmin) & (l_beam < lmax))
-            bl_dict[sv, ar] = bl[id_beam]
+            
+            bl_dict[sv, ar] = {}
+            for field in ["T", "E", "B"]:
+                bl_dict[sv, ar][field] = bl[field][id_beam]
 
     l_beam = l_beam[id_beam]
 
     return l_beam, bl_dict
 
 
-def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=None, bl_dict=None):
+def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, delimiter="&", nl_dict=None, bl_dict=None):
     """
     This function prepare all best fit corresponding to the spec_name_list.
     the ps_all_th and nl_all_th are in particular useful for the analytical covariance computation
@@ -166,6 +173,13 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=N
         the cmb ps (format is [spec]
     fg_dict: dict of dict
         the fg ps (format is [sv1_ar1,sv2_ar2][spec])
+    spectra: list
+      the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+    delimiter: string
+        serve to split the map_set into survey and array
+        a bit annoying to have to keep this, in principle we could work only
+        with map_set, but noise for different survey should be set to zero since
+        this entry doesn't exist
     nl_dict: dict of dict
         the noise ps (format is [sv, ar1, ar2][spec])
     bl_dict: dict
@@ -175,33 +189,37 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, nl_dict=N
     ps_all_th, nl_all_th = {}, {}
 
     for spec_name in spec_name_list:
-        na, nb = spec_name.split("x")
-        if len(na.split("&")) == 2:
-            sv_a, ar_a = na.split("&")
-            sv_b, ar_b = nb.split("&")
+        ms_a, ms_b = spec_name.split("x")
+        if len(ms_a.split(delimiter)) == 2:
+            sv_a, ar_a = ms_a.split(delimiter)
+            sv_b, ar_b = ms_b.split(delimiter)
             noise_key_a = ar_a
             noise_key_b = ar_b
-        elif len(na.split("&")) == 3:
-            sv_a, ar_a, split_a = na.split("&")
-            sv_b, ar_b, split_b = nb.split("&")
+        elif len(ms_a.split(delimiter)) == 3:
+            sv_a, ar_a, split_a = ms_a.split(delimiter)
+            sv_b, ar_b, split_b = ms_b.split(delimiter)
             noise_key_a = f"{ar_a}_{split_a}"
             noise_key_b = f"{ar_b}_{split_b}"
 
         for spec in spectra:
-            ps_all_th[na, nb, spec] = cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
+        
+            ps_all_th[ms_a, ms_b, spec] = cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
+            ps_all_th[ms_b, ms_a, spec] = ps_all_th[ms_a, ms_b, spec].copy()
 
             if bl_dict is not None:
-                ps_all_th[na, nb, spec] *= bl_dict[sv_a, ar_a] * bl_dict[sv_b, ar_b]
-
-            ps_all_th[nb, na, spec] = ps_all_th[na, nb, spec]
+                X, Y = spec
+                ps_all_th[ms_a, ms_b, spec] *=  bl_dict[sv_a, ar_a][X] * bl_dict[sv_b, ar_b][Y]
+                if ms_a != ms_b:
+                    # the if avoid a repetition in the case ms_a == ms_b
+                    ps_all_th[ms_b, ms_a, spec] *= bl_dict[sv_b, ar_b][X] * bl_dict[sv_a, ar_a][Y]
 
             if nl_dict is not None:
                 if sv_a == sv_b:
-                    nl_all_th[na, nb, spec] = nl_dict[sv_a, noise_key_a, noise_key_b][spec]
+                    nl_all_th[ms_a, ms_b, spec] = nl_dict[sv_a, noise_key_a, noise_key_b][spec]
                 else:
-                    nl_all_th[na, nb, spec] = 0
+                    nl_all_th[ms_a, ms_b, spec] = 0.0
 
-                nl_all_th[nb, na, spec] = nl_all_th[na, nb, spec]
+                nl_all_th[ms_b, ms_a, spec] = nl_all_th[ms_a, ms_b, spec]
 
     if nl_dict is not None:
         return l_th, ps_all_th, nl_all_th

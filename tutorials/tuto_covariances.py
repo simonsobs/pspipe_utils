@@ -2,9 +2,10 @@
 This script generate covariance matrices
 """
 import numpy as np
-from pspipe_utils import best_fits, pspipe_list
+from pspipe_utils import pspipe_list, best_fits
 from pspy import pspy_utils, so_cov, so_mcm, so_dict
 import time, sys
+
 
 d = so_dict.so_dict()
 d.read_from_file(sys.argv[1])
@@ -37,12 +38,13 @@ arrays = {sv: d[f"arrays_{sv}"] for sv in surveys}
 f_name_cmb = tuto_data_dir + "/cmb.dat"
 f_name_noise = tuto_data_dir + "/mean_{}x{}_{}_noise.dat"
 f_name_fg = tuto_data_dir + "/fg_{}x{}.dat"
-f_name_beam = tuto_data_dir + "/beam_{}_{}.dat"
+f_name_beam_T = tuto_data_dir + "/beam_{}_{}_T.dat"
+f_name_beam_pol = tuto_data_dir + "/beam_{}_{}_pol.dat"
 
 l_cmb, cmb_dict = best_fits.cmb_dict_from_file(f_name_cmb, lmax, spectra)
 l_fg, fg_dict = best_fits.fg_dict_from_files(f_name_fg, arrays_list, lmax, spectra)
 l_noise, nl_dict = best_fits.noise_dict_from_files(f_name_noise,  surveys, arrays, lmax, spectra, n_splits=n_splits)
-l_beam, bl_dict = best_fits.beam_dict_from_files(f_name_beam, surveys, arrays, lmax)
+l_beam, bl_dict = best_fits.beam_dict_from_files(f_name_beam_T, f_name_beam_pol, surveys, arrays, lmax)
 
 l_cmb, ps_all_th, nl_all_th = best_fits.get_all_best_fit(spec_name_list,
                                                          l_cmb,
