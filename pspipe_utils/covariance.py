@@ -513,6 +513,8 @@ def get_indices(
     ----------
     bin_low: 1d array
         the low values of the data binning
+    bin_high: 1d array
+        the high values of the data binning
     spec_name_list: list of str
         list of the cross spectra
     spectra_cuts: dict
