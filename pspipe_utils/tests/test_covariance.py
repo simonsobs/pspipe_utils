@@ -71,3 +71,8 @@ class CovarianceTest(unittest.TestCase):
             chi2, np.sum(self.data_vec[9:22] ** 2) + np.sum(self.data_vec[300:322] ** 2)
         )
         self.assertEqual(ndof, 13 + 22)
+
+    def test_compute_chi2_excluding_everything(self):
+        chi2, ndof = compute_chi2(**self.kwargs, excluded_spectra=self.spectra_order)
+        self.assertAlmostEqual(chi2, 0.0)
+        self.assertEqual(ndof, 0)

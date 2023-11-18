@@ -541,7 +541,7 @@ def get_indices(
     excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
-    indices = []
+    indices = np.array([])
 
     nbins = len(bin_low)
     shift_indices = 0
