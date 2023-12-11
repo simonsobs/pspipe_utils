@@ -1,6 +1,28 @@
+from pspipe_utils import misc
+
+from pspy import pspy_utils, so_cov, so_spectra
+
 import numpy as np
 import pylab as plt
-from pspy import pspy_utils, so_cov, so_spectra
+
+from itertools import combinations_with_replacement as cwr
+import os
+
+
+# for use in building couplings filenames
+spintypes2fntags = {
+    '00': '00',
+    '02': '02',
+    '++': 'pp',
+    '--': 'mm'
+}
+
+
+# for use in processing coupling fields loaded from disk
+optags2ops = {
+    'identity': lambda x: x,
+    'sqrt_inv': lambda x: np.sqrt(np.reciprocal(x, where=x!=0) * (x!=0))
+}
 
 
 def read_cov_block_and_build_dict(spec_name_list,
@@ -265,6 +287,136 @@ def correct_analytical_cov(an_full_cov,
 
     return corrected_cov
 
+
+def canonize_connected_2pt(leg1, leg2, all_legs):
+    """A connected 2-point term has two legs but is invariant to their
+    order. Thus, if we enforce a strict global order (a canonical order)
+    on all the possible legs, we can skip calculating redundant terms.
+
+    Parameters
+    ----------
+    leg1 : any
+        The first leg.
+    leg2 : any
+        The second leg.
+    all_legs : list of any
+        A list containing the global order of the possible legs.
+
+    Returns
+    -------
+    2-tuple of any
+        The supplied legs in the canonical order.
+    """
+    leg1_idx = all_legs.index(leg1)
+    leg2_idx = all_legs.index(leg2)
+    if leg2_idx < leg1_idx:
+        return all_legs[leg2_idx], all_legs[leg1_idx]
+    else:
+        return all_legs[leg1_idx], all_legs[leg2_idx]
+    
+
+def canonize_disconnected_4pt(leg1, leg2, leg3, leg4, all_legs):
+    """A disconnected 4-point term has two pairs of two legs but is invariant
+    to the order of the pairs and the order of the legs within the pairs. Thus,
+    if we enforce a strict global order (a canonical order) on all the possible
+    pairs of legs and legs themselves, we can skip calculating redundant terms.
+    Legs are paired like (leg1, leg2) and (leg3, leg4).
+
+    Parameters
+    ----------
+    leg1 : any
+        The first leg.
+    leg2 : any
+        The second leg.
+    leg3 : any
+        The third leg.
+    leg4 : any
+        The fourth leg.
+    all_legs : list of any
+        A list containing the global (canonical) order of the possible legs.
+        Note, the canonical order of all leg pairs is constructed from
+        all_legs.
+
+    Returns
+    -------
+    4-tuple of any
+        The supplied legs in the canonical order.
+    """
+    canonical_pair_1 = canonize_connected_2pt(leg1, leg2, all_legs)
+    canonical_pair_2 = canonize_connected_2pt(leg3, leg4, all_legs)
+
+    all_leg_pairs = list(cwr(all_legs, 2))
+    (leg1, leg2), (leg3, leg4) = canonize_connected_2pt(canonical_pair_1,
+                                                        canonical_pair_2,
+                                                        all_leg_pairs)
+
+    return leg1, leg2, leg3, leg4
+    
+
+def get_ewin_info_from_field_info(field_info, d, mode, extra=None):
+    """Return information on the effective window corresponding to field.
+
+    Parameters
+    ----------
+    field_info : tuple
+        Field information (survey, array, chan, split, pol).
+    d : dict
+        PSpipe param dict.
+    mode : str
+        One of 'w', 's', or 'ws', referring to 'analysis mask', 'sigma map',
+        and their product, respectively.
+    extra : str, optional
+        Any other extra information to join via underscore with the effective
+        window name, e.g. pixel area factors, by default None.
+    
+    Returns
+    -------
+    str, tuple, tuple
+        Effective window name, followed by a tuple containing the full path
+        on-disk for each window composing the effective window, and another
+        tuple containing the name of a lambda function for each window composing 
+        the effective window. The lambda function is to be applied to
+        the array upon loading it from disk to return the effective window,
+        like arr = op(arr). See covariance.optags2ops.
+
+    Notes
+    -----
+    The reason the lambda functions need to be returned by their string name 
+    (see covariance.optags2ops for the actual lambda functions corresponding
+    to those names) is because the entire (str, tuple, tuple) object will be
+    used by PSpipe scripts as a "leg" passed into canonize_connected_2pt,
+    canonize_disconnected_4pt. In that case, we need everything in the leg
+    to play nicely with list.index(), which lambda functions do not.
+    """
+    sv1, ar1, chan1, split1, pol1 = field_info
+
+    if mode not in ['w', 's', 'ws']:
+        raise ValueError(f"{mode=} not one of 'w', 's', ws'")
+    
+    # hard-coding that analysis masks don't depend on split
+    if 'w' in mode:
+        polstr = 'T' if pol1 == 'T' else 'pol'
+        w_full_path = d[f'window_{polstr}_{sv1}_{ar1}_{chan1}']
+        w_alias = d[f'window_{polstr}_{sv1}_{ar1}_{chan1}_alias']
+        w_op = 'identity'
+    
+    # hard-coding that sigma maps don't depend on pol
+    if 's' in mode:
+        s_full_path = d[f'ivars_{sv1}_{ar1}_{chan1}'][split1]
+        s_alias = d[f'ivars_{sv1}_{ar1}_{chan1}_aliases'][split1]
+        s_op = 'sqrt_inv'
+
+    if extra is None:
+        extra = ''
+    else:
+        extra = f'_{extra}'
+    
+    if mode == 'w':
+        return w_alias + extra, (w_full_path,), (w_op,)
+    elif mode == 's':
+        return s_alias + extra, (s_full_path,), (s_op,)
+    elif mode == 'ws':
+        return f'{w_alias}_{s_alias}' + extra, (w_full_path, s_full_path), (w_op, s_op)
 
 def read_covariance(cov_file,
                     beam_error_corrections,
