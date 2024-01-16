@@ -67,7 +67,7 @@ def port2sacc(
 
     # Compute unique list of (survey, array)
     svxar = set(sum([cross.split("x") for spec, cross, *_ in cov_order], []))
-    log.info(f"Survey list : {svxar}")
+    log.debug(f"Survey list : {svxar}")
 
     # Saving into sacc format
     s = sacc.Sacc()
@@ -125,8 +125,9 @@ def port2sacc(
     s.metadata = deepcopy(metadata)
 
     # Finally add covariance
-    log.info("Adding covariance")
-    s.add_covariance(cov)
+    if cov is not None:
+        log.info("Adding covariance")
+        s.add_covariance(cov)
 
     log.info(f"Writing {sacc_file_name}")
     s.save_fits(sacc_file_name, overwrite=True)
