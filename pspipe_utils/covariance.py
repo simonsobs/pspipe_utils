@@ -353,7 +353,7 @@ def canonize_disconnected_4pt(leg1, leg2, leg3, leg4, all_legs):
     return leg1, leg2, leg3, leg4
     
 
-def get_ewin_info_from_field_info(field_info, d, mode, extra=None):
+def get_ewin_info_from_field_info(field_info, d, mode, extra=None, return_paths_ops=False):
     """Return information on the effective window corresponding to field.
 
     Parameters
@@ -368,10 +368,15 @@ def get_ewin_info_from_field_info(field_info, d, mode, extra=None):
     extra : str, optional
         Any other extra information to join via underscore with the effective
         window name, e.g. pixel area factors, by default None.
+    return_paths_ops : bool, optional
+        Whether to return the full path on-disk for each window composing the 
+        effective window, and the name of a lambda function for each window
+        composing the effective window, by default False. See Returns and Notes
+        for more information.
     
     Returns
     -------
-    str, tuple, tuple
+    str, {tuple, tuple}
         Effective window name, followed by a tuple containing the full path
         on-disk for each window composing the effective window, and another
         tuple containing the name of a lambda function for each window composing 
@@ -412,11 +417,20 @@ def get_ewin_info_from_field_info(field_info, d, mode, extra=None):
         extra = f'_{extra}'
     
     if mode == 'w':
-        return w_alias + extra, (w_full_path,), (w_op,)
+        if return_paths_ops:
+            return w_alias + extra, (w_full_path,), (w_op,)
+        else:
+            return w_alias + extra
     elif mode == 's':
-        return s_alias + extra, (s_full_path,), (s_op,)
+        if return_paths_ops:
+            return s_alias + extra, (s_full_path,), (s_op,)
+        else:
+            return s_alias + extra
     elif mode == 'ws':
-        return f'{w_alias}_{s_alias}' + extra, (w_full_path, s_full_path), (w_op, s_op)
+        if return_paths_ops:
+            return f'{w_alias}_{s_alias}' + extra, (w_full_path, s_full_path), (w_op, s_op)
+        else:
+            return f'{w_alias}_{s_alias}' + extra
 
 def read_covariance(cov_file,
                     beam_error_corrections,
