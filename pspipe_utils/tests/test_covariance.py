@@ -53,13 +53,6 @@ class CovarianceTest(unittest.TestCase):
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:50] ** 2))
         self.assertEqual(ndof, 50)
 
-    def test_compute_chi2_selecting_arrays(self):
-        chi2, ndof = compute_chi2(
-            **self.kwargs, excluded_spectra=["TE", "EE"], selected_arrays=["ar1"]
-        )
-        self.assertAlmostEqual(chi2, np.sum(self.data_vec[:100] ** 2))
-        self.assertEqual(ndof, 100)
-
     def test_compute_chi2_with_multipole_cuts(self):
         chi2, ndof = compute_chi2(
             **self.kwargs,

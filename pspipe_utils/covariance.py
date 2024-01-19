@@ -503,7 +503,6 @@ def get_indices(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    selected_arrays=None,
     excluded_arrays=None
 ):
     """
@@ -526,8 +525,6 @@ def get_indices(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    selected_arrays: list of str
-        the list of arrays to be kept
     excluded_arrays: list of str
         the list of arrays to be excluded
     """
@@ -537,7 +534,6 @@ def get_indices(
         excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
     excluded_spectra = excluded_spectra or []
 
-    selected_arrays = selected_arrays or set(sum([name.split("x") for name in spec_name_list], []))
     excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
@@ -551,10 +547,6 @@ def get_indices(
             if spec in ["ET", "BT", "BE"] and na == nb:
                 continue
             if spec in excluded_spectra:
-                shift_indices += nbins
-                continue
-
-            if na not in selected_arrays and nb not in selected_arrays:
                 shift_indices += nbins
                 continue
 
@@ -596,7 +588,6 @@ def compute_chi2(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    selected_arrays=None,
     excluded_arrays=None
 ):
     """
@@ -626,8 +617,6 @@ def compute_chi2(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    selected_arrays: list of str
-        the list of arrays to be kept
     excluded_arrays: list of str
         the list of arrays to be excluded
     """
@@ -640,7 +629,6 @@ def compute_chi2(
         spectra_order=spectra_order,
         selected_spectra=selected_spectra,
         excluded_spectra=excluded_spectra,
-        selected_arrays=selected_arrays,
         excluded_arrays=excluded_arrays,
     )
 
