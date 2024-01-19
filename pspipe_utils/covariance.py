@@ -1,6 +1,7 @@
 import numpy as np
 import pylab as plt
 from pspy import pspy_utils, so_cov, so_spectra
+from pixell import utils
 
 
 def read_cov_block_and_build_dict(spec_name_list,
