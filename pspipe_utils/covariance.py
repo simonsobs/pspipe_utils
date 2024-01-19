@@ -265,6 +265,46 @@ def correct_analytical_cov(an_full_cov,
 
     return corrected_cov
 
+def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50):
+    """
+    Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
+    We use the skew method proposed by Sigurd Naess.
+    to be merged with correct_analytical_cov  at some point
+    Parameters
+    ----------
+    an_full_cov: 2d array
+      Full analytical covariance matrix
+    mc_full_cov: 2d array
+      Full MC covariance matrix
+    nkeep: int
+      number of sigular value above the S/N threshold
+     """
+
+    def skew(cov, dir=1):
+        ocov = np.zeros(cov.shape)
+        for i in range(len(cov)):
+            ocov[i] = np.roll(cov[i], - i * dir)
+        return ocov
+
+    mc_var = mc_full_cov.diagonal()
+    sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
+    inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov
+    skew_res = skew(res)
+    U, S, Vh = np.linalg.svd(skew_res)
+    good = np.argsort(S)[::-1] < nkeep
+    skew_res_clean = U.dot((S*good)[:,None] * Vh)
+    res_clean = skew(skew_res_clean, dir = -1)
+    res_clean = 0.5 * (res_clean + res_clean.T)
+    res_clean = sqrt_an_full_cov @ res_clean @ sqrt_an_full_cov
+    v  = np.diag(res_clean)
+    res_clean = res_clean / (v[:,None] ** 0.5 * v[None,:] ** 0.5)
+    corrected_cov = so_cov.corr2cov(res_clean, mc_var)
+
+    return corrected_cov
+    
+
+
 
 def read_covariance(cov_file,
                     beam_error_corrections,
