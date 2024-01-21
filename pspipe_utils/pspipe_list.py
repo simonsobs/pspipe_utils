@@ -263,7 +263,7 @@ def get_map_set_list(d):
             map_set_list.append(f"{sv}_{ar}")
     return map_set_list
 
-def get_null_list(d, spectra):
+def get_null_list(d, spectra, remove_TT_diff_freq=True):
 
     """
     construct a list of all valid null test between the different map data set specified in the dictionnary
@@ -286,8 +286,9 @@ def get_null_list(d, spectra):
 
             for m in spectra:
                 m0, m1 = m[0], m[1]
-                if (f1 != f3) and (m0 == "T"): continue
-                if (f2 != f4) and (m1 == "T"): continue
+                if remove_TT_diff_freq:
+                    if (f1 != f3) and (m0 == "T"): continue
+                    if (f2 != f4) and (m1 == "T"): continue
                 null_list += [[m, ms1, ms2, ms3, ms4]]
                     
     return null_list
