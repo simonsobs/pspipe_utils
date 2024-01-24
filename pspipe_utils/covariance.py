@@ -582,6 +582,7 @@ def get_indices(
 
     nbins = len(bin_low)
     shift_indices = 0
+    selected_spectra = []
     for spec in spectra_order:
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
@@ -615,8 +616,10 @@ def get_indices(
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
             indices = np.append(indices, idx + shift_indices)
             shift_indices += nbins
+            if lmin != lmax:
+                selected_spectra += [(f"{spec_name}", f"{spec}")]
 
-    return indices.astype(int)
+    return selected_spectra, indices.astype(int)
 
 def compute_chi2(
     data_vec,
@@ -662,7 +665,7 @@ def compute_chi2(
         the list of arrays to be excluded
     """
     bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
-    indices = get_indices(
+    _, indices = get_indices(
         bin_low,
         bin_high,
         spec_name_list,
