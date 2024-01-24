@@ -266,7 +266,7 @@ def correct_analytical_cov(an_full_cov,
 
     return corrected_cov
 
-def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50):
+def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=False):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We use the skew method proposed by Sigurd Naess.
@@ -302,7 +302,10 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50):
     res_clean = res_clean / (v[:,None] ** 0.5 * v[None,:] ** 0.5)
     corrected_cov = so_cov.corr2cov(res_clean, mc_var)
 
-    return corrected_cov
+    if return_S:
+        return S, corrected_cov
+    else:
+        return corrected_cov
     
 
 
