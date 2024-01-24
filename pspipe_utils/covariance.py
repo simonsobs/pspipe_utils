@@ -665,7 +665,7 @@ def compute_chi2(
         the list of arrays to be excluded
     """
     bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
-    indices = get_indices(
+    _, indices = get_indices(
         bin_low,
         bin_high,
         spec_name_list,
