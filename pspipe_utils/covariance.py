@@ -351,6 +351,12 @@ def canonize_disconnected_4pt(leg1, leg2, leg3, leg4, all_legs):
                                                         all_leg_pairs)
 
     return leg1, leg2, leg3, leg4
+
+
+def pol2pol_info(pol):
+    """T -> (T, 0); E -> (P, 1); B -> (P, 2)"""
+    assert pol in 'TEB', f'expected {pol=} to be one of T, E, B'
+    return ('T' if pol == 'T' else 'P', 'TEB'.index(pol))
     
 
 def get_ewin_info_from_field_info(field_info, d, mode, extra=None, return_paths_ops=False):
