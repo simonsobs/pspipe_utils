@@ -5,8 +5,10 @@ from pspy import pspy_utils, so_cov, so_spectra
 import numpy as np
 import pylab as plt
 
+from pixell import utils
+
+
 from itertools import combinations_with_replacement as cwr
-import os
 
 
 # for use in building couplings filenames
@@ -288,6 +290,48 @@ def correct_analytical_cov(an_full_cov,
     return corrected_cov
 
 
+def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=False):
+    """
+    Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
+    We use the skew method proposed by Sigurd Naess.
+    to be merged with correct_analytical_cov  at some point
+    Parameters
+    ----------
+    an_full_cov: 2d array
+      Full analytical covariance matrix
+    mc_full_cov: 2d array
+      Full MC covariance matrix
+    nkeep: int
+      number of sigular value above the S/N threshold
+     """
+
+    def skew(cov, dir=1):
+        ocov = np.zeros(cov.shape)
+        for i in range(len(cov)):
+            ocov[i] = np.roll(cov[i], - i * dir)
+        return ocov
+
+    mc_var = mc_full_cov.diagonal()
+    sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
+    inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov
+    skew_res = skew(res)
+    U, S, Vh = np.linalg.svd(skew_res)
+    good = np.argsort(S)[::-1] < nkeep
+    skew_res_clean = U.dot((S*good)[:,None] * Vh)
+    res_clean = skew(skew_res_clean, dir = -1)
+    res_clean = 0.5 * (res_clean + res_clean.T)
+    res_clean = sqrt_an_full_cov @ res_clean @ sqrt_an_full_cov
+    v  = np.diag(res_clean)
+    res_clean = res_clean / (v[:,None] ** 0.5 * v[None,:] ** 0.5)
+    corrected_cov = so_cov.corr2cov(res_clean, mc_var)
+
+    if return_S:
+        return S, corrected_cov
+    else:
+        return corrected_cov
+
+
 def canonize_connected_2pt(leg1, leg2, all_legs):
     """A connected 2-point term has two legs but is invariant to their
     order. Thus, if we enforce a strict global order (a canonical order)
@@ -437,6 +481,7 @@ def get_ewin_info_from_field_info(field_info, d, mode, extra=None, return_paths_
             return f'{w_alias}_{s_alias}' + extra, (w_full_path, s_full_path), (w_op, s_op)
         else:
             return f'{w_alias}_{s_alias}' + extra
+
 
 def read_covariance(cov_file,
                     beam_error_corrections,
@@ -675,7 +720,6 @@ def get_indices(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    selected_arrays=None,
     excluded_arrays=None
 ):
     """
@@ -698,8 +742,6 @@ def get_indices(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    selected_arrays: list of str
-        the list of arrays to be kept
     excluded_arrays: list of str
         the list of arrays to be excluded
     """
@@ -709,7 +751,6 @@ def get_indices(
         excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
     excluded_spectra = excluded_spectra or []
 
-    selected_arrays = selected_arrays or set(sum([name.split("x") for name in spec_name_list], []))
     excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
@@ -717,16 +758,13 @@ def get_indices(
 
     nbins = len(bin_low)
     shift_indices = 0
+    selected_spectra = []
     for spec in spectra_order:
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
             if spec in ["ET", "BT", "BE"] and na == nb:
                 continue
             if spec in excluded_spectra:
-                shift_indices += nbins
-                continue
-
-            if na not in selected_arrays and nb not in selected_arrays:
                 shift_indices += nbins
                 continue
 
@@ -754,8 +792,10 @@ def get_indices(
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
             indices = np.append(indices, idx + shift_indices)
             shift_indices += nbins
+            if lmin != lmax:
+                selected_spectra += [(f"{spec_name}", f"{spec}")]
 
-    return indices.astype(int)
+    return selected_spectra, indices.astype(int)
 
 def compute_chi2(
     data_vec,
@@ -768,7 +808,6 @@ def compute_chi2(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    selected_arrays=None,
     excluded_arrays=None
 ):
     """
@@ -798,13 +837,11 @@ def compute_chi2(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    selected_arrays: list of str
-        the list of arrays to be kept
     excluded_arrays: list of str
         the list of arrays to be excluded
     """
     bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
-    indices = get_indices(
+    _, indices = get_indices(
         bin_low,
         bin_high,
         spec_name_list,
@@ -812,7 +849,6 @@ def compute_chi2(
         spectra_order=spectra_order,
         selected_spectra=selected_spectra,
         excluded_spectra=excluded_spectra,
-        selected_arrays=selected_arrays,
         excluded_arrays=excluded_arrays,
     )
 
