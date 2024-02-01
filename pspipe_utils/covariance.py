@@ -543,7 +543,7 @@ def read_x_ar_theory_vec(bestfit_dir,
 
 
 def get_indices(
-    lb,
+    bin_mean,
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
@@ -556,7 +556,7 @@ def get_indices(
 
     Parameters
     ----------
-    lb: 1d array
+    bin_mean: 1d array
         the center values of the data binning
     spec_name_list: list of str
         list of the cross spectra
@@ -583,10 +583,10 @@ def get_indices(
     spectra_cuts = spectra_cuts or {}
     all_indices = np.array([])
 
-    nbins = len(bin_low)
+    nbins = len(bin_mean)
     shift_indices = 0
     
-    index_dict = {}
+    bin_map_dict = {}
     id_min = 0
     for spec in spectra_order:
         for spec_name in spec_name_list:
@@ -618,17 +618,18 @@ def get_indices(
 
             lmin, lmax = max(lmins), min(lmaxs)
 
-            idx = np.arange(nbins)[(lmin < lb) & (lb < lmax)]
+            idx = np.arange(nbins)[(lmin < bin_mean) & (bin_mean < lmax)]
+            
             all_indices = np.append(all_indices, idx + shift_indices)
             
             
             if lmin != lmax:
-                index_dict[f"{spec_name}", f"{spec}"] = np.arange(id_min, id_min + len(idx))
+                bin_map_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
                 id_min += len(idx)
 
             shift_indices += nbins
                 
-    return index_dict,  all_indices.astype(int)
+    return bin_map_dict,  all_indices.astype(int)
 
 def compute_chi2(
     data_vec,
