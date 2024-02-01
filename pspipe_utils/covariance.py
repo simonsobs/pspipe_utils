@@ -543,8 +543,7 @@ def read_x_ar_theory_vec(bestfit_dir,
 
 
 def get_indices(
-    bin_low,
-    bin_high,
+    lb,
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
@@ -557,10 +556,8 @@ def get_indices(
 
     Parameters
     ----------
-    bin_low: 1d array
-        the low values of the data binning
-    bin_high: 1d array
-        the high values of the data binning
+    lb: 1d array
+        the center values of the data binning
     spec_name_list: list of str
         list of the cross spectra
     spectra_cuts: dict
@@ -621,7 +618,7 @@ def get_indices(
 
             lmin, lmax = max(lmins), min(lmaxs)
 
-            idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            idx = np.arange(nbins)[(lmin < lb) & (lb < lmax)]
             all_indices = np.append(all_indices, idx + shift_indices)
             
             
