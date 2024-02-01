@@ -240,7 +240,8 @@ def cov_dict_to_file(cov_dict,
 
 def correct_analytical_cov(an_full_cov,
                            mc_full_cov,
-                           only_diag_corrections=False):
+                           only_diag_corrections=False,
+                           use_max_error=True):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We keep the correlation structure of the analytical covariance matrices, rescaling
@@ -256,8 +257,10 @@ def correct_analytical_cov(an_full_cov,
     an_var = an_full_cov.diagonal()
     mc_var = mc_full_cov.diagonal()
 
-    rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
-
+    if use_max_error:
+        rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
+    else:
+        rescaling_var = mc_var
     if only_diag_corrections:
         corrected_cov = an_full_cov - np.diag(an_var) + np.diag(rescaling_var)
     else:
@@ -581,11 +584,13 @@ def get_indices(
     excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
-    indices = np.array([])
+    all_indices = np.array([])
 
     nbins = len(bin_low)
     shift_indices = 0
-    selected_spectra = []
+    
+    index_dict = {}
+    id_min = 0
     for spec in spectra_order:
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
@@ -617,12 +622,16 @@ def get_indices(
             lmin, lmax = max(lmins), min(lmaxs)
 
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
-            indices = np.append(indices, idx + shift_indices)
-            shift_indices += nbins
+            all_indices = np.append(all_indices, idx + shift_indices)
+            
+            
             if lmin != lmax:
-                selected_spectra += [(f"{spec_name}", f"{spec}")]
+                index_dict[f"{spec_name}", f"{spec}"] = np.arange(id_min, id_min + len(idx))
+                id_min += len(idx)
 
-    return selected_spectra, indices.astype(int)
+            shift_indices += nbins
+                
+    return index_dict,  all_indices.astype(int)
 
 def compute_chi2(
     data_vec,
