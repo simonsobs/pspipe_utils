@@ -543,6 +543,8 @@ def read_x_ar_theory_vec(bestfit_dir,
 
 
 def get_indices(
+    bin_low,
+    bin_high,
     bin_mean,
     spec_name_list,
     spectra_cuts=None,
@@ -581,12 +583,12 @@ def get_indices(
     excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
-    all_indices = np.array([])
+    indices_in = np.array([])
 
-    nbins = len(bin_mean)
+    nbins = len(bin_low)
     shift_indices = 0
     
-    bin_map_dict = {}
+    bin_out_dict = {}
     id_min = 0
     for spec in spectra_order:
         for spec_name in spec_name_list:
@@ -618,18 +620,18 @@ def get_indices(
 
             lmin, lmax = max(lmins), min(lmaxs)
 
-            idx = np.arange(nbins)[(lmin < bin_mean) & (bin_mean < lmax)]
+            idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
             
-            all_indices = np.append(all_indices, idx + shift_indices)
+            indices_in = np.append(indices_in, idx + shift_indices)
             
             
             if lmin != lmax:
-                bin_map_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
+                bin_out_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
                 id_min += len(idx)
 
             shift_indices += nbins
                 
-    return bin_map_dict,  all_indices.astype(int)
+    return bin_out_dict,  indices_in.astype(int)
 
 def compute_chi2(
     data_vec,
@@ -674,10 +676,11 @@ def compute_chi2(
     excluded_arrays: list of str
         the list of arrays to be excluded
     """
-    bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
+    bin_low, bin_high, bin_mean, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     _, indices = get_indices(
         bin_low,
         bin_high,
+        bin_mean,
         spec_name_list,
         spectra_cuts=spectra_cuts,
         spectra_order=spectra_order,
