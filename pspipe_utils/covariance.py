@@ -240,7 +240,8 @@ def cov_dict_to_file(cov_dict,
 
 def correct_analytical_cov(an_full_cov,
                            mc_full_cov,
-                           only_diag_corrections=False):
+                           only_diag_corrections=False,
+                           use_max_error=True):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We keep the correlation structure of the analytical covariance matrices, rescaling
@@ -256,8 +257,10 @@ def correct_analytical_cov(an_full_cov,
     an_var = an_full_cov.diagonal()
     mc_var = mc_full_cov.diagonal()
 
-    rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
-
+    if use_max_error:
+        rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
+    else:
+        rescaling_var = mc_var
     if only_diag_corrections:
         corrected_cov = an_full_cov - np.diag(an_var) + np.diag(rescaling_var)
     else:
@@ -542,6 +545,7 @@ def read_x_ar_theory_vec(bestfit_dir,
 def get_indices(
     bin_low,
     bin_high,
+    bin_mean,
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
@@ -554,10 +558,8 @@ def get_indices(
 
     Parameters
     ----------
-    bin_low: 1d array
-        the low values of the data binning
-    bin_high: 1d array
-        the high values of the data binning
+    bin_mean: 1d array
+        the center values of the data binning
     spec_name_list: list of str
         list of the cross spectra
     spectra_cuts: dict
@@ -581,11 +583,13 @@ def get_indices(
     excluded_arrays = excluded_arrays or []
 
     spectra_cuts = spectra_cuts or {}
-    indices = np.array([])
+    indices_in = np.array([])
 
     nbins = len(bin_low)
     shift_indices = 0
-    selected_spectra = []
+    
+    bin_out_dict = {}
+    id_min = 0
     for spec in spectra_order:
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
@@ -617,12 +621,17 @@ def get_indices(
             lmin, lmax = max(lmins), min(lmaxs)
 
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
-            indices = np.append(indices, idx + shift_indices)
-            shift_indices += nbins
+            
+            indices_in = np.append(indices_in, idx + shift_indices)
+            
+            
             if lmin != lmax:
-                selected_spectra += [(f"{spec_name}", f"{spec}")]
+                bin_out_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
+                id_min += len(idx)
 
-    return selected_spectra, indices.astype(int)
+            shift_indices += nbins
+                
+    return bin_out_dict,  indices_in.astype(int)
 
 def compute_chi2(
     data_vec,
@@ -667,10 +676,11 @@ def compute_chi2(
     excluded_arrays: list of str
         the list of arrays to be excluded
     """
-    bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
+    bin_low, bin_high, bin_mean, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     _, indices = get_indices(
         bin_low,
         bin_high,
+        bin_mean,
         spec_name_list,
         spectra_cuts=spectra_cuts,
         spectra_order=spectra_order,
