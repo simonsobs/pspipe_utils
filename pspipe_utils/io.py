@@ -59,7 +59,6 @@ def port2sacc(
         log = logging.getLogger(__name__)
         log.setLevel(logging.DEBUG)
 
-    print(log)
     bin_low, bin_high, lb, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     n_bins = len(lb)
     # Sanity check
