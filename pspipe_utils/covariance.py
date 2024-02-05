@@ -619,11 +619,11 @@ def get_indices(
             if X != "T": X = "P"
             if Y != "T": Y = "P"
 
-            lmin_a, lmax_a = ca[X][0],  ca[X][1]
-            lmin_b, lmax_b = cb[Y][0],  cb[Y][1]
+            lmin_Xa, lmax_Xa = ca[X][0],  ca[X][1]
+            lmin_Yb, lmax_Yb = cb[Y][0],  cb[Y][1]
             
-            lmin = np.maximum(lmin_a, lmin_b)
-            lmax = np.minimum(lmax_a, lmax_b)
+            lmin = np.maximum(lmin_Xa, lmin_Yb)
+            lmax = np.minimum(lmax_Xa, lmax_Yb)
 
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
             
