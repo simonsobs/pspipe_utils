@@ -551,7 +551,8 @@ def get_indices(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    excluded_arrays=None
+    excluded_map_set=None,
+    only_TT_map_set=None,
 ):
     """
     This function returns the covariance and spectra indices selected given a set of multipole cuts
@@ -571,8 +572,10 @@ def get_indices(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    excluded_arrays: list of str
-        the list of arrays to be excluded
+    excluded_map_set: list of str
+        the list of map set to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
     """
     if selected_spectra and excluded_spectra:
         raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
@@ -580,7 +583,9 @@ def get_indices(
         excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
     excluded_spectra = excluded_spectra or []
 
-    excluded_arrays = excluded_arrays or []
+    excluded_map_set = excluded_map_set or []
+    
+    only_TT_map_set = only_TT_map_set or []
 
     spectra_cuts = spectra_cuts or {}
     indices_in = np.array([])
@@ -591,6 +596,7 @@ def get_indices(
     bin_out_dict = {}
     id_min = 0
     for spec in spectra_order:
+        X, Y = spec
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
             if spec in ["ET", "BT", "BE"] and na == nb:
@@ -599,31 +605,29 @@ def get_indices(
                 shift_indices += nbins
                 continue
 
-            if na in excluded_arrays or nb in excluded_arrays:
+            if na in excluded_map_set or nb in excluded_map_set:
                 shift_indices += nbins
                 continue
-
+                
+            if na in only_TT_map_set or nb in only_TT_map_set:
+                if spec != "TT":
+                    shift_indices += nbins
+                    continue
+                
             ca, cb = spectra_cuts.get(na, {}), spectra_cuts.get(nb, {})
 
-            def _get_extrema(field, idx):
-                return [c.get(field, [0, np.inf])[idx] for c in [ca, cb]]
+            if X != "T": X = "P"
+            if Y != "T": Y = "P"
 
-            if "T" not in spec:
-                lmins = _get_extrema("P", 0)
-                lmaxs = _get_extrema("P", 1)
-            elif "E" in spec or "B" in spec:
-                lmins = _get_extrema("T", 0) + _get_extrema("P", 0)
-                lmaxs = _get_extrema("T", 1) + _get_extrema("P", 1)
-            else:
-                lmins = _get_extrema("T", 0)
-                lmaxs = _get_extrema("T", 1)
-
-            lmin, lmax = max(lmins), min(lmaxs)
+            lmin_a, lmax_a = ca[X][0],  ca[X][1]
+            lmin_b, lmax_b = cb[Y][0],  cb[Y][1]
+            
+            lmin = np.maximum(lmin_a, lmin_b)
+            lmax = np.minimum(lmax_a, lmax_b)
 
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
             
             indices_in = np.append(indices_in, idx + shift_indices)
-            
             
             if lmin != lmax:
                 bin_out_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
