@@ -619,9 +619,16 @@ def get_indices(
             if X != "T": X = "P"
             if Y != "T": Y = "P"
 
-            lmin_Xa, lmax_Xa = ca[X][0],  ca[X][1]
-            lmin_Yb, lmax_Yb = cb[Y][0],  cb[Y][1]
+            if not ca: #return True if ca is empty
+                lmin_Xa, lmax_Xa = 0, np.inf
+            else:
+                lmin_Xa, lmax_Xa = ca[X][0],  ca[X][1]
             
+            if not cb:
+                lmin_Yb, lmax_Yb = 0, np.inf
+            else:
+                lmin_Yb, lmax_Yb = cb[Y][0],  cb[Y][1]
+
             lmin = np.maximum(lmin_Xa, lmin_Yb)
             lmax = np.minimum(lmax_Xa, lmax_Yb)
 
