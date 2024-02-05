@@ -648,7 +648,8 @@ def compute_chi2(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    excluded_arrays=None
+    excluded_map_set=None,
+    only_TT_map_set=None,
 ):
     """
     This function computes the chi2 value between data/sim spectra wrt theory spectra given
@@ -677,8 +678,11 @@ def compute_chi2(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    excluded_arrays: list of str
-        the list of arrays to be excluded
+    excluded_map_set: list of str
+        the list of map_set to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
+
     """
     bin_low, bin_high, bin_mean, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     _, indices = get_indices(
@@ -690,7 +694,8 @@ def compute_chi2(
         spectra_order=spectra_order,
         selected_spectra=selected_spectra,
         excluded_spectra=excluded_spectra,
-        excluded_arrays=excluded_arrays,
+        excluded_map_set=excluded_map_set,
+        only_TT_map_set=only_TT_map_set,
     )
 
     delta = data_vec[indices] - theory_vec[indices]
