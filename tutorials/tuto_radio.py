@@ -7,7 +7,7 @@ import pylab as plt
 import scipy
 from pixell import enmap, curvedsky
 from pspy import so_map, so_window, so_mcm, sph_tools, so_spectra, pspy_utils, so_cov
-import pspipe_utils import radio_sources
+from pspipe_utils import radio_sources
 
 test_dir = "test_poisson"
 pspy_utils.create_directory(test_dir)

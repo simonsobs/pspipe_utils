@@ -7,6 +7,7 @@ import pylab as plt
 from pixell import enmap, utils
 from scipy.interpolate import InterpolatedUnivariateSpline
 from matplotlib import rcParams
+from . import get_data_path
 
 
 rcParams["xtick.labelsize"] = 13
@@ -15,7 +16,7 @@ rcParams["axes.labelsize"] = 16
 rcParams["axes.titlesize"] = 16
 
 ref_freq_radio_GHz = 148
-tucci_file_name = "ns_148GHz_modC2Ex.dat"
+tucci_file_name = f"{get_data_path()}/radio_source/ns_148GHz_modC2Ex.dat"
 
 def read_tucci_source_distrib(plot_fname=None):
     """
