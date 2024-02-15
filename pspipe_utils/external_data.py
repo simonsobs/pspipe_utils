@@ -5,10 +5,30 @@ import numpy as np
 
 from . import get_data_path
 
+def get_bicep_BB_spectrum():
+    """
+    Read in the BICEP BB CMB only power spectrum, Fig 16 of https://arxiv.org/pdf/2110.00483.pdf
+    """
+    
+    data = np.loadtxt(f"{get_data_path()}/spectra/bicep_keck/bk_B_modes.txt")
+    bin_lo, lb, bin_hi, Db,  Db_low,  Db_high = data[:,0], data[:,1], data[:,2], data[:,3], data[:,4], data[:, 5]
+    y_err = np.stack([Db - Db_low, Db_high - Db])
+    
+    return lb, Db, y_err
+
+
+def get_sptpol_BB_spectrum():
+    """
+    Read in the SPTPol BB CMB only power spectrum, Fig 2 of https://arxiv.org/pdf/1910.05748.pdf
+    """
+    
+    bin_lo, bin_hi, lb, Db, sigmab = np.loadtxt(f"{get_data_path()}/spectra/sptpol/sptpol_B_modes.txt", unpack=True)
+    return lb, Db,  sigmab
+
 
 def get_choi_spectra(spec, survey="deep", return_Dl=True):
     """
-    Read in the choi et al power spectra
+    Read in the choi et al power spectra: https://arxiv.org/abs/2007.07289
 
     Parameters
     __________
@@ -47,7 +67,7 @@ def get_choi_spectra(spec, survey="deep", return_Dl=True):
 
 def get_planck_spectra(spec, return_Dl=True):
     """
-    Read in the Planck legacy (PR3) power spectra
+    Read in the Planck legacy (PR3) power spectra: https://arxiv.org/abs/1907.12875
 
     Parameters
     __________
