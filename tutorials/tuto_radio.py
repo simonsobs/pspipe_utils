@@ -162,7 +162,7 @@ if ps_type=="Cl":
     fac_b = lb * 0 + 1
     
 area_sr = enmap.area(shape, wcs)
-win_corr = np.sum(window.data)/np.size(binary.data) # correction to the area due to apodisation
+win_corr = np.sum(window.data)/np.size(binary.data) # correction to the area due to apodisation, this is approximated, can do better taking into  account curvature
 area_sr *= win_corr
 print(f"area_sr = {area_sr}", f"win correction = {win_corr}")
 
