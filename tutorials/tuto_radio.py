@@ -9,6 +9,7 @@ from pixell import enmap, curvedsky
 from pspy import so_map, so_window, so_mcm, sph_tools, so_spectra, pspy_utils, so_cov
 from pspipe_utils import radio_sources
 
+    
 test_dir = "test_poisson"
 pspy_utils.create_directory(test_dir)
 
@@ -40,10 +41,10 @@ plt.close()
 
 #### Now do a montecarlo to check if it work, we will generate the sim at the ref frequency 148
 
-ra0, ra1, dec0, dec1, res = -180, 180, -5, 5, 1
+ra0, ra1, dec0, dec1, res = -40, 40, -40, 40, 2
 ncomp = 1
 ps_type = "Cl"
-lmax = 3000
+lmax = 2500
 l = np.arange(2, lmax + 2)
 rms_uKarcmin_T = 1
 niter = 0
@@ -82,6 +83,7 @@ for name1, id1 in zip(survey_name, survey_id):
         Clth_dict[id1 + id2] = Clth_dict[id1 + id2][:-2]
         
 template_car = so_map.car_template(ncomp, ra0, ra1, dec0, dec1, res)
+pixsize_map = template_car.data.pixsizemap()
 shape, wcs = template_car.data.shape, template_car.data.wcs
 
 source_mean_numbers = radio_sources.get_mean_number_of_source(template_car, S, dNdSdOmega, plot_fname=f"{test_dir}/N_source.png")
@@ -96,7 +98,7 @@ mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0(window, binning_file, lmax=lmax, type=ps
 coupling_dict = so_cov.cov_coupling_spin0(window, lmax, niter=niter)
 analytic_cov = so_cov.cov_spin0(Clth_dict, coupling_dict, binning_file, lmax, mbb_inv, mbb_inv)
 
-n_sims = 400
+n_sims = 100
 
 sim_types = ["sim_poissonian"]
 mean, std, cov = {}, {}, {}
@@ -112,13 +114,11 @@ for sim_type in sim_types:
             my_numbers = np.random.poisson(source_mean_numbers)
     
             for si, fluxval in enumerate(S[S <= S_max_Jy]):
-                xlocs = np.random.randint(shape[0], size = my_numbers[si])
-                ylocs = np.random.randint(shape[1], size = my_numbers[si])
+            
+                _, hitmap = so_map.draw_random_location_car(template_car, my_numbers[si])
+                source_map.data[:] += hitmap * Jy_per_str_to_muK * fluxval / pixsize_map
                 
-                source_area_str = (res * np.pi / (180. * 60.)) ** 2
-                source_map.data[xlocs, ylocs] += Jy_per_str_to_muK * fluxval / source_area_str
-                
-            source_map.data -= np.mean(source_map.data)
+            source_map.data -= np.sum(source_map.data*pixsize_map)/np.sum(pixsize_map)
             
         if sim_type == "sim_gaussian":
             source_map.data = curvedsky.rand_map(source_map.data.shape, source_map.data.wcs, ps_theory/fac)
