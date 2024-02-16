@@ -9,7 +9,6 @@ from pixell import enmap, curvedsky
 from pspy import so_map, so_window, so_mcm, sph_tools, so_spectra, pspy_utils, so_cov
 from pspipe_utils import radio_sources
 
-    
 test_dir = "test_poisson"
 pspy_utils.create_directory(test_dir)
 
@@ -41,7 +40,7 @@ plt.close()
 
 #### Now do a montecarlo to check if it work, we will generate the sim at the ref frequency 148
 
-ra0, ra1, dec0, dec1, res = -40, 40, -40, 40, 2
+ra0, ra1, dec0, dec1, res = -20, 20, -20, 20, 2
 ncomp = 1
 ps_type = "Cl"
 lmax = 2500
@@ -98,7 +97,7 @@ mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0(window, binning_file, lmax=lmax, type=ps
 coupling_dict = so_cov.cov_coupling_spin0(window, lmax, niter=niter)
 analytic_cov = so_cov.cov_spin0(Clth_dict, coupling_dict, binning_file, lmax, mbb_inv, mbb_inv)
 
-n_sims = 100
+n_sims = 300
 
 sim_types = ["sim_poissonian"]
 mean, std, cov = {}, {}, {}
@@ -166,16 +165,33 @@ win_corr = np.sum(window.data)/np.size(binary.data) # correction to the area due
 area_sr *= win_corr
 print(f"area_sr = {area_sr}", f"win correction = {win_corr}")
 
+
+non_gaussian = trispectrum_15_8mJy / area_sr * np.outer(fac, fac)
+non_gaussian_binned = so_cov.bin_mat(non_gaussian, binning_file, lmax)
+
+cov_full = analytic_cov + non_gaussian_binned
+
 plt.figure(figsize=(12, 10))
-plt.plot(lb, analytic_cov.diagonal() + trispectrum_15_8mJy / area_sr * fac_b ** 2, label=r"$\Sigma^{\rm gauss}_{\ell, \ell} + T_{P}/\Omega$")
+plt.plot(lb, cov_full.diagonal(), label=r"$\Sigma^{\rm gauss}_{\ell, \ell} + T_{P}/\Omega$")
 plt.plot(lb, analytic_cov.diagonal(), label=r"$\Sigma^{\rm gauss}_{\ell, \ell}$", color="gray")
 for sim_type in sim_types:
     plt.plot(lb, cov[sim_type].diagonal(), "o", label=f"MC cov {sim_type}")
 plt.ylabel("$\Sigma_{\ell, \ell}$" , fontsize=22)
 plt.xlabel("$\ell$", fontsize=22)
 plt.legend(fontsize=22)
-plt.savefig(f"{test_dir}/covariance.png", bbox_inches="tight")
+plt.savefig(f"{test_dir}/covariance_diag.png", bbox_inches="tight")
 plt.clf()
 plt.close()
 
-
+plt.figure(figsize=(12, 10))
+plt.subplot(1,2,1)
+plt.title(r"Correlation of $\Sigma^{\rm gauss}_{\ell, \ell} + T_{P}/\Omega$")
+plt.imshow(so_cov.cov2corr(cov_full, remove_diag=True), vmin=-0.2, vmax=1)
+plt.colorbar(shrink=0.5)
+plt.subplot(1,2,2)
+plt.title(r"MonteCarlo correlation")
+plt.imshow(so_cov.cov2corr(cov["sim_poissonian"], remove_diag=True), vmin=-0.2, vmax=1)
+plt.colorbar(shrink=0.5)
+plt.savefig(f"{test_dir}/correlation.png", bbox_inches="tight")
+plt.clf()
+plt.close()
