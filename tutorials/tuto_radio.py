@@ -185,7 +185,7 @@ plt.close()
 
 plt.figure(figsize=(12, 10))
 plt.subplot(1,2,1)
-plt.title(r"Correlation of $\Sigma^{\rm gauss}_{\ell, \ell} + T_{P}/\Omega$")
+plt.title(r"Correlation of $\Sigma^{\rm gauss}_{\ell, \ell'} + T_{P}/\Omega$")
 plt.imshow(so_cov.cov2corr(cov_full, remove_diag=True), vmin=-0.2, vmax=1)
 plt.colorbar(shrink=0.5)
 plt.subplot(1,2,2)
