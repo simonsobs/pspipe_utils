@@ -20,8 +20,8 @@ tucci_file_name = f"{get_data_path()}/radio_source/ns_148GHz_modC2Ex.dat"
 
 def read_tucci_source_distrib(plot_fname=None):
     """
-    Read the source distribution from tucci et al (ref paper) with flux (S) at ref frequency 148 GHz
-    and optionnaly plot it.
+    Read the source distribution from tucci et al (https://arxiv.org/pdf/1103.5707.pdf) with flux (S) at ref frequency 148 GHz
+    and optionnaly plot it. Should replicate the C2Ex model (bottom long dashed line of Fig14)
     
     Parameters
     ----------
@@ -36,11 +36,11 @@ def read_tucci_source_distrib(plot_fname=None):
     if plot_fname is not None:
         plt.figure(figsize=(12, 10))
         plt.loglog()
-        plt.xlim(1, 1000)
-        plt.ylim(1, 10 ** 8)
-        plt.plot(S * 10 ** 3, dNdSdOmega)
-        plt.xlabel("S (Flux [mJy])", fontsize=16)
-        plt.ylabel(r"$\frac{dN}{dS d\Omega}$", fontsize=22)
+        plt.ylim(0.6, 100)
+        plt.xlim(0.001, 20)
+        plt.plot(S, dNdSdOmega * S ** (5/2), "--", color="red")
+        plt.xlabel("S (Flux [Jy])", fontsize=16)
+        plt.ylabel(r"$S^{5/2}\frac{dN}{dS d\Omega} [Jy^{3/2} sr^{-1}]$", fontsize=22)
         plt.savefig(plot_fname, bbox_inches="tight")
         plt.clf()
         plt.close()
