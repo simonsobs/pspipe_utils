@@ -7,12 +7,13 @@ import pylab as plt
 import scipy
 from pixell import enmap, curvedsky
 from pspy import so_map, so_window, so_mcm, sph_tools, so_spectra, pspy_utils, so_cov
-from pspipe_utils import radio_sources
+from pspipe_utils import radio_sources, get_data_path
 
 test_dir = "test_poisson"
 pspy_utils.create_directory(test_dir)
 
 S, dNdSdOmega = radio_sources.read_tucci_source_distrib(plot_fname=f"{test_dir}/source_distrib.png")
+
 
 poisson_power = radio_sources.get_poisson_power(S, dNdSdOmega, plot_fname=f"{test_dir}/as.png")
 trispectrum = radio_sources.get_trispectrum(S, dNdSdOmega)
@@ -40,11 +41,7 @@ plt.close()
 
 #### Now do a montecarlo to check if it work, we will generate the sim at the ref frequency 148
 
-ra0, ra1, dec0, dec1, res = -20, 20, -20, 20, 2
-ncomp = 1
 ps_type = "Cl"
-lmax = 2500
-l = np.arange(2, lmax + 2)
 rms_uKarcmin_T = 1
 niter = 0
 pspy_utils.create_binning_file(bin_size=100, n_bins=300, file_name=f"{test_dir}/binning.dat")
@@ -52,6 +49,22 @@ binning_file = f"{test_dir}/binning.dat"
 n_splits = 2
 ref_freq = 148
 Jy_per_str_to_muK = radio_sources.convert_Jy_per_str_to_muK_cmb(ref_freq)
+
+
+# try to emulate the actual DR6 window (although at 8 times lower res)
+data_path = get_data_path()
+template_car = so_map.read_map(f"{data_path}/binaries/binary_dr6_pa6_f150_downgraded.fits")
+template_car.data = template_car.data.astype("float64")
+dist = so_window.get_distance(template_car, rmax=4 * np.pi / 180)
+template_car.data[dist.data < 2 ] = 0
+window = so_window.create_apodization(template_car, "C1", 2, use_rmax=True) # re-create a dr6 like window
+window.plot(file_name=f"{test_dir}/window_dr6_pa6_f150")
+
+lmax = int(template_car.get_lmax_limit())
+pixsize_map = template_car.data.pixsizemap()
+shape, wcs = template_car.data.shape, template_car.data.wcs
+
+l = np.arange(2, lmax + 2)
 
 if ps_type=="Dl":
     tex_name = "D_{\ell}"
@@ -81,23 +94,15 @@ for name1, id1 in zip(survey_name, survey_id):
         Clth_dict[id1 + id2] = ps_theory + nl_th["TT"] * so_cov.delta2(name1, name2)
         Clth_dict[id1 + id2] = Clth_dict[id1 + id2][:-2]
         
-template_car = so_map.car_template(ncomp, ra0, ra1, dec0, dec1, res)
-pixsize_map = template_car.data.pixsizemap()
-shape, wcs = template_car.data.shape, template_car.data.wcs
-
+        
 source_mean_numbers = radio_sources.get_mean_number_of_source(template_car, S, dNdSdOmega, plot_fname=f"{test_dir}/N_source.png")
-
-binary = template_car.copy()
-binary.data[:] = 0
-binary.data[1:-1, 1:-1] = 1
-window = so_window.create_apodization(binary, apo_type="C1", apo_radius_degree=1)
 
 mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0(window, binning_file, lmax=lmax, type=ps_type, niter=niter)
 
 coupling_dict = so_cov.cov_coupling_spin0(window, lmax, niter=niter)
 analytic_cov = so_cov.cov_spin0(Clth_dict, coupling_dict, binning_file, lmax, mbb_inv, mbb_inv)
 
-n_sims = 300
+n_sims = 200
 
 sim_types = ["sim_poissonian"]
 mean, std, cov = {}, {}, {}
@@ -117,7 +122,7 @@ for sim_type in sim_types:
                 _, hitmap = so_map.draw_random_location_car(template_car, my_numbers[si])
                 source_map.data[:] += hitmap * Jy_per_str_to_muK * fluxval / pixsize_map
                 
-            source_map.data -= np.sum(source_map.data*pixsize_map)/np.sum(pixsize_map)
+            source_map.data -= np.sum(source_map.data * window.data * pixsize_map) / np.sum(window.data * pixsize_map)
             
         if sim_type == "sim_gaussian":
             source_map.data = curvedsky.rand_map(source_map.data.shape, source_map.data.wcs, ps_theory/fac)
@@ -155,18 +160,12 @@ plt.savefig(f"{test_dir}/power_spectrum.png", bbox_inches="tight")
 plt.clf()
 plt.close()
 
-if ps_type=="Dl":
-    fac_b = lb * (lb + 1) / (2 * np.pi)
-if ps_type=="Cl":
-    fac_b = lb * 0 + 1
-    
-area_sr = enmap.area(shape, wcs)
-win_corr = np.sum(window.data)/np.size(binary.data) # correction to the area due to apodisation, this is approximated, can do better taking into  account curvature
-area_sr *= win_corr
-print(f"area_sr = {area_sr}", f"win correction = {win_corr}")
 
+Omega = so_window.get_survey_solid_angle(window)
 
-non_gaussian = trispectrum_15_8mJy / area_sr * np.outer(fac, fac)
+print(f"fksy: {Omega/(4*np.pi)}")
+
+non_gaussian = trispectrum_15_8mJy / Omega * np.outer(fac, fac)
 non_gaussian_binned = so_cov.bin_mat(non_gaussian, binning_file, lmax)
 
 cov_full = analytic_cov + non_gaussian_binned
