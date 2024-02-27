@@ -102,7 +102,7 @@ mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0(window, binning_file, lmax=lmax, type=ps
 coupling_dict = so_cov.cov_coupling_spin0(window, lmax, niter=niter)
 analytic_cov = so_cov.cov_spin0(Clth_dict, coupling_dict, binning_file, lmax, mbb_inv, mbb_inv)
 
-n_sims = 200
+n_sims = 400
 
 sim_types = ["sim_poissonian"]
 mean, std, cov = {}, {}, {}
@@ -114,6 +114,7 @@ for sim_type in sim_types:
         print(sim_type, iii)
     
         source_map = template_car.copy()
+        source_map.data[:] = 0
         if sim_type == "sim_poissonian":
             my_numbers = np.random.poisson(source_mean_numbers)
     
