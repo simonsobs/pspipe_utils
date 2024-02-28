@@ -3,12 +3,13 @@ from pspipe_utils import misc
 from pspy import pspy_utils, so_cov, so_spectra
 
 import numpy as np
+from scipy.optimize import curve_fit
 import pylab as plt
 
 from pixell import utils
 
-
 from itertools import combinations_with_replacement as cwr
+from functools import partial
 
 
 # for use in building couplings filenames
@@ -290,7 +291,7 @@ def correct_analytical_cov(an_full_cov,
     return corrected_cov
 
 
-def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=False):
+def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=True, return_S=False):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We use the skew method proposed by Sigurd Naess.
@@ -303,6 +304,9 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=Fal
       Full MC covariance matrix
     nkeep: int
       number of sigular value above the S/N threshold
+    do_final_mc: bool
+      If True, keep correlation structure of skew-svd corrected covmat, but
+      replace total diagonal with monte carlo.
      """
 
     def skew(cov, dir=1):
@@ -322,12 +326,43 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=Fal
     res_clean = skew(skew_res_clean, dir = -1)
     res_clean = 0.5 * (res_clean + res_clean.T)
     res_clean = sqrt_an_full_cov @ res_clean @ sqrt_an_full_cov
-    v  = np.diag(res_clean)
-    res_clean = res_clean / (v[:,None] ** 0.5 * v[None,:] ** 0.5)
-    corrected_cov = so_cov.corr2cov(res_clean, mc_var)
+
+    if do_final_mc:
+        v  = np.diag(res_clean)
+        res_clean = res_clean / (v[:,None] ** 0.5 * v[None,:] ** 0.5)
+        corrected_cov = so_cov.corr2cov(res_clean, mc_var)
+    else:
+        corrected_cov = res_clean
 
     if return_S:
         return S, corrected_cov
+    else:
+        return corrected_cov
+    
+    
+def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+    """
+    Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
+    We use the skew method proposed by Sigurd Naess.
+    to be merged with correct_analytical_cov  at some point
+    Parameters
+    ----------
+    an_full_cov: 2d array
+      Full analytical covariance matrix
+    mc_full_cov: 2d array
+      Full MC covariance matrix
+    nkeep: int
+      number of sigular value above the S/N threshold
+     """
+
+    sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
+    inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov
+    res_diag = np.diag(res)
+    corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov
+
+    if return_diag:
+        return corrected_cov, res_diag
     else:
         return corrected_cov
 
@@ -481,6 +516,253 @@ def get_ewin_info_from_field_info(field_info, d, mode, extra=None, return_paths_
             return f'{w_alias}_{s_alias}' + extra, (w_full_path, s_full_path), (w_op, s_op)
         else:
             return f'{w_alias}_{s_alias}' + extra
+
+
+def get_mock_noise_ps(lmax, lknee, lcap, pow):
+    """Get a mock power spectrum that is white at high-ell, a power-law at low
+    ell, but is capped at a given minimum ell.
+
+    Parameters
+    ----------
+    lmax : int
+        lmax of power spectrum.
+    lknee : int
+        lknee of power law.
+    lcap : int
+        minimum ell at which the power law is capped.
+    pow : scalar
+        exponent of power law.
+
+    Returns
+    -------
+    np.ndarray (lmax+1,)
+        mock power spectrum. 
+    """
+    ells = np.arange(lmax + 1, dtype=np.float64)
+    ps = np.zeros_like(ells)
+    ps[lcap:] = (ells[lcap:]/lknee)**pow + 1
+    ps[:lcap] = ps[lcap]
+    return ps
+
+
+def bin_spec(specs, bin_low, bin_high):
+    """Bin spectra along their last axis.
+
+    Parameters
+    ----------
+    specs : (..., nell) np.ndarray
+        Spectra to be binned, with ell along last axis.
+    bin_low : (nbin) np.ndarray
+        Inclusive low-bounds of bins.
+    bin_high : (nbin)
+        Inclusive high-bounds of bins.
+
+    Returns
+    -------
+    (..., nbin) np.ndarray
+        Binned spectra.
+    """
+    out = np.zeros((*specs.shape[:-1], len(bin_low)))
+    for i in range(len(bin_low)):
+        out[..., i] = specs[..., bin_low[i]:bin_high[i] + 1].mean(axis=-1) 
+    return out
+
+
+def bin_mat(mats, bin_low, bin_high):
+    """Bin a matrix along its last two axes.
+
+    Parameters
+    ----------
+    mats : (..., nell, nell) np.ndarray
+        Matrices to be binned, with ells along last two axes.
+    bin_low : (nbin) np.ndarray
+        Inclusive low-bounds of bins.
+    bin_high : (nbin)
+        Inclusive high-bounds of bins.
+
+    Returns
+    -------
+    (..., nbin, nbin) np.ndarray
+        Binned matrices.
+    """
+    out = np.zeros((*mats.shape[:-2], len(bin_low), len(bin_low)))
+    for i in range(len(bin_low)):
+        for j in range(len(bin_low)):
+            out[..., i, j] = mats[..., bin_low[i]:bin_high[i] + 1, bin_low[j]:bin_high[j] + 1].mean(axis=(-2, -1))
+    return out
+
+
+def get_expected_pseudo_func(mcm, tf, ps, bin_low=None, bin_high=None):
+    """Build a function that returns the theory pseudospectrum from a theory
+    powerspectrum, multiplied by some one-dimensional transfer function raised
+    to the alpha power:
+
+    f(alpha): mcm @ (tf**alpha * ps)
+
+    Parameters
+    ----------
+    mcm : (nell, nell) np.ndarray
+        Mode-coupling matrix.
+    tf : (nell)
+        One-dimensional transfer function.
+    ps : (nell)
+        Power spectrum.
+    bin_low : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin lowerbounds, by default None.
+        Binning occurs if not None.
+    bin_high : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin upperbounds, by default None.
+
+    Returns
+    -------
+    function
+        f(alpha): mcm @ (tf**alpha * ps)
+    """
+    if bin_low is not None:
+        def f(alpha):
+            return bin_spec(mcm @ (tf**alpha * ps), bin_low, bin_high)       
+    else:
+        def f(alpha):
+            return mcm @ (tf**alpha * ps)
+    return f
+
+
+def get_expected_cov_diag_func(mcm, w2, tf, ps, coup, bin_low=None, bin_high=None, pre_mcm_inv=None):
+    """Build a function that returns the theory covariance diagonal (under the 
+    arithmetic INKA approximation) from a theory powerspectrum, multiplied by
+    some one-dimensional transfer function raised to the alpha power, and the
+    other covariance ingredients (mcm, w2, coup):
+
+    f(alpha): 0.5 * ((mcm @ (tf**(alpha/2) * ps / w2)) + (mcm @ (tf**(alpha/2) * ps / w2))[:, None])**2 * coup
+
+    Parameters
+    ----------
+    mcm : (nell, nell) np.ndarray
+        Mode-coupling matrix.
+    w2 : scalar
+        w2 factor of the mask generating the mode-coupling matrix.
+    tf : (nell)
+        One-dimensional transfer function.
+    ps : (nell)
+        Power spectrum.
+    coup : (nell, nell) np.ndarray
+        Coupling matrix.
+    bin_low : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin lowerbounds, by default None.
+        Binning occurs if not None.
+    bin_high : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin upperbounds, by default None.
+    pre_mcm_inv : (nell, nell) np.ndarray, optional
+        Linear operator that takes pseudospectra to powerspectra, used in 
+        calculating the powerspectrum covariance matrix, by default None.
+        Returns the powerspectrum covariance matrix if not None.
+
+    Returns
+    -------
+    function
+        f(alpha): 0.5 * ((mcm @ (tf**(alpha/2) * ps / w2)) + (mcm @ (tf**(alpha/2) * ps / w2))[:, None])**2 * coup
+    """
+    def pseudo_cov(alpha):
+        return 0.5 * ((mcm @ (tf**(alpha/2) * ps / w2)) + (mcm @ (tf**(alpha/2) * ps / w2))[:, None])**2 * coup
+
+    if bin_low is not None:
+        if pre_mcm_inv is None:
+            def f(alpha):
+                return np.diag(bin_mat(pseudo_cov(alpha), bin_low, bin_high))
+        else:
+            def f(alpha):
+                return np.diag(bin_mat(pre_mcm_inv @ pseudo_cov(alpha) @ pre_mcm_inv.T, bin_low, bin_high))
+    else:
+        if pre_mcm_inv is None:
+            def f(alpha):
+                return np.diag(pseudo_cov(alpha))
+        else:
+            def f(alpha):
+                return np.diag(pre_mcm_inv @ pseudo_cov(alpha) @ pre_mcm_inv.T)  
+    
+    return f
+
+
+def fit_func(x, alpha, func, xmin, den):
+    """A wrapper around a one-dimensional function to fit (a function of alpha
+    only) that allows its result to be normalized by some denominator and only
+    fit at and above some element xmin.
+
+    Parameters
+    ----------
+    x : any
+        x-values (not used)
+    alpha : scalar
+        See get_expected_pseudo_func and get_expected_cov_diag_func.
+    func : function
+        get_expected_pseudo_func or get_expected_cov_diag_func.
+    xmin : int
+        Minimum element used in the fit.
+    den : np.ndarray
+        Denominator used in the fitting, same size as func.
+
+    Returns
+    -------
+    np.ndarray
+        The normalized function result.
+
+    Notes
+    -----
+    Passed to scipy.optimize.curvefit by freezing func, xmin, and den with
+    functools.partial. Note, scipy.optimize.curvefit requires x-values to be
+    passable, but we don't use them.
+    """
+    return np.divide(func(alpha)[xmin:], den[xmin:], where=den[xmin:]!=0, out=np.zeros_like(den[xmin:]))
+
+
+def get_alpha_fit(res_dict, func, target, tag, xmin=0):
+    """A wrapper that performs a fit of a function taking a single parameter
+    to a target dataset. The results are tagged in a dictionary.
+
+    Parameters
+    ----------
+    res_dict : dict
+        The dictionary holding the results.
+    func : callable
+        A function of a single variable.
+    target : (ntar, size) array-like
+        A 2d array of data. The mean of this array over the first axis is the
+        data vector we attempt to fit with func. The sample standard deviation
+        of this array over the first axis is the error vector we use in the fit.
+    tag : str
+        A description for this fit to tag results with.
+    xmin : int, optional
+        The minimum element into the last axis of target we actually use in the
+        fit, by default 0.
+
+    Notes
+    -----
+    The passed func is further passed into fit_func; thus, it must be one of 
+    get_expected_pseudo_func or get_expected_cov_diag_func. The single
+    parameter we fit for is therefore alpha, the power to which we raise a
+    transfer function template multiplying the power spectrum.
+    """
+    den = func(0)
+    res_dict[f'{tag}_den'] = den
+
+    res_dict[f'{tag}_mean'] = target.mean(axis=0) 
+    res_dict[f'{tag}_var'] = target.var(axis=0, ddof=1) / len(target)
+
+    ydata = np.divide(res_dict[f'{tag}_mean'], den, where=den!=0, out=np.zeros_like(den))
+    yerr = np.divide(res_dict[f'{tag}_var']**0.5, den, where=den!=0, out=np.zeros_like(den))
+    res_dict[f'{tag}_ydata'] = ydata
+    res_dict[f'{tag}_yerr'] = yerr
+
+    res_dict[f'{tag}_xmin'] = xmin
+
+    popt, pcov = curve_fit(partial(fit_func, func=func, xmin=xmin, den=den), 1, ydata[xmin:], sigma=yerr[xmin:])
+    best_fit = fit_func(1, popt[0], func, 0, den)
+
+    res_dict[f'{tag}_alpha'] = popt[0]
+    res_dict[f'{tag}_alpha_err'] = pcov[0, 0]**0.5 
+    res_dict[f'{tag}_best_fit'] = best_fit
+    res_dict[f'{tag}_best_fit_err'] = ydata - best_fit
+    res_dict[f'{tag}_best_fit_stderr'] = np.divide(ydata - best_fit, yerr, where=yerr!=0, out=np.zeros_like(yerr))
 
 
 def read_covariance(cov_file,
