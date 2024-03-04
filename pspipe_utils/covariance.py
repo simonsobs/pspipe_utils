@@ -765,6 +765,94 @@ def get_alpha_fit(res_dict, func, target, tag, xmin=0):
     res_dict[f'{tag}_best_fit_stderr'] = np.divide(ydata - best_fit, yerr, where=yerr!=0, out=np.zeros_like(yerr))
 
 
+def cmb_matrix_from_file(f_name, lmax, spectra, input_type='Dl'):
+    """Return a 3x3 matrix of CMB power spectra from products
+    on-disk. Dl factors are removed.
+
+    Parameters
+    ----------
+    f_name : path-like
+        Path to a cmb.dat file with 9 polarization-cross fields.
+    lmax : int
+        lmax of output. If cmb.dat file does not support up to the requested
+        lmax, the value at the last available lmax is extended.
+    spectra : list of str
+        The list of polarization crosses, passed to so_spectra.read_ps.
+    input_type : str, optional
+        'Cl' or 'Dl', by default 'Dl'. If 'Dl', assuemd that the data in
+        cmd.dat is in 'Dl' format. The 'Dl' factor is then removed, resulting
+        in pure physical power spectra.
+
+    Returns
+    -------
+    (3, 3, lmax+1) np.ndarray
+        The TEB x TEB x nell ordered physical CMB power spectra.
+    """
+    ps_mat = np.zeros((3, 3, lmax+1))
+    
+    l, ps_theory = so_spectra.read_ps(f_name, spectra=spectra)
+    assert l[0] == 2, 'the file is expected to start at l=2'
+    _lmax = min(lmax, int(max(l)))  # make sure lmax doesn't exceed model lmax
+    
+    for p1, pol1 in enumerate('TEB'):
+        for p2, pol2 in enumerate('TEB'):
+            if input_type == 'Dl':
+                ps_theory[pol1 + pol2] *= 2 * np.pi / (l * (l + 1))
+            ps_mat[p1, p2, 2:(_lmax+1)] = ps_theory[pol1 + pol2][:(_lmax+1) - 2]
+    
+    ps_mat[..., _lmax+1:] = ps_mat[..., _lmax][..., None] # extend with last val
+    
+    return ps_mat
+
+
+def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_type='Dl'):
+    """Return a (narrx3) x (narrx3) matrix of foreground power spectra from
+    products on-disk. Dl factors are removed.
+
+    Parameters
+    ----------
+    f_name_tmp : str
+        Filename template to foreground cross-spectra on disk, to be populated
+        with a pair of entries in arrays_list.
+    arrays_list : list of str
+        Each pair of entries in this list should format the f_name_tmp to 
+        give a full path to a foreground cross-spectra on-disk.
+    lmax : int
+        lmax of output. If cmb.dat file does not support up to the requested
+        lmax, the value at the last available lmax is extended.
+    spectra : list of str
+        The list of polarization crosses, passed to so_spectra.read_ps.
+    input_type : str, optional
+        'Cl' or 'Dl', by default 'Dl'. If 'Dl', assuemd that the data in
+        cmd.dat is in 'Dl' format. The 'Dl' factor is then removed, resulting
+        in pure physical power spectra.
+
+    Returns
+    -------
+    (narr, 3, narr, 3, lmax+1) np.ndarray
+        The (narrxTEB) x (narrxTEB) x nell ordered physical foreground,
+        power spectra. Here, narr is len(arrays_list).
+    """
+    narrays = len(arrays_list)
+    fg_mat = np.zeros((narrays, 3, narrays, 3, lmax+1))
+    
+    for a1, array1 in enumerate(arrays_list):
+        for a2, array2 in enumerate(arrays_list):
+            l, fg_theory = so_spectra.read_ps(f_name_tmp.format(array1, array2), spectra=spectra)
+            assert l[0] == 2, 'the file is expected to start at l=2'
+            _lmax = min(lmax, int(max(l)))  # make sure lmax doesn't exceed model lmax
+            
+            for p1, pol1 in enumerate('TEB'):
+                for p2, pol2 in enumerate('TEB'):
+                    if input_type == 'Dl':
+                        fg_theory[pol1 + pol2] *=  2 * np.pi / (l * (l + 1))
+                    fg_mat[a1, p1, a2, p2, 2:(_lmax+1)] = fg_theory[pol1 + pol2][:(_lmax+1) - 2]
+
+    fg_mat[..., _lmax+1:] = fg_mat[..., _lmax][..., None] # extend with last val
+    
+    return fg_mat
+
+
 def read_covariance(cov_file,
                     beam_error_corrections,
                     mc_error_corrections):
