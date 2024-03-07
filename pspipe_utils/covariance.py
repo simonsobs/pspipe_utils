@@ -3,6 +3,7 @@ from pspipe_utils import misc
 from pspy import pspy_utils, so_cov, so_spectra
 
 import numpy as np
+import scipy
 from scipy.optimize import curve_fit
 import pylab as plt
 
@@ -851,6 +852,35 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
     fg_mat[..., _lmax+1:] = fg_mat[..., _lmax][..., None] # extend with last val
     
     return fg_mat
+
+
+def get_binning_matrix(bin_lo, bin_hi, lmax, cltype='Dl'):
+    """Returns P_bl, the binning matrix that turns C_ell into C_b."""
+    l = np.arange(2, lmax) # assumes 2:lmax ordering
+    if cltype == 'Dl':
+        fac = (l * (l + 1) / (2 * np.pi))
+    elif cltype == 'Cl':
+        fac = l * 0 + 1
+    n_bins = len(bin_lo)  # number of bins is same for all spectra in block
+    Pbl = np.zeros((n_bins, lmax-2))
+    for ibin in range(n_bins):
+        loc = np.where((l >= bin_lo[ibin]) & (l <= bin_hi[ibin]))[0]
+        Pbl[ibin, loc] = fac[loc] / len(loc)
+    return Pbl
+
+
+def get_Pbl_Minv_matrix(binning_matrix, mbb_inv):
+    """Computes P_{bl} @ Minv_{ll'}, the binning operator applied to the inverse MCM. Better
+    to do this block-wise than materialize the full unbinned MCM across all polarizations.
+    """
+    Pbl = binning_matrix
+    M00 = Pbl @ mbb_inv['spin0xspin0']
+    M02 = Pbl @ mbb_inv['spin0xspin2']
+    M20 = Pbl @ mbb_inv['spin2xspin0']
+    Pbl_pol =  scipy.linalg.block_diag(Pbl, Pbl, Pbl, Pbl)
+    M22 = Pbl_pol @ mbb_inv['spin2xspin2']
+    PblMinv_bl = scipy.linalg.block_diag(M00, M02, M02, M20, M20, M22) # FIXME: assumes spectra ordering
+    return PblMinv_bl
 
 
 def read_covariance(cov_file,
