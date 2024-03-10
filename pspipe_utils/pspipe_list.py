@@ -58,7 +58,7 @@ def get_spectra_list(dict):
 
     return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
-def get_covariances_list(dict):
+def get_covariances_list(dict, delimiter="&"):
     """This function creates the lists over which mpi is done
     when we parallelized over each covariance element
 
@@ -69,7 +69,7 @@ def get_covariances_list(dict):
 
     """
 
-    spec_name = get_spec_name_list(dict)
+    spec_name = get_spec_name_list(dict, delimiter)
     na_list, nb_list, nc_list, nd_list = [], [], [], []
     ncovs = 0
 
