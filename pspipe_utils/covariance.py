@@ -342,23 +342,9 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=
     
     
 def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
-    """
-    Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
-    We use the skew method proposed by Sigurd Naess.
-    to be merged with correct_analytical_cov  at some point
-    Parameters
-    ----------
-    an_full_cov: 2d array
-      Full analytical covariance matrix
-    mc_full_cov: 2d array
-      Full MC covariance matrix
-    nkeep: int
-      number of sigular value above the S/N threshold
-     """
-
     sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
     inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
-    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov # res should be close to the identity if an_full_cov is good
     res_diag = np.diag(res)
     corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov
 
@@ -806,7 +792,7 @@ def cmb_matrix_from_file(f_name, lmax, spectra, input_type='Dl'):
     return ps_mat
 
 
-def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_type='Dl'):
+def foreground_matrix_from_files(f_name_tmp, sv_ar_chans_list, lmax, spectra, input_type='Dl'):
     """Return a (narrx3) x (narrx3) matrix of foreground power spectra from
     products on-disk. Dl factors are removed.
 
@@ -814,10 +800,11 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
     ----------
     f_name_tmp : str
         Filename template to foreground cross-spectra on disk, to be populated
-        with a pair of entries in arrays_list.
-    arrays_list : list of str
-        Each pair of entries in this list should format the f_name_tmp to 
-        give a full path to a foreground cross-spectra on-disk.
+        with the 6 entries formed by unpacking a pair of 3-element tuples from
+        sv_ar_chans_list.
+    sv_ar_chans_list : list of str
+        A list of tuples. Each tuple in should have 3 elements: the field
+        survey string, the array string, and the channel string.
     lmax : int
         lmax of output. If cmb.dat file does not support up to the requested
         lmax, the value at the last available lmax is extended.
@@ -830,16 +817,16 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
 
     Returns
     -------
-    (narr, 3, narr, 3, lmax+1) np.ndarray
-        The (narrxTEB) x (narrxTEB) x nell ordered physical foreground,
-        power spectra. Here, narr is len(arrays_list).
+    (nsac, 3, nsac, 3, lmax+1) np.ndarray
+        The (nsacxTEB) x (nsacxTEB) x nell ordered physical foreground,
+        power spectra. Here, nsac is len(sv_ar_chans_list).
     """
-    narrays = len(arrays_list)
-    fg_mat = np.zeros((narrays, 3, narrays, 3, lmax+1))
+    nsacs = len(sv_ar_chans_list)
+    fg_mat = np.zeros((nsacs, 3, nsacs, 3, lmax+1))
     
-    for a1, array1 in enumerate(arrays_list):
-        for a2, array2 in enumerate(arrays_list):
-            l, fg_theory = so_spectra.read_ps(f_name_tmp.format(array1, array2), spectra=spectra)
+    for sac1, sv_ar_chan1 in enumerate(sv_ar_chans_list):
+        for sac2, sv_ar_chan2 in enumerate(sv_ar_chans_list):
+            l, fg_theory = so_spectra.read_ps(f_name_tmp.format(*sv_ar_chan1, *sv_ar_chan2), spectra=spectra)
             assert l[0] == 2, 'the file is expected to start at l=2'
             _lmax = min(lmax, int(max(l)))  # make sure lmax doesn't exceed model lmax
             
@@ -847,7 +834,7 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
                 for p2, pol2 in enumerate('TEB'):
                     if input_type == 'Dl':
                         fg_theory[pol1 + pol2] *=  2 * np.pi / (l * (l + 1))
-                    fg_mat[a1, p1, a2, p2, 2:(_lmax+1)] = fg_theory[pol1 + pol2][:(_lmax+1) - 2]
+                    fg_mat[sac1, p1, sac2, p2, 2:(_lmax+1)] = fg_theory[pol1 + pol2][:(_lmax+1) - 2]
 
     fg_mat[..., _lmax+1:] = fg_mat[..., _lmax][..., None] # extend with last val
     
