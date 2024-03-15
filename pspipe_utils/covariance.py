@@ -856,20 +856,6 @@ def get_binning_matrix(bin_lo, bin_hi, lmax, cltype='Dl'):
     return Pbl
 
 
-def get_Pbl_Minv_matrix(binning_matrix, mbb_inv):
-    """Computes P_{bl} @ Minv_{ll'}, the binning operator applied to the inverse MCM. Better
-    to do this block-wise than materialize the full unbinned MCM across all polarizations.
-    """
-    Pbl = binning_matrix
-    M00 = Pbl @ mbb_inv['spin0xspin0']
-    M02 = Pbl @ mbb_inv['spin0xspin2']
-    M20 = Pbl @ mbb_inv['spin2xspin0']
-    Pbl_pol =  scipy.linalg.block_diag(Pbl, Pbl, Pbl, Pbl)
-    M22 = Pbl_pol @ mbb_inv['spin2xspin2']
-    PblMinv_bl = scipy.linalg.block_diag(M00, M02, M02, M20, M20, M22) # FIXME: assumes spectra ordering
-    return PblMinv_bl
-
-
 def read_covariance(cov_file,
                     beam_error_corrections,
                     mc_error_corrections):
