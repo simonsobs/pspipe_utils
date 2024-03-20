@@ -273,7 +273,15 @@ def get_foreground_dict(ell,
             "a_psee": 0.05,
             "a_psbb": 0.05,
             "a_pste": 0,
-            "a_pstb": 0}
+            "a_pstb": 0
+            "beta_s": -2.5,
+            "alpha_s": 1.0,
+            "T_effd": 19.6,
+            "beta_d": 1.5,
+            "alpha_dT": -0.6,
+            "alpha_dE": -0.4,
+            "alpha_p": 1.0,
+    }
 
     fg_norm: dict
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
