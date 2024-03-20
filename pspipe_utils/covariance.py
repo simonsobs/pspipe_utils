@@ -6,6 +6,8 @@ import numpy as np
 import scipy
 from scipy.optimize import curve_fit
 import pylab as plt
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 
 from pixell import utils
 
@@ -339,8 +341,36 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=
         return S, corrected_cov
     else:
         return corrected_cov
+
+
+def smooth_gp_diag(xs, ys, ell_cut, ell_cut_transition=50, length_scale=100.0, 
+                   length_scale_bounds=(10, 1e4), noise_level=0.1, noise_level_bounds=(1e-6, 1e1)):
     
-    
+    kernel = 1.0 * RBF(length_scale=length_scale, 
+                       length_scale_bounds=length_scale_bounds) + WhiteKernel(
+        noise_level=noise_level, noise_level_bounds=noise_level_bounds
+    )
+    # fit the first GP on the bins above the ell_cut
+    gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=True) # sample mean
+    i_cut = np.argmax(lb > ell_cut)
+    X_train = lb[i_cut:,np.newaxis]
+    y_train = np.diag(res)[i_cut:]
+    gpr.fit(X_train, y_train)
+    y_mean_high = gpr.predict(lb[:,np.newaxis], return_std=False)
+
+    # fit the second GP on the residual, for the bins below the ell_cut
+    gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=False)  # mean 0
+    i_cut = np.argmax(lb > ell_cut)
+    X_train = np.array([lb[:i_cut]]).T
+    y_train = (np.diag(res) - y_mean1)[:i_cut]
+    gpr.fit(X_train, y_train)
+    y_mean_low = gpr.predict(lb[:,np.newaxis], return_std=False)
+
+    # add the second GP but smoothly transition it to zero at the ell cut 
+    step = 1 - 1 / (1 + np.exp(-2 * (lb - ell_cut) / (ell_cut_transition/2)))
+    return y_mean_high + step * y_mean_low
+
+
 def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
     sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
     inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
