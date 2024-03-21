@@ -3,7 +3,7 @@ from pspipe_utils import misc
 from pspy import pspy_utils, so_cov, so_spectra
 
 import numpy as np
-import scipy
+import numba
 from scipy.optimize import curve_fit
 import pylab as plt
 
@@ -839,6 +839,41 @@ def foreground_matrix_from_files(f_name_tmp, sv_ar_chans_list, lmax, spectra, in
     fg_mat[..., _lmax+1:] = fg_mat[..., _lmax][..., None] # extend with last val
     
     return fg_mat
+
+
+# numba can help speed up the basic array operations ~2x
+@numba.njit(parallel=True)
+def add_term_to_pseudo_cov(pseudo_cov, C12, C34, coupling):
+    """Accumulates terms of a pseudocovariance block. Each term looks like:
+
+    (C12_2d + C12_2d.T) * (C34_2d + C34_2d.T) * coupling
+
+    where C_2d indicates a spectrum that has been broadcast to two dimensions.
+    This form indicates we are doing "arithmetic" symmetrization under the NKA.
+
+    Parameters
+    ----------
+    pseudo_cov : (nell, nell) np.ndarray
+        The accumulating array that contains the given term. Updated inplace.
+    C12 : (nell,) np.ndarray
+        The first spectrum in the covariance block under the NKA.
+    C34 : (nell,) np.ndarray
+        The second spectrum in the covariance block under the NKA.
+    coupling : (nell, nell) np.ndarray
+        The 4-point coupling term.
+
+    Notes
+    -----
+    By wrapping in numba.njit(parallel=True), we are asserting that all
+    operations in this function support parallel semantics, and that 
+    the dtype and shape of the inputs is fixed.
+    """
+    C12_2d = np.expand_dims(C12, 0)
+    C12_2d = np.broadcast_to(C12_2d, coupling.shape)
+
+    C34_2d = np.expand_dims(C34, 0)
+    C34_2d = np.broadcast_to(C34_2d, coupling.shape)
+    pseudo_cov += (C12_2d + C12_2d.T) * (C34_2d + C34_2d.T) * coupling
 
 
 def get_binning_matrix(bin_lo, bin_hi, lmax, cltype='Dl'):
