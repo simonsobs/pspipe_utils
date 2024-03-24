@@ -17,6 +17,7 @@ setup(
     install_requires=[
         "pspy>=1.5.3",
         "mflike>=0.8.2",
+        "scikit-learn>=1"
     ],
     package_data={"": ["data/**"]},
 )
