@@ -341,12 +341,25 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=
         return corrected_cov
     
     
-def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+def _correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
     sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
     inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
     res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov # res should be close to the identity if an_full_cov is good
     res_diag = np.diag(res)
     corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov
+
+    if return_diag:
+        return corrected_cov, res_diag
+    else:
+        return corrected_cov
+
+def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+    d_an, O_an  = np.linalg.eigh(an_full_cov)
+    sqrt_an_full_cov = O_an @ np.diag(d_an**.5)
+    inv_sqrt_an_full_cov = np.diag(d_an**-.5) @ O_an.T
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T # res should be close to the identity if an_full_cov is good
+    res_diag = np.diag(res)
+    corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov.T
 
     if return_diag:
         return corrected_cov, res_diag
