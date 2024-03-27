@@ -48,7 +48,7 @@ class CovarianceTest(unittest.TestCase):
 
     def test_compute_chi2_excluding_arrays(self):
         chi2, ndof = psc.compute_chi2(
-            **self.kwargs, excluded_spectra=["TE", "EE"], excluded_arrays=["ar2"]
+            **self.kwargs, excluded_spectra=["TE", "EE"], excluded_map_set=["ar2"]
         )
         self.assertAlmostEqual(chi2, np.sum(self.data_vec[:50] ** 2))
         self.assertEqual(ndof, 50)
