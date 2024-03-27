@@ -1,0 +1,38 @@
+# BICEP/Keck Array June 2021 Data Products
+# BICEP/Keck XIII: Improved Constraints on Primordial Gravitational Waves using Planck, WMAP, and BICEP/Keck Observations through the 2018 Observing Season
+# http://bicepkeck.org/
+#
+# File: BK18_components_20210607.txt
+# Date: 2021-06-07
+#
+# This file contains the per-ell bin spectral decomposition found in
+# Figure 16 of BICEP/Keck XIII. For the amplitude of CMB,
+# 95GHz/150GHz dust, and 95GHz/150GHz synchrotron components, we provide
+# the most probable value in each bin, as well as 68% and 95% credible
+# intervals, all derived from 1D marginalized posteriors. The CMB values
+# are also the BK18 data points plotted in Figure 7 of BICEP/Keck XIII.
+# We have additionally marginalized over the spectral indices of the dust and 
+# synchrotron components, as well as possible dust-sync spatial correlation.
+# See BICEP/Keck XIII for more details.
+#
+# Points in this file should be used for display purposes only. 
+# Component amplitudes in each ell bin are highly correlated and 
+# correlations exist between ell bins as well.
+#
+# Columns: lmin, lcenter, lmax, CMB max, CMB 68% low, CMB 68% high,
+#          CMB 95% low, CMB 95% high, 150 dust max, 150 dust 68% low,
+#          150 dust 68% high, 150 dust 95% low, 150 dust 95% high,
+#          150 sync max, 150 sync 68% low, 150 sync 68% high,
+#          150 sync 95% low, 150 sync 95% high, 95 dust max,
+#          95 dust 68% low, 95 dust 68% high, 95 dust 95% low,
+#          95 dust 95% high, 95 sync max, 95 sync 68% low,
+#          95 sync 68% high, 95 sync 95% low, 95 sync 95% high
+ 37   46.8   54  1.41e-03  5.74e-04  2.62e-03  0.00e+00  4.27e-03  1.28e-02  8.18e-03  1.94e-02  5.34e-03  3.00e-02  0.00e+00  0.00e+00  6.05e-05  0.00e+00  2.34e-04  1.76e-03  1.11e-03  2.89e-03  6.82e-04  4.64e-03  0.00e+00  0.00e+00  3.87e-04  0.00e+00  1.20e-03  
+ 60   73.6   86  1.70e-03  1.03e-03  2.53e-03  4.05e-04  3.47e-03  8.97e-03  6.80e-03  1.16e-02  5.21e-03  1.52e-02  3.63e-06  0.00e+00  5.51e-05  0.00e+00  1.80e-04  1.31e-03  9.54e-04  1.79e-03  6.88e-04  2.42e-03  4.88e-05  0.00e+00  3.54e-04  0.00e+00  9.34e-04  
+ 91  106.1  120  5.17e-03  3.91e-03  6.62e-03  2.80e-03  8.38e-03  1.20e-02  9.71e-03  1.48e-02  7.87e-03  1.82e-02  0.00e+00  0.00e+00  5.95e-05  0.00e+00  2.45e-04  1.64e-03  1.27e-03  2.13e-03  9.69e-04  2.78e-03  0.00e+00  0.00e+00  3.92e-04  0.00e+00  1.22e-03  
+123  137.5  155  6.78e-03  5.24e-03  8.47e-03  3.68e-03  1.04e-02  6.13e-03  4.71e-03  7.85e-03  3.53e-03  1.00e-02  0.00e+00  0.00e+00  8.42e-05  0.00e+00  3.15e-04  9.00e-04  6.41e-04  1.21e-03  4.59e-04  1.62e-03  0.00e+00  0.00e+00  5.38e-04  0.00e+00  1.54e-03  
+153  167.9  190  8.70e-03  6.31e-03  1.13e-02  3.86e-03  1.39e-02  5.07e-03  3.58e-03  6.75e-03  2.34e-03  8.80e-03  1.33e-04  0.00e+00  3.43e-04  0.00e+00  7.60e-04  7.13e-04  4.85e-04  1.03e-03  3.07e-04  1.42e-03  1.08e-03  0.00e+00  2.38e-03  0.00e+00  4.14e-03  
+181  196.3  224  1.45e-02  1.13e-02  1.77e-02  8.13e-03  2.12e-02  3.87e-03  2.37e-03  5.52e-03  1.09e-03  7.45e-03  7.92e-05  0.00e+00  4.39e-04  0.00e+00  1.13e-03  5.38e-04  3.11e-04  8.05e-04  1.39e-04  1.14e-03  9.30e-04  0.00e+00  2.90e-03  0.00e+00  6.08e-03  
+206  223.6  258  2.30e-02  1.90e-02  2.72e-02  1.49e-02  3.18e-02  5.88e-03  3.89e-03  8.13e-03  2.19e-03  1.08e-02  0.00e+00  0.00e+00  2.73e-04  0.00e+00  9.78e-04  8.08e-04  5.06e-04  1.19e-03  2.66e-04  1.67e-03  0.00e+00  0.00e+00  1.89e-03  0.00e+00  5.26e-03  
+236  252.6  292  2.79e-02  2.34e-02  3.24e-02  1.90e-02  3.76e-02  3.46e-03  1.35e-03  5.76e-03  0.00e+00  8.17e-03  0.00e+00  0.00e+00  2.41e-04  0.00e+00  8.50e-04  4.69e-04  1.69e-04  8.42e-04  0.00e+00  1.27e-03  0.00e+00  0.00e+00  1.76e-03  0.00e+00  4.81e-03  
+263  280.3  326  2.07e-02  1.49e-02  2.64e-02  9.04e-03  3.20e-02  6.84e-03  3.81e-03  1.03e-02  1.22e-03  1.42e-02  1.34e-04  0.00e+00  6.25e-04  0.00e+00  1.57e-03  9.55e-04  5.10e-04  1.53e-03  1.32e-04  2.23e-03  4.52e-04  0.00e+00  4.89e-03  0.00e+00  1.02e-02  

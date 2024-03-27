@@ -265,7 +265,8 @@ def cov_dict_to_file(cov_dict,
 
 def correct_analytical_cov(an_full_cov,
                            mc_full_cov,
-                           only_diag_corrections=False):
+                           only_diag_corrections=False,
+                           use_max_error=True):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We keep the correlation structure of the analytical covariance matrices, rescaling
@@ -281,8 +282,10 @@ def correct_analytical_cov(an_full_cov,
     an_var = an_full_cov.diagonal()
     mc_var = mc_full_cov.diagonal()
 
-    rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
-
+    if use_max_error:
+        rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
+    else:
+        rescaling_var = mc_var
     if only_diag_corrections:
         corrected_cov = an_full_cov - np.diag(an_var) + np.diag(rescaling_var)
     else:
@@ -1136,22 +1139,22 @@ def read_x_ar_theory_vec(bestfit_dir,
 def get_indices(
     bin_low,
     bin_high,
+    bin_mean,
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    excluded_arrays=None
+    excluded_map_set=None,
+    only_TT_map_set=None,
 ):
     """
     This function returns the covariance and spectra indices selected given a set of multipole cuts
 
     Parameters
     ----------
-    bin_low: 1d array
-        the low values of the data binning
-    bin_high: 1d array
-        the high values of the data binning
+    bin_mean: 1d array
+        the center values of the data binning
     spec_name_list: list of str
         list of the cross spectra
     spectra_cuts: dict
@@ -1163,8 +1166,10 @@ def get_indices(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    excluded_arrays: list of str
-        the list of arrays to be excluded
+    excluded_map_set: list of str
+        the list of map set to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
     """
     if selected_spectra and excluded_spectra:
         raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
@@ -1172,15 +1177,20 @@ def get_indices(
         excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
     excluded_spectra = excluded_spectra or []
 
-    excluded_arrays = excluded_arrays or []
+    excluded_map_set = excluded_map_set or []
+    
+    only_TT_map_set = only_TT_map_set or []
 
     spectra_cuts = spectra_cuts or {}
-    indices = np.array([])
+    indices_in = np.array([])
 
     nbins = len(bin_low)
     shift_indices = 0
-    selected_spectra = []
+    
+    bin_out_dict = {}
+    id_min = 0
     for spec in spectra_order:
+        X, Y = spec
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
             if spec in ["ET", "BT", "BE"] and na == nb:
@@ -1189,34 +1199,44 @@ def get_indices(
                 shift_indices += nbins
                 continue
 
-            if na in excluded_arrays or nb in excluded_arrays:
+            if na in excluded_map_set or nb in excluded_map_set:
                 shift_indices += nbins
                 continue
-
+                
+            if na in only_TT_map_set or nb in only_TT_map_set:
+                if spec != "TT":
+                    shift_indices += nbins
+                    continue
+                
             ca, cb = spectra_cuts.get(na, {}), spectra_cuts.get(nb, {})
 
-            def _get_extrema(field, idx):
-                return [c.get(field, [0, np.inf])[idx] for c in [ca, cb]]
+            if X != "T": X = "P"
+            if Y != "T": Y = "P"
 
-            if "T" not in spec:
-                lmins = _get_extrema("P", 0)
-                lmaxs = _get_extrema("P", 1)
-            elif "E" in spec or "B" in spec:
-                lmins = _get_extrema("T", 0) + _get_extrema("P", 0)
-                lmaxs = _get_extrema("T", 1) + _get_extrema("P", 1)
+            if not ca: #return True if ca is empty
+                lmin_Xa, lmax_Xa = 0, np.inf
             else:
-                lmins = _get_extrema("T", 0)
-                lmaxs = _get_extrema("T", 1)
+                lmin_Xa, lmax_Xa = ca[X][0],  ca[X][1]
+            
+            if not cb:
+                lmin_Yb, lmax_Yb = 0, np.inf
+            else:
+                lmin_Yb, lmax_Yb = cb[Y][0],  cb[Y][1]
 
-            lmin, lmax = max(lmins), min(lmaxs)
+            lmin = np.maximum(lmin_Xa, lmin_Yb)
+            lmax = np.minimum(lmax_Xa, lmax_Yb)
 
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
-            indices = np.append(indices, idx + shift_indices)
-            shift_indices += nbins
+            
+            indices_in = np.append(indices_in, idx + shift_indices)
+            
             if lmin != lmax:
-                selected_spectra += [(f"{spec_name}", f"{spec}")]
+                bin_out_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
+                id_min += len(idx)
 
-    return selected_spectra, indices.astype(int)
+            shift_indices += nbins
+                
+    return bin_out_dict,  indices_in.astype(int)
 
 def compute_chi2(
     data_vec,
@@ -1229,7 +1249,8 @@ def compute_chi2(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    excluded_arrays=None
+    excluded_map_set=None,
+    only_TT_map_set=None,
 ):
     """
     This function computes the chi2 value between data/sim spectra wrt theory spectra given
@@ -1258,19 +1279,24 @@ def compute_chi2(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    excluded_arrays: list of str
-        the list of arrays to be excluded
+    excluded_map_set: list of str
+        the list of map_set to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
+
     """
-    bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
+    bin_low, bin_high, bin_mean, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     _, indices = get_indices(
         bin_low,
         bin_high,
+        bin_mean,
         spec_name_list,
         spectra_cuts=spectra_cuts,
         spectra_order=spectra_order,
         selected_spectra=selected_spectra,
         excluded_spectra=excluded_spectra,
-        excluded_arrays=excluded_arrays,
+        excluded_map_set=excluded_map_set,
+        only_TT_map_set=only_TT_map_set,
     )
 
     delta = data_vec[indices] - theory_vec[indices]

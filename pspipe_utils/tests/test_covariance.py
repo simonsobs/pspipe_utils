@@ -58,7 +58,7 @@ class CovarianceTest(unittest.TestCase):
             **self.kwargs,
             spectra_cuts={"ar1": {"T": [10, 25], "P": [0, 25]}},
             excluded_spectra=["TE"],
-            excluded_arrays=["ar2"]
+            excluded_map_set=["ar2"]
         )
         self.assertAlmostEqual(
             chi2, np.sum(self.data_vec[9:22] ** 2) + np.sum(self.data_vec[300:322] ** 2)
