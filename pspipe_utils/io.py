@@ -134,7 +134,7 @@ def port2sacc(
     s.save_fits(sacc_file_name, overwrite=True)
 
 
-def extract_sacc_spectra(input_file, likelihood_name, cov_Bbl_file=None):
+def extract_sacc_spectra(likelihood_name, input_file, cov_Bbl_file=None):
     """
     This function extracts spectra from a sacc file through an "mflike"-like likelihood.
     It returns spectra and covariance block as python dictionnary the same way
@@ -142,14 +142,14 @@ def extract_sacc_spectra(input_file, likelihood_name, cov_Bbl_file=None):
 
     Parameters
     ----------
-    input_file: path
-      the path to the input sacc file
     likelihood_name: str
       the likelihood name. Must equivalent to the name set in the cobaya yaml file
       i.e. "mflike.MFLike" for default SO likelihood or "act_dr6_mflike.ACTDR6MFLike"
       for ACT DR6 likelihood
+    input_file: path
+      the path to the input sacc file
     cov_Bbl_file: path
-      the path to the covariance file if not inside the input file.
+      the path to the covariance file if not inside the input file (default: None).
       The dirname **must** be the same as the input file.
     """
     if cov_Bbl_file and os.path.dirname(cov_Bbl_file) != os.path.dirname(input_file):
