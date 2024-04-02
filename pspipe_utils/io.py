@@ -66,20 +66,20 @@ def port2sacc(
         raise ValueError("Number of bins does not match the data size and the cov order values!")
 
     # Compute unique list of (survey, array)
-    svxar = set(sum([cross.split("x") for spec, cross, *_ in cov_order], []))
-    log.debug(f"Survey list : {svxar}")
+    map_set_list = set(sum([cross.split("x") for spec, cross, *_ in cov_order], []))
+    log.debug(f"Survey list : {map_set_list} \n")
 
     # Saving into sacc format
     s = sacc.Sacc()
-    for sv_ar in svxar:
+    for map_set in map_set_list:
         for spin, quantity in zip([0, 2], ["temperature", "polarization"]):
-            nus, passband = passbands.get(f"{sv_ar}", ([], []))
-            ell, beam = beams.get(f"{sv_ar}", ([], {"T": [], "E": []}))
+            nus, passband = passbands.get(f"{map_set}", ([], []))
+            ell, beam = beams.get(f"{map_set}", ([], {"T": [], "E": []}))
             bfield = "T" if quantity == "temperature" else "E"
 
             tracer_kwargs = dict(
                 tracer_type="NuMap",
-                name=f"{sv_ar}_s{spin}",
+                name=f"{map_set}_s{spin}",
                 quantity=f"cmb_{quantity}",
                 spin=spin,
                 nu=nus,
@@ -91,7 +91,6 @@ def port2sacc(
             s.add_tracer(**tracer_kwargs)
 
     for count, (spec, cross, *_) in enumerate(cov_order):
-        log.debug(f"Adding '{cross}', {spec} spectrum")
 
         # Define tracer names and cl type
         p1, p2 = spec
@@ -116,6 +115,8 @@ def port2sacc(
             ls_w = np.arange(2, bbl.shape[-1] + 2)
             bp_window = sacc.BandpowerWindow(ls_w, bbl.T)
 
+        log.debug(f"Adding '{cross}', {spec} spectrum as {data_type} {tracer1} {tracer2}")
+
         kwargs = dict(
             data_type=data_type, tracer1=tracer1, tracer2=tracer2, ell=lb, x=Db, window=bp_window
         )
@@ -129,5 +130,5 @@ def port2sacc(
         log.info("Adding covariance")
         s.add_covariance(cov)
 
-    log.info(f"Writing {sacc_file_name}")
+    log.info(f"Writing {sacc_file_name} \n")
     s.save_fits(sacc_file_name, overwrite=True)
