@@ -344,7 +344,7 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=
         return corrected_cov
 
 
-def smooth_gp_diag(lb, res, ell_cut, ell_cut_transition=50, length_scale=100.0, 
+def smooth_gp_diag(lb, res, ell_cut, length_scale=100.0, 
                    length_scale_bounds=(10, 1e4), noise_level=0.1, noise_level_bounds=(1e-6, 1e1)):
     
     kernel = 1.0 * RBF(length_scale=length_scale, 
@@ -367,9 +367,9 @@ def smooth_gp_diag(lb, res, ell_cut, ell_cut_transition=50, length_scale=100.0,
     gpr.fit(X_train, y_train)
     y_mean_low = gpr.predict(lb[:,np.newaxis], return_std=False)
 
-    # add the second GP but smoothly transition it to zero at the ell cut 
-    step = 1 - 1 / (1 + np.exp(-2 * (lb - ell_cut) / (ell_cut_transition/2)))
-    return y_mean_high + step * y_mean_low
+    # add together the two GPs but only include the second GP below the ell_cut
+    y_mean_high[:i_cut] += y_mean_low[:i_cut]
+    return y_mean_high
 
     
 def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
