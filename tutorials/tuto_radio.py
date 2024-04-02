@@ -7,18 +7,18 @@ import pylab as plt
 import scipy
 from pixell import enmap, curvedsky
 from pspy import so_map, so_window, so_mcm, sph_tools, so_spectra, pspy_utils, so_cov
-from pspipe_utils import radio_sources, get_data_path
+from pspipe_utils import poisson_sources, get_data_path
 
 test_dir = "test_poisson"
 pspy_utils.create_directory(test_dir)
 
-S, dNdSdOmega = radio_sources.read_tucci_source_distrib(plot_fname=f"{test_dir}/source_distrib.png")
+S, dNdSdOmega = poisson_sources.read_tucci_source_distrib(plot_fname=f"{test_dir}/source_distrib_radio.png")
 
 
-poisson_power = radio_sources.get_poisson_power(S, dNdSdOmega, plot_fname=f"{test_dir}/as.png")
-trispectrum = radio_sources.get_trispectrum(S, dNdSdOmega)
+poisson_power = poisson_sources.get_poisson_power(S, dNdSdOmega, plot_fname=f"{test_dir}/as_radio.png")
+trispectrum = poisson_sources.get_trispectrum(S, dNdSdOmega)
 
-poisson_power_15mJy, trispectrum_15mJy = radio_sources.get_power_and_trispectrum_at_Smax(S, poisson_power, trispectrum, Smax=0.015)
+poisson_power_15mJy, trispectrum_15mJy = poisson_sources.get_power_and_trispectrum_at_Smax(S, poisson_power, trispectrum, Smax=0.015)
 print(f"poisson_power_15mJy: {poisson_power_15mJy}", f"trispectrum_15mJy: {trispectrum_15mJy}")
 
 dunkley_radio_data = {"S_cut_Jy" : 15e-3, "D3000" : 3.1, "sigmaD3000" : .4} # extracted from Dunkley et al
@@ -35,7 +35,7 @@ plt.ylim(0.1, 1000)
 plt.errorbar(dunkley_radio_data["S_cut_Jy"] * 1e3, dunkley_radio_data["D3000"], dunkley_radio_data["sigmaD3000"], fmt=".", label = "ACT 2013 radio(Dunkley+)")
 plt.errorbar(dunkley_radio_data["S_cut_Jy"] * 1e3, poisson_power_15mJy * fac0, fmt=".", label = "code prediction at 15 mJY")
 plt.legend(fontsize=22)
-plt.savefig(f"{test_dir}/check_dunkley.png")
+plt.savefig(f"{test_dir}/check_dunkley_radio.png")
 plt.clf()
 plt.close()
 
@@ -48,7 +48,7 @@ pspy_utils.create_binning_file(bin_size=100, n_bins=300, file_name=f"{test_dir}/
 binning_file = f"{test_dir}/binning.dat"
 n_splits = 2
 ref_freq = 148
-Jy_per_str_to_muK = radio_sources.convert_Jy_per_str_to_muK_cmb(ref_freq)
+Jy_per_str_to_muK = poisson_sources.convert_Jy_per_str_to_muK_cmb(ref_freq)
 
 
 # try to emulate the actual DR6 window (although at 8 times lower res)
@@ -95,7 +95,7 @@ for name1, id1 in zip(survey_name, survey_id):
         Clth_dict[id1 + id2] = Clth_dict[id1 + id2][:-2]
         
         
-source_mean_numbers = radio_sources.get_mean_number_of_source(template_car, S, dNdSdOmega, plot_fname=f"{test_dir}/N_source.png")
+source_mean_numbers = poisson_sources.get_mean_number_of_source(template_car, S, dNdSdOmega, plot_fname=f"{test_dir}/N_source.png")
 
 mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0(window, binning_file, lmax=lmax, type=ps_type, niter=niter)
 
