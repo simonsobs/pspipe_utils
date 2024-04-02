@@ -347,31 +347,32 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=
         return corrected_cov
 
 
-def smooth_gp_diag(lb, res, ell_cut, length_scale=100.0, 
-                   length_scale_bounds=(10, 1e4), noise_level=0.1, noise_level_bounds=(1e-6, 1e1)):
+def smooth_gp_diag(lb, arr_diag, ell_cut, length_scale=500.0, 
+                   length_scale_bounds=(100, 1e4), noise_level=0.01, 
+                   noise_level_bounds=(1e-6, 1e1), low_ell_scale=100, n_restarts_optimizer=20):
     
     kernel = 1.0 * RBF(length_scale=length_scale, 
                        length_scale_bounds=length_scale_bounds) + WhiteKernel(
         noise_level=noise_level, noise_level_bounds=noise_level_bounds
     )
     # fit the first GP on the bins above the ell_cut
-    gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=True) # sample mean
+    gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=True, 
+                                   n_restarts_optimizer=n_restarts_optimizer)
     i_cut = np.argmax(lb > ell_cut)
     X_train = lb[i_cut:,np.newaxis]
-    y_train = np.diag(res)[i_cut:]
+    y_train = arr_diag[i_cut:]
     gpr.fit(X_train, y_train)
     y_mean_high = gpr.predict(lb[:,np.newaxis], return_std=False)
 
-    # fit the second GP on the residual, for the bins below the ell_cut
-    gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=False)  # mean 0
+    # fit an exponential at the low end
     i_cut = np.argmax(lb > ell_cut)
-    X_train = np.array([lb[:i_cut]]).T
-    y_train = (np.diag(res) - y_mean_high)[:i_cut]
-    gpr.fit(X_train, y_train)
-    y_mean_low = gpr.predict(lb[:,np.newaxis], return_std=False)
-
-    # add together the two GPs but only include the second GP below the ell_cut
-    y_mean_high[:i_cut] += y_mean_low[:i_cut]
+    X_train = lb[:i_cut]
+    y_train = (arr_diag - y_mean_high)[:i_cut]
+    pos_el = y_train > 0
+    X_train, y_train = X_train[pos_el], y_train[pos_el]
+    z = np.polyfit(X_train, np.log(y_train), 1)
+    f = np.poly1d(z)
+    y_mean_high[:i_cut] += np.exp(f(lb[:i_cut]))
     return y_mean_high
 
     
