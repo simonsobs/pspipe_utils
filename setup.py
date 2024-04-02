@@ -13,11 +13,11 @@ setup(
     long_description=readme,
     long_description_content_type="text/x-rst",
     packages=find_packages(),
-    python_requires=">=3.5",
+    python_requires=">=3.9",
     install_requires=[
         "pspy>=1.5.3",
-        "mflike>=0.8.2",
         "scikit-learn>=1"
+        "mflike>=0.9.5",
     ],
     package_data={"": ["data/**"]},
 )

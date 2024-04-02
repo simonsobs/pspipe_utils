@@ -3,7 +3,7 @@ from pspipe_utils import misc
 from pspy import pspy_utils, so_cov, so_spectra
 
 import numpy as np
-import scipy
+import numba
 from scipy.optimize import curve_fit
 import pylab as plt
 
@@ -268,7 +268,8 @@ def cov_dict_to_file(cov_dict,
 
 def correct_analytical_cov(an_full_cov,
                            mc_full_cov,
-                           only_diag_corrections=False):
+                           only_diag_corrections=False,
+                           use_max_error=True):
     """
     Correct the analytical covariance matrix  using Monte Carlo estimated covariances.
     We keep the correlation structure of the analytical covariance matrices, rescaling
@@ -284,8 +285,10 @@ def correct_analytical_cov(an_full_cov,
     an_var = an_full_cov.diagonal()
     mc_var = mc_full_cov.diagonal()
 
-    rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
-
+    if use_max_error:
+        rescaling_var = np.where(mc_var>=an_var, mc_var, an_var)
+    else:
+        rescaling_var = mc_var
     if only_diag_corrections:
         corrected_cov = an_full_cov - np.diag(an_var) + np.diag(rescaling_var)
     else:
@@ -372,12 +375,25 @@ def smooth_gp_diag(lb, res, ell_cut, length_scale=100.0,
     return y_mean_high
 
     
-def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+def _correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
     sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
     inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
     res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov # res should be close to the identity if an_full_cov is good
     res_diag = np.diag(res)
     corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov
+
+    if return_diag:
+        return corrected_cov, res_diag
+    else:
+        return corrected_cov
+
+def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+    d_an, O_an  = np.linalg.eigh(an_full_cov)
+    sqrt_an_full_cov = O_an @ np.diag(d_an**.5)
+    inv_sqrt_an_full_cov = np.diag(d_an**-.5) @ O_an.T
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T # res should be close to the identity if an_full_cov is good
+    res_diag = np.diag(res)
+    corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov.T
 
     if return_diag:
         return corrected_cov, res_diag
@@ -872,6 +888,41 @@ def foreground_matrix_from_files(f_name_tmp, sv_ar_chans_list, lmax, spectra, in
     return fg_mat
 
 
+# numba can help speed up the basic array operations ~2x
+@numba.njit(parallel=True)
+def add_term_to_pseudo_cov(pseudo_cov, C12, C34, coupling):
+    """Accumulates terms of a pseudocovariance block. Each term looks like:
+
+    (C12_2d + C12_2d.T) * (C34_2d + C34_2d.T) * coupling
+
+    where C_2d indicates a spectrum that has been broadcast to two dimensions.
+    This form indicates we are doing "arithmetic" symmetrization under the NKA.
+
+    Parameters
+    ----------
+    pseudo_cov : (nell, nell) np.ndarray
+        The accumulating array that contains the given term. Updated inplace.
+    C12 : (nell,) np.ndarray
+        The first spectrum in the covariance block under the NKA.
+    C34 : (nell,) np.ndarray
+        The second spectrum in the covariance block under the NKA.
+    coupling : (nell, nell) np.ndarray
+        The 4-point coupling term.
+
+    Notes
+    -----
+    By wrapping in numba.njit(parallel=True), we are asserting that all
+    operations in this function support parallel semantics, and that 
+    the dtype and shape of the inputs is fixed.
+    """
+    C12_2d = np.expand_dims(C12, 0)
+    C12_2d = np.broadcast_to(C12_2d, coupling.shape)
+
+    C34_2d = np.expand_dims(C34, 0)
+    C34_2d = np.broadcast_to(C34_2d, coupling.shape)
+    pseudo_cov += (C12_2d + C12_2d.T) * (C34_2d + C34_2d.T) * coupling
+
+
 def get_binning_matrix(bin_lo, bin_hi, lmax, cltype='Dl'):
     """Returns P_bl, the binning matrix that turns C_ell into C_b."""
     l = np.arange(2, lmax) # assumes 2:lmax ordering
@@ -1119,22 +1170,22 @@ def read_x_ar_theory_vec(bestfit_dir,
 def get_indices(
     bin_low,
     bin_high,
+    bin_mean,
     spec_name_list,
     spectra_cuts=None,
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    excluded_arrays=None
+    excluded_map_set=None,
+    only_TT_map_set=None,
 ):
     """
     This function returns the covariance and spectra indices selected given a set of multipole cuts
 
     Parameters
     ----------
-    bin_low: 1d array
-        the low values of the data binning
-    bin_high: 1d array
-        the high values of the data binning
+    bin_mean: 1d array
+        the center values of the data binning
     spec_name_list: list of str
         list of the cross spectra
     spectra_cuts: dict
@@ -1146,8 +1197,10 @@ def get_indices(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    excluded_arrays: list of str
-        the list of arrays to be excluded
+    excluded_map_set: list of str
+        the list of map set to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
     """
     if selected_spectra and excluded_spectra:
         raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
@@ -1155,15 +1208,20 @@ def get_indices(
         excluded_spectra = [spec for spec in spectra_order if spec not in selected_spectra]
     excluded_spectra = excluded_spectra or []
 
-    excluded_arrays = excluded_arrays or []
+    excluded_map_set = excluded_map_set or []
+    
+    only_TT_map_set = only_TT_map_set or []
 
     spectra_cuts = spectra_cuts or {}
-    indices = np.array([])
+    indices_in = np.array([])
 
     nbins = len(bin_low)
     shift_indices = 0
-    selected_spectra = []
+    
+    bin_out_dict = {}
+    id_min = 0
     for spec in spectra_order:
+        X, Y = spec
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
             if spec in ["ET", "BT", "BE"] and na == nb:
@@ -1172,34 +1230,44 @@ def get_indices(
                 shift_indices += nbins
                 continue
 
-            if na in excluded_arrays or nb in excluded_arrays:
+            if na in excluded_map_set or nb in excluded_map_set:
                 shift_indices += nbins
                 continue
-
+                
+            if na in only_TT_map_set or nb in only_TT_map_set:
+                if spec != "TT":
+                    shift_indices += nbins
+                    continue
+                
             ca, cb = spectra_cuts.get(na, {}), spectra_cuts.get(nb, {})
 
-            def _get_extrema(field, idx):
-                return [c.get(field, [0, np.inf])[idx] for c in [ca, cb]]
+            if X != "T": X = "P"
+            if Y != "T": Y = "P"
 
-            if "T" not in spec:
-                lmins = _get_extrema("P", 0)
-                lmaxs = _get_extrema("P", 1)
-            elif "E" in spec or "B" in spec:
-                lmins = _get_extrema("T", 0) + _get_extrema("P", 0)
-                lmaxs = _get_extrema("T", 1) + _get_extrema("P", 1)
+            if not ca: #return True if ca is empty
+                lmin_Xa, lmax_Xa = 0, np.inf
             else:
-                lmins = _get_extrema("T", 0)
-                lmaxs = _get_extrema("T", 1)
+                lmin_Xa, lmax_Xa = ca[X][0],  ca[X][1]
+            
+            if not cb:
+                lmin_Yb, lmax_Yb = 0, np.inf
+            else:
+                lmin_Yb, lmax_Yb = cb[Y][0],  cb[Y][1]
 
-            lmin, lmax = max(lmins), min(lmaxs)
+            lmin = np.maximum(lmin_Xa, lmin_Yb)
+            lmax = np.minimum(lmax_Xa, lmax_Yb)
 
             idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
-            indices = np.append(indices, idx + shift_indices)
-            shift_indices += nbins
+            
+            indices_in = np.append(indices_in, idx + shift_indices)
+            
             if lmin != lmax:
-                selected_spectra += [(f"{spec_name}", f"{spec}")]
+                bin_out_dict[f"{spec_name}", f"{spec}"] = (np.arange(id_min, id_min + len(idx)), bin_mean[idx])
+                id_min += len(idx)
 
-    return selected_spectra, indices.astype(int)
+            shift_indices += nbins
+                
+    return bin_out_dict,  indices_in.astype(int)
 
 def compute_chi2(
     data_vec,
@@ -1212,7 +1280,8 @@ def compute_chi2(
     spectra_order=["TT", "TE", "ET", "EE"],
     selected_spectra=None,
     excluded_spectra=None,
-    excluded_arrays=None
+    excluded_map_set=None,
+    only_TT_map_set=None,
 ):
     """
     This function computes the chi2 value between data/sim spectra wrt theory spectra given
@@ -1241,19 +1310,24 @@ def compute_chi2(
         the list of spectra to be kept
     excluded_spectra: list of str
         the list of spectra to be excluded
-    excluded_arrays: list of str
-        the list of arrays to be excluded
+    excluded_map_set: list of str
+        the list of map_set to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
+
     """
-    bin_low, bin_high, *_ = pspy_utils.read_binning_file(binning_file, lmax)
+    bin_low, bin_high, bin_mean, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
     _, indices = get_indices(
         bin_low,
         bin_high,
+        bin_mean,
         spec_name_list,
         spectra_cuts=spectra_cuts,
         spectra_order=spectra_order,
         selected_spectra=selected_spectra,
         excluded_spectra=excluded_spectra,
-        excluded_arrays=excluded_arrays,
+        excluded_map_set=excluded_map_set,
+        only_TT_map_set=only_TT_map_set,
     )
 
     delta = data_vec[indices] - theory_vec[indices]
