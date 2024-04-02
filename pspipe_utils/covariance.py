@@ -3,7 +3,8 @@ from pspipe_utils import misc
 from pspy import pspy_utils, so_cov, so_spectra
 
 import numpy as np
-import scipy
+
+import numba
 from scipy.optimize import curve_fit
 import pylab as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -521,6 +522,7 @@ def get_ewin_info_from_field_info(field_info, d, mode, extra=None, return_paths_
     else:
         extra = f'_{extra}'
     
+
     if mode == 'w':
         if return_paths_ops:
             return w_alias + extra, (w_full_path,), (w_op,)
@@ -587,6 +589,568 @@ def bin_spec(specs, bin_low, bin_high):
         out[..., i] = specs[..., bin_low[i]:bin_high[i] + 1].mean(axis=-1) 
     return out
 
+    
+def _correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+    sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
+    inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov # res should be close to the identity if an_full_cov is good
+    res_diag = np.diag(res)
+    corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov
+
+    if return_diag:
+        return corrected_cov, res_diag
+    else:
+        return corrected_cov
+
+def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
+    d_an, O_an  = np.linalg.eigh(an_full_cov)
+    sqrt_an_full_cov = O_an @ np.diag(d_an**.5)
+    inv_sqrt_an_full_cov = np.diag(d_an**-.5) @ O_an.T
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T # res should be close to the identity if an_full_cov is good
+    res_diag = np.diag(res)
+    corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov.T
+
+    if return_diag:
+        return corrected_cov, res_diag
+    else:
+        return corrected_cov
+
+
+def canonize_connected_2pt(leg1, leg2, all_legs):
+    """A connected 2-point term has two legs but is invariant to their
+    order. Thus, if we enforce a strict global order (a canonical order)
+    on all the possible legs, we can skip calculating redundant terms.
+
+    Parameters
+    ----------
+    leg1 : any
+        The first leg.
+    leg2 : any
+        The second leg.
+    all_legs : list of any
+        A list containing the global order of the possible legs.
+
+    Returns
+    -------
+    2-tuple of any
+        The supplied legs in the canonical order.
+    """
+    leg1_idx = all_legs.index(leg1)
+    leg2_idx = all_legs.index(leg2)
+    if leg2_idx < leg1_idx:
+        return all_legs[leg2_idx], all_legs[leg1_idx]
+    else:
+        return all_legs[leg1_idx], all_legs[leg2_idx]
+    
+
+def canonize_disconnected_4pt(leg1, leg2, leg3, leg4, all_legs):
+    """A disconnected 4-point term has two pairs of two legs but is invariant
+    to the order of the pairs and the order of the legs within the pairs. Thus,
+    if we enforce a strict global order (a canonical order) on all the possible
+    pairs of legs and legs themselves, we can skip calculating redundant terms.
+    Legs are paired like (leg1, leg2) and (leg3, leg4).
+
+    Parameters
+    ----------
+    leg1 : any
+        The first leg.
+    leg2 : any
+        The second leg.
+    leg3 : any
+        The third leg.
+    leg4 : any
+        The fourth leg.
+    all_legs : list of any
+        A list containing the global (canonical) order of the possible legs.
+        Note, the canonical order of all leg pairs is constructed from
+        all_legs.
+
+    Returns
+    -------
+    4-tuple of any
+        The supplied legs in the canonical order.
+    """
+    canonical_pair_1 = canonize_connected_2pt(leg1, leg2, all_legs)
+    canonical_pair_2 = canonize_connected_2pt(leg3, leg4, all_legs)
+
+    all_leg_pairs = list(cwr(all_legs, 2))
+    (leg1, leg2), (leg3, leg4) = canonize_connected_2pt(canonical_pair_1,
+                                                        canonical_pair_2,
+                                                        all_leg_pairs)
+
+    return leg1, leg2, leg3, leg4
+
+
+def pol2pol_info(pol):
+    """T -> (T, 0); E -> (P, 1); B -> (P, 2)"""
+    assert pol in 'TEB', f'expected {pol=} to be one of T, E, B'
+    return ('T' if pol == 'T' else 'P', 'TEB'.index(pol))
+    
+
+def get_ewin_info_from_field_info(field_info, d, mode, extra=None, return_paths_ops=False):
+    """Return information on the effective window corresponding to field.
+
+    Parameters
+    ----------
+    field_info : tuple
+        Field information (survey, array, chan, split, pol).
+    d : dict
+        PSpipe param dict.
+    mode : str
+        One of 'w', 's', or 'ws', referring to 'analysis mask', 'sigma map',
+        and their product, respectively.
+    extra : str, optional
+        Any other extra information to join via underscore with the effective
+        window name, e.g. pixel area factors, by default None.
+    return_paths_ops : bool, optional
+        Whether to return the full path on-disk for each window composing the 
+        effective window, and the name of a lambda function for each window
+        composing the effective window, by default False. See Returns and Notes
+        for more information.
+    
+    Returns
+    -------
+    str, {tuple, tuple}
+        Effective window name, followed by a tuple containing the full path
+        on-disk for each window composing the effective window, and another
+        tuple containing the name of a lambda function for each window composing 
+        the effective window. The lambda function is to be applied to
+        the array upon loading it from disk to return the effective window,
+        like arr = op(arr). See covariance.optags2ops.
+
+    Notes
+    -----
+    The reason the lambda functions need to be returned by their string name 
+    (see covariance.optags2ops for the actual lambda functions corresponding
+    to those names) is because the entire (str, tuple, tuple) object will be
+    used by PSpipe scripts as a "leg" passed into canonize_connected_2pt,
+    canonize_disconnected_4pt. In that case, we need everything in the leg
+    to play nicely with list.index(), which lambda functions do not.
+    """
+    sv1, ar1, chan1, split1, pol1 = field_info
+
+    if mode not in ['w', 's', 'ws']:
+        raise ValueError(f"{mode=} not one of 'w', 's', ws'")
+    
+    # hard-coding that analysis masks don't depend on split
+    if 'w' in mode:
+        polstr = 'T' if pol1 == 'T' else 'pol'
+        w_full_path = d[f'window_{polstr}_{sv1}_{ar1}_{chan1}']
+        w_alias = d[f'window_{polstr}_{sv1}_{ar1}_{chan1}_alias']
+        w_op = 'identity'
+    
+    # hard-coding that sigma maps don't depend on pol
+    if 's' in mode:
+        s_full_path = d[f'ivars_{sv1}_{ar1}_{chan1}'][split1]
+        s_alias = d[f'ivars_{sv1}_{ar1}_{chan1}_aliases'][split1]
+        s_op = 'sqrt_inv'
+
+    if extra is None:
+        extra = ''
+    else:
+        extra = f'_{extra}'
+    
+    if mode == 'w':
+        if return_paths_ops:
+            return w_alias + extra, (w_full_path,), (w_op,)
+        else:
+            return w_alias + extra
+    elif mode == 's':
+        if return_paths_ops:
+            return s_alias + extra, (s_full_path,), (s_op,)
+        else:
+            return s_alias + extra
+    elif mode == 'ws':
+        if return_paths_ops:
+            return f'{w_alias}_{s_alias}' + extra, (w_full_path, s_full_path), (w_op, s_op)
+        else:
+            return f'{w_alias}_{s_alias}' + extra
+
+
+def get_mock_noise_ps(lmax, lknee, lcap, pow):
+    """Get a mock power spectrum that is white at high-ell, a power-law at low
+    ell, but is capped at a given minimum ell.
+
+    Parameters
+    ----------
+    lmax : int
+        lmax of power spectrum.
+    lknee : int
+        lknee of power law.
+    lcap : int
+        minimum ell at which the power law is capped.
+    pow : scalar
+        exponent of power law.
+
+    Returns
+    -------
+    np.ndarray (lmax+1,)
+        mock power spectrum. 
+    """
+    ells = np.arange(lmax + 1, dtype=np.float64)
+    ps = np.zeros_like(ells)
+    ps[lcap:] = (ells[lcap:]/lknee)**pow + 1
+    ps[:lcap] = ps[lcap]
+    return ps
+
+
+def bin_spec(specs, bin_low, bin_high):
+    """Bin spectra along their last axis.
+
+    Parameters
+    ----------
+    specs : (..., nell) np.ndarray
+        Spectra to be binned, with ell along last axis.
+    bin_low : (nbin) np.ndarray
+        Inclusive low-bounds of bins.
+    bin_high : (nbin)
+        Inclusive high-bounds of bins.
+
+    Returns
+    -------
+    (..., nbin) np.ndarray
+        Binned spectra.
+    """
+    out = np.zeros((*specs.shape[:-1], len(bin_low)))
+    for i in range(len(bin_low)):
+        out[..., i] = specs[..., bin_low[i]:bin_high[i] + 1].mean(axis=-1) 
+    return out
+
+
+def bin_mat(mats, bin_low, bin_high):
+    """Bin a matrix along its last two axes.
+
+    Parameters
+    ----------
+    mats : (..., nell, nell) np.ndarray
+        Matrices to be binned, with ells along last two axes.
+    bin_low : (nbin) np.ndarray
+        Inclusive low-bounds of bins.
+    bin_high : (nbin)
+        Inclusive high-bounds of bins.
+
+    Returns
+    -------
+    (..., nbin, nbin) np.ndarray
+        Binned matrices.
+    """
+    out = np.zeros((*mats.shape[:-2], len(bin_low), len(bin_low)))
+    for i in range(len(bin_low)):
+        for j in range(len(bin_low)):
+            out[..., i, j] = mats[..., bin_low[i]:bin_high[i] + 1, bin_low[j]:bin_high[j] + 1].mean(axis=(-2, -1))
+    return out
+
+
+def get_expected_pseudo_func(mcm, tf, ps, bin_low=None, bin_high=None):
+    """Build a function that returns the theory pseudospectrum from a theory
+    powerspectrum, multiplied by some one-dimensional transfer function raised
+    to the alpha power:
+
+    f(alpha): mcm @ (tf**alpha * ps)
+
+    Parameters
+    ----------
+    mcm : (nell, nell) np.ndarray
+        Mode-coupling matrix.
+    tf : (nell)
+        One-dimensional transfer function.
+    ps : (nell)
+        Power spectrum.
+    bin_low : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin lowerbounds, by default None.
+        Binning occurs if not None.
+    bin_high : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin upperbounds, by default None.
+
+    Returns
+    -------
+    function
+        f(alpha): mcm @ (tf**alpha * ps)
+    """
+    if bin_low is not None:
+        def f(alpha):
+            return bin_spec(mcm @ (tf**alpha * ps), bin_low, bin_high)       
+    else:
+        def f(alpha):
+            return mcm @ (tf**alpha * ps)
+    return f
+
+
+def get_expected_cov_diag_func(mcm, w2, tf, ps, coup, bin_low=None, bin_high=None, pre_mcm_inv=None):
+    """Build a function that returns the theory covariance diagonal (under the 
+    arithmetic INKA approximation) from a theory powerspectrum, multiplied by
+    some one-dimensional transfer function raised to the alpha power, and the
+    other covariance ingredients (mcm, w2, coup):
+
+    f(alpha): 0.5 * ((mcm @ (tf**(alpha/2) * ps / w2)) + (mcm @ (tf**(alpha/2) * ps / w2))[:, None])**2 * coup
+
+    Parameters
+    ----------
+    mcm : (nell, nell) np.ndarray
+        Mode-coupling matrix.
+    w2 : scalar
+        w2 factor of the mask generating the mode-coupling matrix.
+    tf : (nell)
+        One-dimensional transfer function.
+    ps : (nell)
+        Power spectrum.
+    coup : (nell, nell) np.ndarray
+        Coupling matrix.
+    bin_low : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin lowerbounds, by default None.
+        Binning occurs if not None.
+    bin_high : (nbin) np.ndarray, optional
+        One-dimensional array of inclusive bin upperbounds, by default None.
+    pre_mcm_inv : (nell, nell) np.ndarray, optional
+        Linear operator that takes pseudospectra to powerspectra, used in 
+        calculating the powerspectrum covariance matrix, by default None.
+        Returns the powerspectrum covariance matrix if not None.
+
+    Returns
+    -------
+    function
+        f(alpha): 0.5 * ((mcm @ (tf**(alpha/2) * ps / w2)) + (mcm @ (tf**(alpha/2) * ps / w2))[:, None])**2 * coup
+    """
+    def pseudo_cov(alpha):
+        return 0.5 * ((mcm @ (tf**(alpha/2) * ps / w2)) + (mcm @ (tf**(alpha/2) * ps / w2))[:, None])**2 * coup
+
+    if bin_low is not None:
+        if pre_mcm_inv is None:
+            def f(alpha):
+                return np.diag(bin_mat(pseudo_cov(alpha), bin_low, bin_high))
+        else:
+            def f(alpha):
+                return np.diag(bin_mat(pre_mcm_inv @ pseudo_cov(alpha) @ pre_mcm_inv.T, bin_low, bin_high))
+    else:
+        if pre_mcm_inv is None:
+            def f(alpha):
+                return np.diag(pseudo_cov(alpha))
+        else:
+            def f(alpha):
+                return np.diag(pre_mcm_inv @ pseudo_cov(alpha) @ pre_mcm_inv.T)  
+    
+    return f
+
+
+def fit_func(x, alpha, func, xmin, den):
+    """A wrapper around a one-dimensional function to fit (a function of alpha
+    only) that allows its result to be normalized by some denominator and only
+    fit at and above some element xmin.
+
+    Parameters
+    ----------
+    x : any
+        x-values (not used)
+    alpha : scalar
+        See get_expected_pseudo_func and get_expected_cov_diag_func.
+    func : function
+        get_expected_pseudo_func or get_expected_cov_diag_func.
+    xmin : int
+        Minimum element used in the fit.
+    den : np.ndarray
+        Denominator used in the fitting, same size as func.
+
+    Returns
+    -------
+    np.ndarray
+        The normalized function result.
+
+    Notes
+    -----
+    Passed to scipy.optimize.curvefit by freezing func, xmin, and den with
+    functools.partial. Note, scipy.optimize.curvefit requires x-values to be
+    passable, but we don't use them.
+    """
+    return np.divide(func(alpha)[xmin:], den[xmin:], where=den[xmin:]!=0, out=np.zeros_like(den[xmin:]))
+
+
+def get_alpha_fit(res_dict, func, target, tag, xmin=0):
+    """A wrapper that performs a fit of a function taking a single parameter
+    to a target dataset. The results are tagged in a dictionary.
+
+    Parameters
+    ----------
+    res_dict : dict
+        The dictionary holding the results.
+    func : callable
+        A function of a single variable.
+    target : (ntar, size) array-like
+        A 2d array of data. The mean of this array over the first axis is the
+        data vector we attempt to fit with func. The sample standard deviation
+        of this array over the first axis is the error vector we use in the fit.
+    tag : str
+        A description for this fit to tag results with.
+    xmin : int, optional
+        The minimum element into the last axis of target we actually use in the
+        fit, by default 0.
+
+    Notes
+    -----
+    The passed func is further passed into fit_func; thus, it must be one of 
+    get_expected_pseudo_func or get_expected_cov_diag_func. The single
+    parameter we fit for is therefore alpha, the power to which we raise a
+    transfer function template multiplying the power spectrum.
+    """
+    den = func(0)
+    res_dict[f'{tag}_den'] = den
+
+    res_dict[f'{tag}_mean'] = target.mean(axis=0) 
+    res_dict[f'{tag}_var'] = target.var(axis=0, ddof=1) / len(target)
+
+    ydata = np.divide(res_dict[f'{tag}_mean'], den, where=den!=0, out=np.zeros_like(den))
+    yerr = np.divide(res_dict[f'{tag}_var']**0.5, den, where=den!=0, out=np.zeros_like(den))
+    res_dict[f'{tag}_ydata'] = ydata
+    res_dict[f'{tag}_yerr'] = yerr
+
+    res_dict[f'{tag}_xmin'] = xmin
+
+    popt, pcov = curve_fit(partial(fit_func, func=func, xmin=xmin, den=den), 1, ydata[xmin:], sigma=yerr[xmin:])
+    best_fit = fit_func(1, popt[0], func, 0, den)
+
+    res_dict[f'{tag}_alpha'] = popt[0]
+    res_dict[f'{tag}_alpha_err'] = pcov[0, 0]**0.5 
+    res_dict[f'{tag}_best_fit'] = best_fit
+    res_dict[f'{tag}_best_fit_err'] = ydata - best_fit
+    res_dict[f'{tag}_best_fit_stderr'] = np.divide(ydata - best_fit, yerr, where=yerr!=0, out=np.zeros_like(yerr))
+
+
+def cmb_matrix_from_file(f_name, lmax, spectra, input_type='Dl'):
+    """Return a 3x3 matrix of CMB power spectra from products
+    on-disk. Dl factors are removed.
+
+    Parameters
+    ----------
+    f_name : path-like
+        Path to a cmb.dat file with 9 polarization-cross fields.
+    lmax : int
+        lmax of output. If cmb.dat file does not support up to the requested
+        lmax, the value at the last available lmax is extended.
+    spectra : list of str
+        The list of polarization crosses, passed to so_spectra.read_ps.
+    input_type : str, optional
+        'Cl' or 'Dl', by default 'Dl'. If 'Dl', assuemd that the data in
+        cmd.dat is in 'Dl' format. The 'Dl' factor is then removed, resulting
+        in pure physical power spectra.
+
+    Returns
+    -------
+    (3, 3, lmax+1) np.ndarray
+        The TEB x TEB x nell ordered physical CMB power spectra.
+    """
+    ps_mat = np.zeros((3, 3, lmax+1))
+    
+    l, ps_theory = so_spectra.read_ps(f_name, spectra=spectra)
+    assert l[0] == 2, 'the file is expected to start at l=2'
+    _lmax = min(lmax, int(max(l)))  # make sure lmax doesn't exceed model lmax
+    
+    for p1, pol1 in enumerate('TEB'):
+        for p2, pol2 in enumerate('TEB'):
+            if input_type == 'Dl':
+                ps_theory[pol1 + pol2] *= 2 * np.pi / (l * (l + 1))
+            ps_mat[p1, p2, 2:(_lmax+1)] = ps_theory[pol1 + pol2][:(_lmax+1) - 2]
+    
+    ps_mat[..., _lmax+1:] = ps_mat[..., _lmax][..., None] # extend with last val
+    
+    return ps_mat
+
+
+def foreground_matrix_from_files(f_name_tmp, sv_ar_chans_list, lmax, spectra, input_type='Dl'):
+    """Return a (narrx3) x (narrx3) matrix of foreground power spectra from
+    products on-disk. Dl factors are removed.
+
+    Parameters
+    ----------
+    f_name_tmp : str
+        Filename template to foreground cross-spectra on disk, to be populated
+        with the 6 entries formed by unpacking a pair of 3-element tuples from
+        sv_ar_chans_list.
+    sv_ar_chans_list : list of str
+        A list of tuples. Each tuple in should have 3 elements: the field
+        survey string, the array string, and the channel string.
+    lmax : int
+        lmax of output. If cmb.dat file does not support up to the requested
+        lmax, the value at the last available lmax is extended.
+    spectra : list of str
+        The list of polarization crosses, passed to so_spectra.read_ps.
+    input_type : str, optional
+        'Cl' or 'Dl', by default 'Dl'. If 'Dl', assuemd that the data in
+        cmd.dat is in 'Dl' format. The 'Dl' factor is then removed, resulting
+        in pure physical power spectra.
+
+    Returns
+    -------
+    (nsac, 3, nsac, 3, lmax+1) np.ndarray
+        The (nsacxTEB) x (nsacxTEB) x nell ordered physical foreground,
+        power spectra. Here, nsac is len(sv_ar_chans_list).
+    """
+    nsacs = len(sv_ar_chans_list)
+    fg_mat = np.zeros((nsacs, 3, nsacs, 3, lmax+1))
+    
+    for sac1, sv_ar_chan1 in enumerate(sv_ar_chans_list):
+        for sac2, sv_ar_chan2 in enumerate(sv_ar_chans_list):
+            l, fg_theory = so_spectra.read_ps(f_name_tmp.format(*sv_ar_chan1, *sv_ar_chan2), spectra=spectra)
+            assert l[0] == 2, 'the file is expected to start at l=2'
+            _lmax = min(lmax, int(max(l)))  # make sure lmax doesn't exceed model lmax
+            
+            for p1, pol1 in enumerate('TEB'):
+                for p2, pol2 in enumerate('TEB'):
+                    if input_type == 'Dl':
+                        fg_theory[pol1 + pol2] *=  2 * np.pi / (l * (l + 1))
+                    fg_mat[sac1, p1, sac2, p2, 2:(_lmax+1)] = fg_theory[pol1 + pol2][:(_lmax+1) - 2]
+
+    fg_mat[..., _lmax+1:] = fg_mat[..., _lmax][..., None] # extend with last val
+    
+    return fg_mat
+
+
+# numba can help speed up the basic array operations ~2x
+@numba.njit(parallel=True)
+def add_term_to_pseudo_cov(pseudo_cov, C12, C34, coupling):
+    """Accumulates terms of a pseudocovariance block. Each term looks like:
+
+    (C12_2d + C12_2d.T) * (C34_2d + C34_2d.T) * coupling
+
+    where C_2d indicates a spectrum that has been broadcast to two dimensions.
+    This form indicates we are doing "arithmetic" symmetrization under the NKA.
+
+    Parameters
+    ----------
+    pseudo_cov : (nell, nell) np.ndarray
+        The accumulating array that contains the given term. Updated inplace.
+    C12 : (nell,) np.ndarray
+        The first spectrum in the covariance block under the NKA.
+    C34 : (nell,) np.ndarray
+        The second spectrum in the covariance block under the NKA.
+    coupling : (nell, nell) np.ndarray
+        The 4-point coupling term.
+
+    Notes
+    -----
+    By wrapping in numba.njit(parallel=True), we are asserting that all
+    operations in this function support parallel semantics, and that 
+    the dtype and shape of the inputs is fixed.
+    """
+    C12_2d = np.expand_dims(C12, 0)
+    C12_2d = np.broadcast_to(C12_2d, coupling.shape)
+
+    C34_2d = np.expand_dims(C34, 0)
+    C34_2d = np.broadcast_to(C34_2d, coupling.shape)
+    pseudo_cov += (C12_2d + C12_2d.T) * (C34_2d + C34_2d.T) * coupling
+
+
+def get_binning_matrix(bin_lo, bin_hi, lmax, cltype='Dl'):
+    """Returns P_bl, the binning matrix that turns C_ell into C_b."""
+    l = np.arange(2, lmax) # assumes 2:lmax ordering
+    if cltype == 'Dl':
+        fac = (l * (l + 1) / (2 * np.pi))
+    elif cltype == 'Cl':
+        fac = l * 0 + 1
+    n_bins = len(bin_lo)  # number of bins is same for all spectra in block
+    Pbl = np.zeros((n_bins, lmax-2))
+    for ibin in range(n_bins):
+        loc = np.where((l >= bin_lo[ibin]) & (l <= bin_hi[ibin]))[0]
+        Pbl[ibin, loc] = fac[loc] / len(loc)
+    return Pbl
 
 def bin_mat(mats, bin_low, bin_high):
     """Bin a matrix along its last two axes.
