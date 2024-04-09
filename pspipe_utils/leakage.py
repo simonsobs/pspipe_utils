@@ -134,7 +134,12 @@ def read_leakage_model_old(leakage_file_dir, file_name, lmax, lmin=0, include_er
     return l, gamma_TE, error_modes_gTE,  gamma_TB, error_modes_gTB
 
 
-def read_leakage_model(leakage_file_dir, file_name_TE, file_name_TB, lmax, lmin=0, include_error_modes=True):
+def read_leakage_model(leakage_file_dir,
+                       file_name_TE,
+                       file_name_TB,
+                       lmax,
+                       lmin=0,
+                       pol_eff=1):
     """
     This routine serves to read the leakage model in the ACT format, both for
     the mean value of the leakage and its covariance.
@@ -153,6 +158,8 @@ def read_leakage_model(leakage_file_dir, file_name_TE, file_name_TB, lmax, lmin=
         minimum multipole to consider
     lmax : integer
         maximum multipole to consider
+    pol_eff: float
+        the polarisation efficiency of the data
     """
     
     def extract_beam_leakage_and_error_modes(file_name):
@@ -164,7 +171,7 @@ def read_leakage_model(leakage_file_dir, file_name_TE, file_name_TB, lmax, lmin=
     l, gamma_TE, error_modes_gTE = extract_beam_leakage_and_error_modes(file_name_TE)
     l, gamma_TB, error_modes_gTB = extract_beam_leakage_and_error_modes(file_name_TB)
 
-    return l, gamma_TE, error_modes_gTE,  gamma_TB, error_modes_gTB
+    return l, gamma_TE/pol_eff, error_modes_gTE/pol_eff,  gamma_TB/pol_eff, error_modes_gTB/pol_eff
 
 
 
