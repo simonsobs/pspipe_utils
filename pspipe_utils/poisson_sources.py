@@ -8,7 +8,7 @@ from pixell import enmap, utils
 from scipy.interpolate import InterpolatedUnivariateSpline
 from matplotlib import rcParams
 
-#alex hacking this
+
 from . import get_data_path
 
 
