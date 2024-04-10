@@ -166,6 +166,7 @@ def extract_sacc_spectra(likelihood_name, input_file, cov_Bbl_file=None):
 
     my_like = likelihood_class(
         {
+            "path": os.path.realpath(input_file).replace(input_file, ""),
             "data_folder": os.path.dirname(input_file),
             "input_file": os.path.basename(input_file),
             "cov_Bbl_file": os.path.basename(cov_Bbl_file) if cov_Bbl_file else None,
