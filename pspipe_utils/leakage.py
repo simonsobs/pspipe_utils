@@ -97,7 +97,7 @@ def apply_leakage_model_to_alm(alms, gamma_TE, gamma_TB):
     alms[2] = alms[2] + curvedsky.almxfl(alms[0], gamma_TB)
     return alms
 
-def read_leakage_model(leakage_file_dir, file_name, lmax, lmin=0, include_error_modes=True):
+def read_leakage_model_old(leakage_file_dir, file_name, lmax, lmin=0, include_error_modes=True):
     """
     This routine serves to read the leakage model in the ACT format, both for
     the mean value of the leakage and its covariance.
@@ -132,6 +132,49 @@ def read_leakage_model(leakage_file_dir, file_name, lmax, lmin=0, include_error_
     
         
     return l, gamma_TE, error_modes_gTE,  gamma_TB, error_modes_gTB
+
+
+def read_leakage_model(leakage_file_dir,
+                       file_name_TE,
+                       file_name_TB,
+                       lmax,
+                       lmin=0,
+                       pol_eff=1):
+    """
+    This routine serves to read the leakage model in the ACT format, both for
+    the mean value of the leakage and its covariance.
+    not that the error modes file is expected to be of the form
+    l, err_modegE1, err_modegE2, err_modegE3, err_modegB1, err_modegE2, err_modegE3
+
+    Parameters
+    ----------
+    leakage_file_dir : str
+        location of the files describing the leakage
+    file_name_TE : str
+        name of the  file  that contain gamma_TE and error_modes (e.g pa4_f150_gamma_t2e.txt)
+    file_name_TB : str
+        name of the  file  that contain gamma_TB and error_modes (e.g pa4_f150_gamma_t2b.txt)
+    lmin : integer
+        minimum multipole to consider
+    lmax : integer
+        maximum multipole to consider
+    pol_eff: float
+        the polarisation efficiency of the data
+    """
+    
+    def extract_beam_leakage_and_error_modes(file_name):
+        data = np.loadtxt(f"{leakage_file_dir}/{file_name}")
+        l, gamma = data[lmin: lmax, 0], data[lmin: lmax, 1]
+        error_modes = data[lmin: lmax, 2:]
+        return l, gamma, error_modes
+
+    l, gamma_TE, error_modes_gTE = extract_beam_leakage_and_error_modes(file_name_TE)
+    l, gamma_TB, error_modes_gTB = extract_beam_leakage_and_error_modes(file_name_TB)
+
+    return l, gamma_TE/pol_eff, error_modes_gTE/pol_eff,  gamma_TB/pol_eff, error_modes_gTB/pol_eff
+
+
+
 
 def error_modes_to_cov(error_modes):
     """

@@ -132,3 +132,54 @@ def port2sacc(
 
     log.info(f"Writing {sacc_file_name} \n")
     s.save_fits(sacc_file_name, overwrite=True)
+
+
+def extract_sacc_spectra(likelihood_name, input_file, cov_Bbl_file=None):
+    """
+    This function extracts spectra from a sacc file through an "mflike"-like likelihood.
+    It returns spectra and covariance block as python dictionnary the same way
+    the likelihood reads and parses the sacc file content.
+
+    Parameters
+    ----------
+    likelihood_name: str
+      the likelihood name. Must equivalent to the name set in the cobaya yaml file
+      i.e. "mflike.MFLike" for default SO likelihood or "act_dr6_mflike.ACTDR6MFLike"
+      for ACT DR6 likelihood
+    input_file: path
+      the path to the input sacc file
+    cov_Bbl_file: path
+      the path to the covariance file if not inside the input file (default: None).
+      The dirname **must** be the same as the input file.
+    """
+    if cov_Bbl_file and os.path.dirname(cov_Bbl_file) != os.path.dirname(input_file):
+        raise ValueError(
+            "The directory path of the covariance file is different from the input file!"
+        )
+
+    likelihood_module, likelihood_class = likelihood_name.rsplit(".", 1)
+    likelihood_module = importlib.import_module(likelihood_module)
+    likelihood_class = getattr(likelihood_module, likelihood_class)
+
+    # Do not check installation of likelihood
+    likelihood_class.install_options = None
+
+    my_like = likelihood_class(
+        {
+            "path": os.path.realpath(input_file).replace(input_file, ""),
+            "data_folder": os.path.dirname(input_file),
+            "input_file": os.path.basename(input_file),
+            "cov_Bbl_file": os.path.basename(cov_Bbl_file) if cov_Bbl_file else None,
+        }
+    )
+
+    spectra = {}
+    for data in my_like.spec_meta:
+        lb, db = data.get("leff"), data.get("cl_data")
+        cross = (data.get("t1"), data.get("t2"))
+        mode = data.get("pol") if not data.get("hasYX_xsp") else "et"
+        ids = data.get("ids")
+        cov = my_like.cov[np.ix_(ids, ids)]
+        spectra.setdefault((mode, *cross), []).append(dict(lb=lb, db=db, cov=cov))
+
+    return spectra
