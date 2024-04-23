@@ -7,6 +7,9 @@ import numba
 from scipy.optimize import curve_fit
 import pylab as plt
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+
 from pixell import utils
 
 from itertools import combinations_with_replacement as cwr
@@ -342,7 +345,34 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=
         return S, corrected_cov
     else:
         return corrected_cov
+
+
+def smooth_gp_diag(lb, arr_diag, ell_cut, length_scale=500.0, 
+                   length_scale_bounds=(100, 1e4), noise_level=0.01, 
+                   noise_level_bounds=(1e-6, 1e1), n_restarts_optimizer=20):
     
+    kernel = 1.0 * RBF(length_scale=length_scale, 
+                       length_scale_bounds=length_scale_bounds) + WhiteKernel(
+        noise_level=noise_level, noise_level_bounds=noise_level_bounds
+    )
+    # fit the first GP on the bins above the ell_cut
+    gpr = GaussianProcessRegressor(kernel=kernel, alpha=0.0, normalize_y=True, 
+                                   n_restarts_optimizer=n_restarts_optimizer)
+    i_cut = np.argmax(lb > ell_cut)
+    X_train = lb[i_cut:,np.newaxis]
+    y_train = arr_diag[i_cut:]
+    gpr.fit(X_train, y_train)
+    y_mean_high = gpr.predict(lb[:,np.newaxis], return_std=False)
+
+    # fit an exponential at the low end
+    i_cut = np.argmax(lb > ell_cut)
+    X_train = lb[:i_cut]
+    y_train = np.abs(arr_diag - y_mean_high)[:i_cut]
+    z = np.polyfit(X_train, np.log(y_train), 1)
+    f = np.poly1d(z)
+    y_mean_high[:i_cut] += np.exp(f(lb[:i_cut]))
+    return y_mean_high
+
     
 def _correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=False):
     sqrt_an_full_cov  = utils.eigpow(an_full_cov, 0.5)
@@ -363,6 +393,25 @@ def correct_analytical_cov_keep_res_diag(an_full_cov, mc_full_cov, return_diag=F
     res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T # res should be close to the identity if an_full_cov is good
     res_diag = np.diag(res)
     corrected_cov = sqrt_an_full_cov @ np.diag(res_diag) @ sqrt_an_full_cov.T
+
+    if return_diag:
+        return corrected_cov, res_diag
+    else:
+        return corrected_cov
+
+def correct_analytical_cov_keep_res_diag_gp(an_full_cov, mc_full_cov, lb, ell_cut, return_diag=False):
+    d_an, O_an  = np.linalg.eigh(an_full_cov)
+    sqrt_an_full_cov = O_an @ np.diag(d_an**.5)
+    inv_sqrt_an_full_cov = np.diag(d_an**-.5) @ O_an.T
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T # res should be close to the identity if an_full_cov is good
+    res_diag = np.diag(res)
+
+    n_spec = len(res_diag) // len(lb)
+    diags = np.array_split(res_diag, n_spec)
+    smoothed_diags = [smooth_gp_diag(lb, r, ell_cut) for r in diags]
+    smooth_res = np.hstack(smoothed_diags)
+
+    corrected_cov = sqrt_an_full_cov @ np.diag(smooth_res) @ sqrt_an_full_cov.T
 
     if return_diag:
         return corrected_cov, res_diag
