@@ -5,7 +5,7 @@ from copy import deepcopy
 
 import numpy as np
 import sacc
-from pspy import pspy_utils
+from pspy import pspy_utils, so_spectra, so_cov
 
 
 def port2sacc(
@@ -183,3 +183,46 @@ def extract_sacc_spectra(likelihood_name, input_file, cov_Bbl_file=None):
         spectra.setdefault((mode, *cross), []).append(dict(lb=lb, db=db, cov=cov))
 
     return spectra
+
+
+def load_ps_and_err(spec_name, spec_dir, cov_dir, cov_type_list, spectra, type, return_full_cov=False):
+    """
+    This function load the power spectrum and error given path to the file.
+    The error can be given by the sum of different covariance element given by cov_type_list
+    
+    
+    Parameters
+    ----------
+    spec_name: str
+        the name of the power spectrum we consider format is {sv}_{ar}x{sv}_{ar} i.e: dr6_pa4_f220xdr6_pa4_f220
+    spec_dir: str
+        the directory containing the spectra
+    cov_dir: str
+        the directory containing the covariance block
+    cov_type_list: list of str
+        list of the different type of covariance block we want to coadd i.e : [analytical, beam, leakage]
+    spectra: list of str
+        the spectra list ["TT","TE".....]
+    type: string
+        either  Cl or  Dl
+    return_full_cov: boolean
+        wether to return the associated full covariance
+    """
+    
+    l, ps = so_spectra.read_ps(f"{spec_dir}/{type}_{spec_name}_cross.dat", spectra=spectra)
+    
+    full_cov = 0
+    for  cov_type in cov_type_list:
+        cov = np.load(f"{cov_dir}/{cov_type}_cov_{spec_name}_{spec_name}.npy")
+        full_cov += cov
+        
+    n_bins = len(l)
+    err = {}
+    for spec in spectra:
+        cov_sub = so_cov.selectblock(full_cov, spectra, n_bins, block=spec+spec)
+        err[spec] = np.sqrt(cov_sub.diagonal())
+
+    if return_full_cov:
+        return l, ps, err, full_cov
+    else:
+        return l, ps, err
