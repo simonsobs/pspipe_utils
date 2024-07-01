@@ -282,13 +282,14 @@ def get_data_vec_to_null_vec_matrix(bin_out_dict):
 
     return mat
 
-def get_th_vec_from_th_vec_dict(bin_out_dict, th_vec_dict, bin_mean):
+def get_th_vec_from_th_vec_dict(bin_out_dict, th_vec_dict):
     """Construct a theory vector corresponding to the data vector
     specified by the output of get_data_vec_indices_and_bin_means. The
     theory vector must already be binned and specified by a two-level
     theory-vector-indexing-dictionary with the following form:
 
     th_vec_dict[spec][array_cross] = binned_th_vec_values
+    th_vec_dict['bin_mean'] = bin_mean
 
     where spec is a polarization pair in canonical order (e.g., no 'ET' keys),
     array_cross is the '{array1}x{array2}' formatted cross of two arrays 
@@ -303,8 +304,6 @@ def get_th_vec_from_th_vec_dict(bin_out_dict, th_vec_dict, bin_mean):
         The first return value of psipe_utils.covariance.get_indices.
     th_vec_dict : dict
         The theory-vector-indexing-dictionary.
-    bin_mean : iterable of scalar
-        The central values of the bins for all the spectra.
 
     Returns
     -------
@@ -321,6 +320,8 @@ def get_th_vec_from_th_vec_dict(bin_out_dict, th_vec_dict, bin_mean):
     for spec, array_cross_dict in data_vec_indices_and_bin_means.items():
         for _, (idxs, _) in array_cross_dict.items():
             dv_size += len(idxs)
+
+    bin_mean = th_vec_dict['bin_mean']
     
     # populate the vec
     vec = np.zeros(dv_size)
@@ -339,7 +340,33 @@ def get_th_vec_from_th_vec_dict(bin_out_dict, th_vec_dict, bin_mean):
     return vec
 
 # forward model funcs
-def splines2gammas(x, fields, knots, spline_bin_mean):
+def consts2gammas(x, fields, spline_bin_mean):
+    """Project constants over the central bin values given by spline_bin_mean.
+
+    Parameters
+    ----------
+    x : (..., len(fields)) np.ndarray
+        The constant systematic residual for all scales of sampled field. These
+        are the parameters that are sampled. May have any prepended shape, e.g.
+        if the sampler has many parallel walkers.
+    fields : dict
+        dict of (param, array): int pairs, tracking which systematics are
+        actually being sampled, and of those, where in the parameter array they
+        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
+    spline_bin_mean : iterable of scalar
+        Output locations in bin_mean space to project the systematic.
+
+    Returns
+    -------
+    (..., len(fields), len(spline_bin_mean)) np.ndarray
+        The evaluated systematic for each field at the spline_bin_mean
+        locations. Same prepended shape as x.
+    """
+    _x = x.reshape(-1, len(fields), 1)
+    gammas = np.tile(_x, (1, 1, len(spline_bin_mean)))
+    return gammas.reshape((*x.shape[:-1], len(fields), len(spline_bin_mean)))
+
+def splines2gammas(x, fields, spline_bin_mean, knots):
     """Project cubic spline knot points over the central bin values given by
     spline_bin_mean.
 
@@ -349,28 +376,20 @@ def splines2gammas(x, fields, knots, spline_bin_mean):
         The spline values at the knot locations for each sampled field. These
         are the parameters that are sampled. May have any prepended shape, e.g.
         if the sampler has many parallel walkers.
-    fields : iterable of two-tuple
-        Iterable of (spec, array) pairs, tracking which splines are actually
-        being sampled. See note for meaning 'spec' in this context.
-    knots : iterable of scalar
-        Knot locations in bin_mean space, must be strictly increasing.
+    fields : dict
+        dict of (param, array): int pairs, tracking which systematics are
+        actually being sampled, and of those, where in the parameter array they
+        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
     spline_bin_mean : iterable of scalar
         Output locations in bin_mean space to evaluate the spline.
+    knots : iterable of scalar
+        Knot locations in bin_mean space, must be strictly increasing.
 
     Returns
     -------
     (..., len(fields), len(spline_bin_mean)) np.ndarray
         The evaluated spline for each field at the spline_bin_mean locations.
         Same prepended shape as x.
-
-    Notes
-    -----
-    Here, we are hijacking the meaning of 'spec' to refer to the residual
-    systematic terms. So 'TT' really refers to the 'delta_T' systematic, 'TE'
-    really refers to the 'gamma' systematic, and 'EE' really refers to the 
-    'delta_E' systematic. This is done purely for convenience: if we have
-    'TT', 'TE', 'EE' spectra in our data vector, we know we will need to
-    sample 'delta_T', 'gamma', and 'delta_E' at the alm-level.
     """
     _x = x.reshape(-1, len(fields), len(knots))
     gamma_func = interpolate.CubicSpline(knots, _x, axis=-1, bc_type='natural',
@@ -378,18 +397,19 @@ def splines2gammas(x, fields, knots, spline_bin_mean):
     gammas = gamma_func(spline_bin_mean)
     return gammas.reshape((*x.shape[:-1], len(fields), len(spline_bin_mean)))
 
-def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
-                   spline_bin_mean, bin_mean):
+def sysres2th_vec(x, data_vec_dict, th_vec_dict, fields, spline_bin_mean,
+                  sysres2gammas_func, sysres2gammas_func_kwargs=None):
     """Project cubic spline knot points over central bin values, and use the
     evaluated spline to modify a corresponding theory vector. The theory vector
     must already be binned and specified by a two-level
     theory-vector-indexing-dictionary with the following form:
 
     th_vec_dict[spec][array_cross] = binned_th_vec_values
+    th_vec_dict['bin_mean'] = bin_mean
 
     where spec is a polarization pair in canonical order (e.g., no 'ET' keys),
     array_cross is the '{array1}x{array2}' formatted cross of two arrays 
-    corresponding to the polarization legs, and binned_th_vec_values is the
+    corresponding to the polarization legs, binned_th_vec_values is the
     theory for that spectrum at the locations given by bin_mean. The theory
     vector is assumed to not have any cuts applied, so it has a value at 
     every point in bin_mean.
@@ -403,16 +423,21 @@ def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
     data_vec_dict : dict
         The output of get_data_vec_indices_and_bin_means.
     th_vec_dict : dict
-        The theory-vector-indexing-dictionary.
-    fields : iterable of two-tuple
-        Iterable of (spec, array) pairs, tracking which splines are actually
-        being sampled. See note for meaning 'spec' in this context.
-    knots : iterable of scalar
-        Knot locations in bin_mean space, must be strictly increasing.
+        The theory-vector-indexing-dictionary.        
+    fields : dict
+        dict of (param, array): int pairs, tracking which systematics are
+        actually being sampled, and of those, where in the parameter array they
+        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
     spline_bin_mean : iterable of scalar
         Output locations in bin_mean space to evaluate the spline.
-    bin_mean : iterable of scalar
-        The central values of the bins for all the spectra.
+    sysres2gammas_func : callable
+        A function with signature (x, fields, spline_bin_mean, *args, **kwargs)
+        where x has shape(..., len(fields) * params_per_field), and returns an
+        array of systematic residuals with shape
+        (..., len(fields), len(spline_bin_mean)).
+    sysres2gammas_func_kwargs : dict, optional
+        A dictionary of named arguments to be passed to sysres2gammas_func,
+        by default an empty dictionary.
 
     Returns
     -------
@@ -421,11 +446,16 @@ def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
         output of get_data_vec_indices_and_bin_means. Same prepended shape
         as x.
     """
-    gammas = splines2gammas(x, fields, knots, spline_bin_mean) # ([num walkers,] num_fields, num_spline_bin_mean)
+    if sysres2gammas_func_kwargs is None:
+        sysres2gammas_func_kwargs = {}
+
+    gammas = sysres2gammas_func(x, fields, spline_bin_mean, **sysres2gammas_func_kwargs) # ([num walkers,] num_fields, num_spline_bin_mean)
     gammas = gammas.reshape(-1, len(fields), len(spline_bin_mean)) # (num walkers, num_fields, num_spline_bin_mean)
 
     # need to go from bin_mean to spline_bin_mean in order
     # to apply gammas to theory. like theory[in_where]
+    bin_mean = th_vec_dict['bin_mean']
+
     common_bin_mean, spl_where, in_where = np.intersect1d(
         spline_bin_mean, bin_mean, return_indices=True
         )
@@ -457,13 +487,13 @@ def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
                 TT_ab = th_vec_dict['TT'][array_cross][in_where]
                 
                 try:
-                    delta_T_a = gammas[..., fields.index(('TT', na)), :]
-                except ValueError:
+                    delta_T_a = gammas[..., fields[('delta_T', na)], :]
+                except KeyError:
                     delta_T_a = 0
 
                 try:
-                    delta_T_b = gammas[..., fields.index(('TT', nb)), :]
-                except ValueError:
+                    delta_T_b = gammas[..., fields[('delta_T', nb)], :]
+                except KeyError:
                     delta_T_b = 0
 
                 th_spl = (1+delta_T_a)*(1+delta_T_b)*TT_ab
@@ -478,18 +508,18 @@ def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
                 TE_ab = th_vec_dict['TE'][array_cross][in_where]
                 
                 try:
-                    delta_T_a = gammas[..., fields.index(('TT', na)), :]
-                except ValueError:
+                    delta_T_a = gammas[..., fields[('delta_T', na)], :]
+                except KeyError:
                     delta_T_a = 0
                 
                 try:
-                    gamma_b = gammas[..., fields.index(('TE', nb)), :]
-                except ValueError:
+                    gamma_b = gammas[..., fields[('gamma', nb)], :]
+                except KeyError:
                     gamma_b = 0
 
                 try:
-                    delta_E_b = gammas[..., fields.index(('EE', nb)), :]
-                except ValueError:
+                    delta_E_b = gammas[..., fields[('delta_E', nb)], :]
+                except KeyError:
                     delta_E_b = 0
                 
                 th_spl = (1+delta_T_a)*(1+delta_E_b)*TE_ab + (1+delta_T_a)*gamma_b*TT_ab
@@ -501,23 +531,23 @@ def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
                 EE_ab = th_vec_dict['EE'][array_cross][in_where]
 
                 try:
-                    gamma_a = gammas[..., fields.index(('TE', na)), :]
-                except ValueError:
+                    gamma_a = gammas[..., fields[('gamma', na)], :]
+                except KeyError:
                     gamma_a = 0
                 
                 try:
-                    gamma_b = gammas[..., fields.index(('TE', nb)), :]
-                except ValueError:
+                    gamma_b = gammas[..., fields[('gamma', nb)], :]
+                except KeyError:
                     gamma_b = 0
                 
                 try:
-                    delta_E_a = gammas[..., fields.index(('EE', na)), :]
-                except ValueError:
+                    delta_E_a = gammas[..., fields[('delta_E', na)], :]
+                except KeyError:
                     delta_E_a = 0
 
                 try:
-                    delta_E_b = gammas[..., fields.index(('EE', nb)), :]
-                except ValueError:
+                    delta_E_b = gammas[..., fields[('delta_E', nb)], :]
+                except KeyError:
                     delta_E_b = 0
                 
                 th_spl = (1+delta_E_a)*(1+delta_E_b)*EE_ab + gamma_a*(1+delta_E_b)*TE_ab + \
@@ -528,12 +558,24 @@ def splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
     return out.reshape((*x.shape[:-1], -1)) # ([num walkers,] dv_size)
 
 # posterior funcs
-def log_prob(x, data_vec, inv_cov, data_vec_dict, th_vec_dict, fields, knots,
-             spline_bin_mean, bin_mean):
+def log_prob(x, data_vec, inv_cov, data_vec_dict, th_vec_dict,
+             fields, spline_bin_mean, sysres2gammas_func,
+             sysres2gammas_func_kwargs=None):
     """Evaluate the unnormalized log posterior for given cubic spline knot
     points, data vector and covariance, and theory vector (to be modified
     by the splines). There is a fixed prior on the knot values with sigma = 1;
-    this is very wide.
+    this is very wide. The theory vector must already be binned and specified
+    by a two-level theory-vector-indexing-dictionary with the following form:
+
+    th_vec_dict[spec][array_cross] = binned_th_vec_values
+    th_vec_dict['bin_mean'] = bin_mean
+
+    where spec is a polarization pair in canonical order (e.g., no 'ET' keys),
+    array_cross is the '{array1}x{array2}' formatted cross of two arrays 
+    corresponding to the polarization legs, binned_th_vec_values is the
+    theory for that spectrum at the locations given by bin_mean. The theory
+    vector is assumed to not have any cuts applied, so it has a value at 
+    every point in bin_mean.
 
     Parameters
     ----------
@@ -549,15 +591,20 @@ def log_prob(x, data_vec, inv_cov, data_vec_dict, th_vec_dict, fields, knots,
         The output of get_data_vec_indices_and_bin_means.
     th_vec_dict : dict
         The theory-vector-indexing-dictionary.
-    fields : iterable of two-tuple
-        Iterable of (spec, array) pairs, tracking which splines are actually
-        being sampled. See note for meaning 'spec' in this context.
-    knots : iterable of scalar
-        Knot locations in bin_mean space, must be strictly increasing.
+    fields : dict
+        dict of (param, array): int pairs, tracking which systematics are
+        actually being sampled, and of those, where in the parameter array they
+        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
     spline_bin_mean : iterable of scalar
         Output locations in bin_mean space to evaluate the spline.
-    bin_mean : iterable of scalar
-        The central values of the bins for all the spectra.
+    sysres2gammas_func : callable
+        A function with signature (x, fields, spline_bin_mean, *args, **kwargs)
+        where x has shape(..., len(fields) * params_per_field), and returns an
+        array of systematic residuals with shape
+        (..., len(fields), len(spline_bin_mean)).
+    sysres2gammas_func_kwargs : dict, optional
+        A dictionary of named arguments to be passed to sysres2gammas_func,
+        by default an empty dictionary.
 
     Returns
     -------
@@ -565,8 +612,9 @@ def log_prob(x, data_vec, inv_cov, data_vec_dict, th_vec_dict, fields, knots,
         Unnormalized log posterior values. Same prepended shape as x.
     """
     lp = -0.5 * np.sum(x**2, axis=-1) # fixed posterior with sigma=1 for each knot value
-    th_vec = splines2th_vec(x, data_vec_dict, th_vec_dict, fields, knots,
-                            spline_bin_mean, bin_mean)
+    th_vec = sysres2th_vec(x, data_vec_dict, th_vec_dict, fields,
+                           spline_bin_mean, sysres2gammas_func,
+                           sysres2gammas_func_kwargs=sysres2gammas_func_kwargs)
     res = data_vec - th_vec
     return lp - 0.5 * np.einsum('...a,ab,...b->...', res, inv_cov,
                                 res, optimize='greedy')
