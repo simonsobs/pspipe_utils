@@ -1,4 +1,3 @@
-
 from pspy import so_map, so_window, sph_tools, so_spectra, pspy_utils, so_map_preprocessing, so_mcm, so_cov
 import pylab as plt
 import numpy as np
@@ -23,7 +22,7 @@ data_path = os.path.join(os.path.dirname(os.path.abspath(pspipe_utils.__file__))
 
 ncomp = 3
 niter = 0
-n_sims = 100
+n_sims = 1000
 spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 binning_file = f"{data_path}/binning_files/BIN_ACTPOL_50_4_SC_large_bin_at_low_ell"
 vk_mask = [-90, 90]
@@ -42,26 +41,30 @@ map_set = f"dr6_{array}"
 binary = so_map.read_map(f"{data_path}/binaries/binary_{map_set}_downgraded.fits")
 lmax = int(binary.get_lmax_limit())
 
+
 template = binary.copy()
 ny, nx = binary.data.shape
 template.ncomp = 3
 template.data = enmap.empty((3, ny, nx), wcs=binary.data.wcs)
 
-window_binary = binary.copy()
-dist = so_window.get_distance(window_binary, rmax= np.pi / 180)
-window_binary.data[dist.data < 0.5] = 0
 
-window = so_window.create_apodization(window_binary, apo_type="C1", apo_radius_degree=1)
-mask = so_map.simulate_source_mask(window_binary, n_holes=1000, hole_radius_arcmin=10)
+window_kspace = binary.copy()
+dist = so_window.get_distance(binary, rmax= 4 * np.pi / 180)
+window_kspace = so_window.create_apodization(window_kspace, "C1", 1, use_rmax=True)
+
+
+window = binary.copy()
+window.data[dist.data < 2 ] = 0
+window = so_window.create_apodization(window, apo_type="C1", apo_radius_degree=1)
+mask = so_map.simulate_source_mask(binary, n_holes=1000, hole_radius_arcmin=10)
 mask = so_window.create_apodization(mask, apo_type="C1", apo_radius_degree=0.3)
 window.data *= mask.data
 
 window.plot(file_name=f"{test_dir}/window_{map_set}")
 
-binary.plot(file_name=f"{test_dir}/binary_{map_set}")
+window_kspace.plot(file_name=f"{test_dir}/window_kspace_{map_set}")
 window_tuple = (window, window)
     
-
 mcm_inv, Bbl = so_mcm.mcm_and_bbl_spin0and2(window_tuple,
                                             binning_file = binning_file,
                                             lmax=lmax,
@@ -120,7 +123,7 @@ for iii in range(n_sims):
     cmb_cut_filter = cmb.copy()
     my_binary = binary.copy()
 
-    cmb_cut_filter = kspace.filter_map(cmb_cut_filter, filter_std, my_binary)
+    cmb_cut_filter = kspace.filter_map(cmb_cut_filter, filter_std, window_kspace)
 
     alms_cut_filter = sph_tools.get_alms(cmb_cut_filter, window_tuple, niter, lmax)
         
@@ -146,18 +149,15 @@ for spec in spectra:
 
 
 plt.figure(figsize=(12,12))
-plt.suptitle("Response to $C^{TT}_\ell = \delta_{\ell,500}$ and $C^{EE}_\ell = \delta_{\ell,500}$ ")
+plt.ylabel("Response to $C^{TT}_\ell = \delta_{\ell,500}$ and $C^{EE}_\ell = \delta_{\ell,500}$ ", fontsize=30)
 plt.plot(l, mean_nofilter["TT"], color="darkcyan", label=r"$C^{TT}_{\ell}$", alpha=0.8, linewidth=2)
 plt.plot(l, mean_nofilter["EE"], color="darkviolet", linestyle=(0, (5, 10)), label=r"$C^{EE}_{\ell}$", linewidth=2)
 plt.plot(l, mean_filter["TT"], color="grey", label=r"$C^{TT, F}_{\ell}$", linewidth=2)
 plt.plot(l, mean_filter["EE"], color="red", linestyle=(0, (5, 10)), label=r"$C^{EE, F}_{\ell}$", alpha=0.8, linewidth=2)
-#plt.plot(l, np.abs(mean_filter["BB"]), color="green", label=r"$C^{BB, F}_{\ell}$")
-#plt.plot(l, np.abs(mean_filter["EB"]), color="purple", label=r"$C^{EB, F}_{\ell}$", linestyle="--")
-plt.legend()
-plt.xlabel(r"$\ell$", fontsize=30)
-plt.xlim(l_impuls-10, l_impuls+10)
-plt.xticks([l_impuls-10, l_impuls-5, l_impuls, l_impuls+5, l_impuls+10])
-#plt.plot(l, mean_nofilter/np.max(mean_nofilter))
+plt.legend(fontsize=30)
+plt.xlabel(r"$\ell$", fontsize=35)
+plt.xlim(l_impuls-15, l_impuls+15)
+plt.xticks([l_impuls-15, l_impuls-10, l_impuls-5, l_impuls, l_impuls+5, l_impuls+10, l_impuls+15])
 plt.savefig(f"{test_dir}/kspace_leakage_{l_impuls}.png", bbox_inches='tight', dpi=300)
 plt.clf()
 plt.close()
