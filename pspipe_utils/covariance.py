@@ -1443,6 +1443,7 @@ def get_indices(
     excluded_spectra=None,
     excluded_map_set=None,
     only_TT_map_set=None,
+    use_bin_edges=True
 ):
     """
     This function returns the covariance and spectra indices selected given a set of multipole cuts
@@ -1466,6 +1467,9 @@ def get_indices(
         the list of map set to be excluded
     only_TT_map_set: list of str
         map_set for which we only wish to use the TT power spectrum
+    use_bin_edges: bool
+        use bin_low and bin_high together with spectra_cuts (or 0 and inf) to
+        cut spectra, otherwise use bin_mean
     """
     if selected_spectra and excluded_spectra:
         raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
@@ -1522,7 +1526,10 @@ def get_indices(
             lmin = np.maximum(lmin_Xa, lmin_Yb)
             lmax = np.minimum(lmax_Xa, lmax_Yb)
 
-            idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            if use_bin_edges:
+                idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            else:
+                idx = np.arange(nbins)[(lmin < bin_mean) & (bin_mean < lmax)]
             
             indices_in = np.append(indices_in, idx + shift_indices)
             
