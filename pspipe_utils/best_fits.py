@@ -2,7 +2,7 @@
 Some utility functions for the generating best fit power spectrum.
 """
 import numpy as np
-from mflike import theoryforge as th_mflike
+from mflike import BandpowerForeground
 from pspy import pspy_utils, so_spectra
 from pspipe_utils import misc
 
@@ -286,24 +286,20 @@ def get_foreground_dict(ell,
     fg_norm: dict
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     band_shift_dict: dict
-        a dictionnary with bandpass shift parameter
+        a dictionary with bandpass shift parameter
     """
-
-    ThFo = th_mflike.TheoryForge()
-
-    # The following lines defines ThFo.bands and params to follow
+    # The following defines foreground model bands and params to follow
     # MFLike conventions.
-    ThFo.bands = {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()}
-    ThFo.experiments = external_bandpass.keys()
-    band_shift_dict = band_shift_dict or {f"bandint_shift_{exp}": 0.0 for exp in ThFo.experiments}
-    ThFo._bandpass_construction(**band_shift_dict)
-
     fg_norm = fg_norm or {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
-    fg_model = {"normalisation": fg_norm, "components": fg_components}
-    ThFo.foregrounds = fg_model
-    ThFo._init_foreground_model()
-
-    fg_dict = ThFo._get_foreground_model(ell=ell, **fg_params)
+    params = {
+        "bands": {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()},
+        "experiments":  external_bandpass.keys(),
+        "normalisation": fg_norm,
+        "components": fg_components
+    }
+    foregrounds = BandpowerForeground(params)
+    band_shift_dict = band_shift_dict or {f"bandint_shift_{exp}": 0.0 for exp in foregrounds.experiments}
+    fg_dict = foregrounds.get_foreground_model(ell=ell, **(fg_params | band_shift_dict))
 
     # Let's add other foregrounds not available in mflike (BB and TB fg)
     ell_0 = fg_norm["ell_0"]
@@ -314,27 +310,27 @@ def get_foreground_dict(ell,
     ell_0clp = ell_0 * (ell_0 + 1.0)
 
     models = {}
-    models["bb", "radio"] = fg_params["a_psbb"] * ThFo.radio(
-        {"nu": ThFo.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
+    models["bb", "radio"] = fg_params["a_psbb"] * foregrounds.radio(
+        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
     )
 
-    models["bb", "dust"] = fg_params["a_gbb"] * ThFo.dust(
-        {"nu": ThFo.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
+    models["bb", "dust"] = fg_params["a_gbb"] * foregrounds.dust(
+        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
         {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
     )
 
-    models["tb", "radio"] = fg_params["a_pstb"] * ThFo.radio(
-        {"nu": ThFo.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
+    models["tb", "radio"] = fg_params["a_pstb"] * foregrounds.radio(
+        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
     )
 
-    models["tb", "dust"] = fg_params["a_gtb"] * ThFo.dust(
-        {"nu": ThFo.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
+    models["tb", "dust"] = fg_params["a_gtb"] * foregrounds.dust(
+        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
         {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
     )
-    for c1, f1 in enumerate(ThFo.experiments):
-        for c2, f2 in enumerate(ThFo.experiments):
+    for c1, f1 in enumerate(foregrounds.experiments):
+        for c2, f2 in enumerate(foregrounds.experiments):
             for s in ["eb", "bb", "tb"]:
                 fg_dict[s, "all", f1, f2] = np.zeros(len(ell))
                 for comp in fg_components[s]:
@@ -342,8 +338,8 @@ def get_foreground_dict(ell,
                     fg_dict[s, "all", f1, f2] += fg_dict[s, comp, f1, f2]
 
     # Add ET, BT, BE where ET[f1, f2] = TE[f2, f1]
-    for c1, f1 in enumerate(ThFo.experiments):
-        for c2, f2 in enumerate(ThFo.experiments):
+    for c1, f1 in enumerate(foregrounds.experiments):
+        for c2, f2 in enumerate(foregrounds.experiments):
             for s in ["te", "tb", "eb"]:
                 s_r = s[::-1]
                 fg_dict[s_r, "all", f1, f2] = np.zeros(len(ell))
