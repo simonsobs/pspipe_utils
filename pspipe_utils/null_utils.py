@@ -1,6 +1,45 @@
 import numpy as np
 from scipy import interpolate
 
+from itertools import combinations as comb
+from itertools import combinations_with_replacement as comb_wr
+from itertools import product
+from functools import reduce
+
+def is_equal_array_pair(array_pair, delimeter='x'):
+    """Whether two arrays in an array pair are the same.
+
+    Parameters
+    ----------
+    array_pair : str
+        '{array1}{delimeter}{array2}' formatted pair of two arrays.
+    delimeter : str, optional
+        The string that separates the pair of arrays.
+    
+    Returns
+    -------
+    bool
+        array1 == array2
+    """
+    na, nb = array_pair.split(delimeter)
+    return na == nb
+
+def is_equal_pol_pair(spec):
+    """Whether two pols in a spec are the same.
+
+    Parameters
+    ----------
+    spec : str
+        '{pol1}{pol2}' formatted pair of two pols.
+
+    Returns
+    -------
+    bool
+        pol1 == pol2
+    """
+    pa, pb = spec
+    return pa == pb
+
 def get_data_vec_indices_into_sacc(specs, array_crosses, nbins, sacc_file,
                                    pspipe_indices=None):
     """Get an indexing array that, when used over a sacc data vector and
@@ -168,7 +207,7 @@ def get_data_vec_indices_and_bin_means(bin_out_dict):
    
     return idx_dict
 
-def get_null_vec_indices_and_bin_means(bin_out_dict):
+def get_spectrum_null_vec_indices_and_bin_means(bin_out_dict):
     """Construct a two-level null-test-vector-indexing dictionary with the
     following structure:
 
@@ -189,35 +228,174 @@ def get_null_vec_indices_and_bin_means(bin_out_dict):
     Returns
     -------
     dict
-        The data_idx_dict.
+        The null_idx_dict.
+
+    Notes
+    -----
+    Given two pairs of fields (W, X), (Y, Z), a spectrum-level null test
+    will be C(W, X) - C(Y, Z). Therefore, we can have W==X or Y==Z, but not
+    (W, X)==(Y, Z). Likewise, spec(W, X) must be equal to spec(Y, Z).
     """
     data_vec_indices_and_bin_means = get_data_vec_indices_and_bin_means(
         bin_out_dict
         )
     
-    idx_dict = {}
+    idx_dict = {f'{spec}': {} for spec in data_vec_indices_and_bin_means}
     idx_start = 0
     for spec, array_cross_dict in data_vec_indices_and_bin_means.items():
-        if spec not in idx_dict:
-            idx_dict[spec] = {}
-
-        array_crosses = list(array_cross_dict.keys())
-        for i, array_cross1 in enumerate(array_crosses):
+        # comb without replacement to avoid (W, X)==(Y, Z), but otherwise
+        # allow W==X and Y==Z. using the same array_crosses list enforces
+        # spec(W, X) equals spec(Y, Z)
+        for array_cross1, array_cross2 in comb(array_cross_dict.keys(), 2):
             _, bin_means1 = data_vec_indices_and_bin_means[spec][array_cross1]
-            for array_cross2 in array_crosses[i+1:]:
-                _, bin_means2 = data_vec_indices_and_bin_means[spec][array_cross2]
-                
-                bin_means = np.intersect1d(bin_means1, bin_means2)
-                nbins = len(bin_means)
+            _, bin_means2 = data_vec_indices_and_bin_means[spec][array_cross2]
+            
+            bin_means = np.intersect1d(bin_means1, bin_means2)
+            nbins = len(bin_means)
 
-                idx_dict[spec][array_cross1, array_cross2] = (
-                    np.arange(idx_start, idx_start + nbins), bin_means
-                    )
-                idx_start += nbins
+            idx_dict[spec][array_cross1, array_cross2] = (
+                np.arange(idx_start, idx_start + nbins), bin_means
+                )
+            idx_start += nbins
 
     return idx_dict
 
-def get_data_vec_to_null_vec_matrix(bin_out_dict, cov=None):
+def get_map_null_vec_indices_and_bin_means(bin_out_dict,
+                                           auto_map_null_only=False):
+    """Construct a two-level null-test-vector-indexing dictionary with the
+    following structure:
+
+    null_idx_dict[spec][array_diff1, array_diff2] = (idxs, bin_means)
+
+    where spec is a polarization pair in canonical order (e.g., no 'ET' keys),
+    array_diff1 and array_diff2 are the '{array1}-{array2}' formatted crosses
+    of two pairs of arrays forming the null test of the spec, idxs are the
+    locations within the vector of all null tests for this null test, and
+    bin_means are the intersection of the bin_means for the four spectra
+    entering the null test.
+
+    Parameters
+    ----------
+    bin_out_dict : dict
+        The first return value of psipe_utils.covariance.get_indices.
+    auto_map_null_only : bool, optional
+        Whether to only consider map-level null tests for which (W, X)==(Y, Z),
+        by default False (see notes).
+
+    Returns
+    -------
+    dict
+        The null_idx_dict.
+
+    Notes
+    -----
+    Given two pairs of fields (W, X), (Y, Z), a map-level null test
+    will be C(W - X, Y - Z) = C(W, Y) - C(W, Z) - C(X, Y) + C(X, Z). Therefore,
+    we can have (W, X)==(Y, Z), but not W==X or Y==Z. Likewise, we must have
+    pol(W)==pol(X) and pol(Y)==pol(Z).
+    """
+    data_vec_indices_and_bin_means = get_data_vec_indices_and_bin_means(
+        bin_out_dict
+        )
+    
+    idx_dict = {f'{spec}': {} for spec in data_vec_indices_and_bin_means}
+    idx_start = 0
+    for spec, array_cross_dict in data_vec_indices_and_bin_means.items():
+        # given all the array_crosses in the data vector for a given spec,
+        # we want to construct all the unique pairs of unique arrays for 
+        # each pol leg of the spec
+        pol1, pol2 = spec
+        pol1arrs = []
+        pol2arrs = []
+        for array_cross in array_cross_dict.keys():
+            na, nb = array_cross.split('x')
+            if na not in pol1arrs:
+                pol1arrs.append(na)
+            if nb not in pol2arrs:
+                pol2arrs.append(nb)
+        pol1arrs.sort()
+        pol2arrs.sort()
+        
+        if pol1 == pol2:
+            assert np.all(pol1arrs == pol2arrs), \
+                f'{pol1=}={pol2=}, but {pol1arrs=}!={pol2arrs=}'
+
+        # skip W==X case
+        array_pairs1 = comb(pol1arrs, 2)
+
+        # if pol1 = pol2, we'll reuse array_pairs1
+        if pol1 != pol2:
+            # skip Y==Z case
+            array_pairs2 = comb(pol2arrs, 2)
+
+        # with the list of unique pairs of unique arrays for each pol leg of
+        # the spec, we can iterate over pairs of array pairs. there are 3 cases:
+        # 1. if auto_map_null_only, array_diff2 = array_diff1
+        # 2. otherwise, if pol2 == pol1, iteratate over combs with replacement
+        # 3. otherwise, iterate over product of array_diff1 and array_diff2
+        # NOTE: we allow (W, X)==(Y, Z) in all cases.
+        if auto_map_null_only:
+            # there is only one array_diff to consider
+            array_pairs1 = list(array_pairs1) # exhaust the comb once
+            iter = zip(array_pairs1, array_pairs1)
+        elif pol1 == pol2:
+            # index from i to allow (W, X)==(Y, Z)
+            iter = comb_wr(array_pairs1, 2)
+        else:
+            iter = product(array_pairs1, array_pairs2)
+        
+        for (arrayW, arrayX), (arrayY, arrayZ) in iter:
+            # get the bin_means of the four spectra involved in the null because
+            # we need the common bins to form the null
+            array_crossWY = f'{arrayW}x{arrayY}'
+            array_crossWZ = f'{arrayW}x{arrayZ}'
+            array_crossXY = f'{arrayX}x{arrayY}'
+            array_crossXZ = f'{arrayX}x{arrayZ}'
+
+            # if spec is auto, then array_cross might be flipped, and
+            # we can freely try to flip it back. if, after flipping, the 
+            # spectrum is still missing, or if spec is not auto, then it
+            # was cut from the data selection for some reason (e.g., spec is 
+            # 'TE' but the 'T' leg is from the 'only_TT_map_set') and we can't
+            # form this null test
+            array_crosses = [array_crossWY, array_crossWZ, array_crossXY, array_crossXZ]
+            bin_means_per_array_cross = []
+            for array_cross in array_crosses:
+                try:
+                    _, bin_means = data_vec_indices_and_bin_means[spec][array_cross]
+                except KeyError as e:
+                    if is_equal_pol_pair(spec):
+                        array_cross = 'x'.join(array_cross.split('x')[::-1])
+                        _, bin_means = data_vec_indices_and_bin_means[spec][array_cross]
+                    else:
+                        raise e
+                bin_means_per_array_cross.append(bin_means)
+
+            bin_means = reduce(np.intersect1d, bin_means_per_array_cross)
+            nbins = len(bin_means)
+
+            # put into readable key 
+            array_diff1 = f'{arrayW}-{arrayX}'
+            array_diff2 = f'{arrayY}-{arrayZ}'
+
+            idx_dict[spec][array_diff1, array_diff2] = (
+                np.arange(idx_start, idx_start + nbins), bin_means
+                )
+            idx_start += nbins
+
+    return idx_dict
+
+def _mat2cov_diagonalizing_mat(mat, cov):
+    # only keep num=rank singular values
+    u, sig, vh = np.linalg.svd(mat, full_matrices=False)
+    rank = np.linalg.matrix_rank(mat, tol=1e-6)
+    
+    # svd gives singular values in descending order 
+    _, o = np.linalg.eigh((np.diag(sig) @ vh @ cov @ vh.T @ np.diag(sig).T)[:rank, :rank])
+    mat = o.T @ u[:, :rank].T @ mat
+    return mat
+
+def get_data_vec_to_spectrum_null_vec_matrix(bin_out_dict, cov=None):
     """Construct the full matrix that, when applied to a pspipe-ordered and cut
     data vector, generates the vector of all null tests. The data vector is 
     assumed to follow the ordering given by the output of
@@ -245,18 +423,18 @@ def get_data_vec_to_null_vec_matrix(bin_out_dict, cov=None):
     data_vec_indices_and_bin_means = get_data_vec_indices_and_bin_means(
         bin_out_dict
         )
-    null_vec_indices_and_bin_means = get_null_vec_indices_and_bin_means(
+    null_vec_indices_and_bin_means = get_spectrum_null_vec_indices_and_bin_means(
         bin_out_dict
         )
 
     # get the dimensions of the matrix
     dv_size = 0
-    for spec, array_cross_dict in data_vec_indices_and_bin_means.items():
+    for _, array_cross_dict in data_vec_indices_and_bin_means.items():
         for _, (idxs, _) in array_cross_dict.items():
             dv_size += len(idxs)
 
     nv_size = 0
-    for spec, array_cross_null_dict in null_vec_indices_and_bin_means.items():
+    for _, array_cross_null_dict in null_vec_indices_and_bin_means.items():
         for _, (idxs, _) in array_cross_null_dict.items():
             nv_size += len(idxs)
 
@@ -267,34 +445,127 @@ def get_data_vec_to_null_vec_matrix(bin_out_dict, cov=None):
             col1_idxs, col1_bin_means = data_vec_indices_and_bin_means[spec][array_cross1]
             col2_idxs, col2_bin_means = data_vec_indices_and_bin_means[spec][array_cross2]
 
-            col1_to_row = np.zeros((len(row_idxs), len(col1_idxs)))
-            common1_bin_means, row1_where, col1_where = np.intersect1d(
-                row_bin_means, col1_bin_means, return_indices=True
-                )
-            assert np.all(common1_bin_means == row_bin_means)
-            assert np.all(row1_where == np.arange(len(row_idxs)))
-            col1_to_row[:, col1_where] = np.eye(len(col1_where))
+            col_to_row_mats = []
+            for col_idxs, col_bin_means in zip(
+                [col1_idxs, col2_idxs],
+                [col1_bin_means, col2_bin_means]
+                ):
 
-            col2_to_row = np.zeros((len(row_idxs), len(col2_idxs)))
-            common2_bin_means, row2_where, col2_where = np.intersect1d(
-                row_bin_means, col2_bin_means, return_indices=True
-                )
-            assert np.all(common2_bin_means == row_bin_means)
-            assert np.all(row2_where == np.arange(len(row_idxs)))
-            col2_to_row[:, col2_where] = np.eye(len(col2_where))
+                col_to_row = np.zeros((len(row_idxs), len(col_idxs)))
+                common_bin_means, row_where, col_where = np.intersect1d(
+                    row_bin_means, col_bin_means, return_indices=True
+                    )
+                assert np.all(common_bin_means == row_bin_means)
+                assert np.all(row_where == np.arange(len(row_idxs)))
+                col_to_row[:, col_where] = np.eye(len(col_where))
 
-            mat[np.ix_(row_idxs, col1_idxs)] = col1_to_row
-            mat[np.ix_(row_idxs, col2_idxs)] = -col2_to_row
+                col_to_row_mats.append(col_to_row)
+            col1_to_row, col2_to_row = col_to_row_mats
+
+            mat[np.ix_(row_idxs, col1_idxs)] += col1_to_row
+            mat[np.ix_(row_idxs, col2_idxs)] -= col2_to_row
 
     if cov is not None:
-        # only keep num=rank singular values
-        u, sig, vh = np.linalg.svd(mat, full_matrices=False)
-        rank = np.linalg.matrix_rank(mat, tol=1e-6)
-        
-        # svd gives singular values in descending order 
-        l, o = np.linalg.eigh((np.diag(sig) @ vh @ cov @ vh.T @ np.diag(sig).T)[:rank, :rank])
-        mat = o.T @ u[:, :rank].T @ mat
+        return _mat2cov_diagonalizing_mat(mat, cov)
+    else:
         return mat
+    
+def get_data_vec_to_map_null_vec_matrix(bin_out_dict, auto_map_null_only=False,
+                                        cov=None):
+    """Construct the full matrix that, when applied to a pspipe-ordered and cut
+    data vector, generates the vector of all null tests. The data vector is 
+    assumed to follow the ordering given by the output of
+    get_data_vec_indices_and_bin_means, while the vector of null tests would
+    follow the ordering given by the output of
+    get_null_vec_indices_and_bin_means (unless cov is provided).
+
+    Parameters
+    ----------
+    bin_out_dict : dict
+        The first return value of psipe_utils.covariance.get_indices.
+    cov : (n_data_vec_bins, n_data_vec_bins) np.ndarray, optional
+        If provided, the returned matrix transforms the data vector into 
+        a vector of independent null tests with respect to cov. In this case,
+        the dimension of the null test vector will be less than that of the 
+        data vector; specifically, it will be the rank of the matrix that is
+        returned if cov is not provided.
+
+    Returns
+    -------
+    (n_null_test_bins, n_data_vec_bins) np.ndarray
+        The 2-dimensional matrix taking the full data vector to the vector of
+        null tests.
+    """
+    data_vec_indices_and_bin_means = get_data_vec_indices_and_bin_means(
+        bin_out_dict
+        )
+    null_vec_indices_and_bin_means = get_map_null_vec_indices_and_bin_means(
+        bin_out_dict, auto_map_null_only=auto_map_null_only
+        )
+
+    # get the dimensions of the matrix
+    dv_size = 0
+    for _, array_cross_dict in data_vec_indices_and_bin_means.items():
+        for _, (idxs, _) in array_cross_dict.items():
+            dv_size += len(idxs)
+
+    nv_size = 0
+    for _, array_diff_null_dict in null_vec_indices_and_bin_means.items():
+        for _, (idxs, _) in array_diff_null_dict.items():
+            nv_size += len(idxs)
+
+    # populate the matrix
+    mat = np.zeros((nv_size, dv_size))
+    for spec, array_diff_null_dict in null_vec_indices_and_bin_means.items():
+        for (array_diff1, array_diff2), (row_idxs, row_bin_means) in array_diff_null_dict.items():
+            # for this null test, what data do I need?
+            arrayW, arrayX = array_diff1.split('-')
+            arrayY, arrayZ = array_diff2.split('-')
+
+            array_crossWY = f'{arrayW}x{arrayY}'
+            array_crossWZ = f'{arrayW}x{arrayZ}'
+            array_crossXY = f'{arrayX}x{arrayY}'
+            array_crossXZ = f'{arrayX}x{arrayZ}'
+
+            array_crosses = [array_crossWY, array_crossWZ, array_crossXY, array_crossXZ]
+            col_idxs_per_array_cross = []
+            col_bin_means_per_array_cross = []
+            for array_cross in array_crosses:
+                try:
+                    col_idxs, col_bin_means = data_vec_indices_and_bin_means[spec][array_cross]
+                except KeyError:
+                    assert is_equal_pol_pair(spec), \
+                        f'{spec=}, {array_cross=} not in data_vec_indices_and_bin_means'
+                    array_cross = 'x'.join(array_cross.split('x')[::-1])
+                    col_idxs, col_bin_means = data_vec_indices_and_bin_means[spec][array_cross]
+                col_idxs_per_array_cross.append(col_idxs)
+                col_bin_means_per_array_cross.append(col_bin_means)
+            colWY_idxs, colWZ_idxs, colXY_idxs, colXZ_idxs = col_idxs_per_array_cross
+
+            col_to_row_mats = []
+            for col_idxs, col_bin_means in zip(
+                col_idxs_per_array_cross,
+                col_bin_means_per_array_cross
+                ):
+
+                col_to_row = np.zeros((len(row_idxs), len(col_idxs)))
+                common_bin_means, row_where, col_where = np.intersect1d(
+                    row_bin_means, col_bin_means, return_indices=True
+                    )
+                assert np.all(common_bin_means == row_bin_means)
+                assert np.all(row_where == np.arange(len(row_idxs)))
+                col_to_row[:, col_where] = np.eye(len(col_where))
+
+                col_to_row_mats.append(col_to_row)
+            colWY_to_row, colWZ_to_row, colXY_to_row, colXZ_to_row = col_to_row_mats
+
+            mat[np.ix_(row_idxs, colWY_idxs)] += colWY_to_row
+            mat[np.ix_(row_idxs, colWZ_idxs)] -= colWZ_to_row
+            mat[np.ix_(row_idxs, colXY_idxs)] -= colXY_to_row
+            mat[np.ix_(row_idxs, colXZ_idxs)] += colXZ_to_row
+
+    if cov is not None:
+        return _mat2cov_diagonalizing_mat(mat, cov)
     else:
         return mat
 
@@ -354,283 +625,3 @@ def get_th_vec_from_th_vec_dict(bin_out_dict, th_vec_dict):
             vec[idxs] = th_vec[in_where]
 
     return vec
-
-# forward model funcs
-def consts2gammas(x, fields, spline_bin_mean):
-    """Project constants over the central bin values given by spline_bin_mean.
-
-    Parameters
-    ----------
-    x : (..., max(fields.values())+1) np.ndarray
-        The constant systematic residual for all scales of sampled field. These
-        are the parameters that are sampled. May have any prepended shape, e.g.
-        if the sampler has many parallel walkers.
-    fields : dict
-        dict of (param, array): int pairs, tracking which systematics are
-        actually being sampled, and of those, where in the parameter array they
-        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
-    spline_bin_mean : iterable of scalar
-        Output locations in bin_mean space to project the systematic.
-
-    Returns
-    -------
-    (..., max(fields.values())+1, len(spline_bin_mean)) np.ndarray
-        The evaluated systematic for each field at the spline_bin_mean
-        locations. Same prepended shape as x.
-    """
-    _x = x.reshape(-1, max(fields.values())+1, 1)
-    gammas = np.tile(_x, (1, 1, len(spline_bin_mean)))
-    return gammas.reshape((*x.shape[:-1], max(fields.values())+1, len(spline_bin_mean)))
-
-def splines2gammas(x, fields, spline_bin_mean, knots):
-    """Project cubic spline knot points over the central bin values given by
-    spline_bin_mean.
-
-    Parameters
-    ----------
-    x : (..., (max(fields.values())+1) * len(knots)) np.ndarray
-        The spline values at the knot locations for each sampled field. These
-        are the parameters that are sampled. May have any prepended shape, e.g.
-        if the sampler has many parallel walkers.
-    fields : dict
-        dict of (param, array): int pairs, tracking which systematics are
-        actually being sampled, and of those, where in the parameter array they
-        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
-    spline_bin_mean : iterable of scalar
-        Output locations in bin_mean space to evaluate the spline.
-    knots : iterable of scalar
-        Knot locations in bin_mean space, must be strictly increasing.
-
-    Returns
-    -------
-    (..., max(fields.values())+1, len(spline_bin_mean)) np.ndarray
-        The evaluated spline for each field at the spline_bin_mean locations.
-        Same prepended shape as x.
-    """
-    _x = x.reshape(-1, max(fields.values())+1, len(knots))
-    gamma_func = interpolate.CubicSpline(knots, _x, axis=-1, bc_type='natural',
-                                         extrapolate=False)
-    gammas = gamma_func(spline_bin_mean)
-    return gammas.reshape((*x.shape[:-1], max(fields.values())+1, len(spline_bin_mean)))
-
-def sysres2th_vec(x, data_vec_dict, th_vec_dict, fields, spline_bin_mean,
-                  sysres2gammas_func, sysres2gammas_func_kwargs=None):
-    """Project cubic spline knot points over central bin values, and use the
-    evaluated spline to modify a corresponding theory vector. The theory vector
-    must already be binned and specified by a two-level
-    theory-vector-indexing-dictionary with the following form:
-
-    th_vec_dict[spec][array_cross] = binned_th_vec_values
-    th_vec_dict['bin_mean'] = bin_mean
-
-    where spec is a polarization pair in canonical order (e.g., no 'ET' keys),
-    array_cross is the '{array1}x{array2}' formatted cross of two arrays 
-    corresponding to the polarization legs, binned_th_vec_values is the
-    theory for that spectrum at the locations given by bin_mean. The theory
-    vector is assumed to not have any cuts applied, so it has a value at 
-    every point in bin_mean.
-
-    Parameters
-    ----------
-    x : (..., (max(fields.values())+1) * params_per_field) np.ndarray
-        The systematic values for each sampled field. These are the parameters
-        that are sampled. May have any prepended shape, e.g. if the sampler has
-        many parallel walkers.
-    data_vec_dict : dict
-        The output of get_data_vec_indices_and_bin_means.
-    th_vec_dict : dict
-        The theory-vector-indexing-dictionary.        
-    fields : dict
-        dict of (param, array): int pairs, tracking which systematics are
-        actually being sampled, and of those, where in the parameter array they
-        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
-    spline_bin_mean : iterable of scalar
-        Output locations in bin_mean space to evaluate the spline.
-    sysres2gammas_func : callable
-        A function with signature (x, fields, spline_bin_mean, *args, **kwargs)
-        where x has shape(..., (max(fields.values())+1) * params_per_field), and returns an
-        array of systematic residuals with shape
-        (..., max(fields.values())+1, len(spline_bin_mean)).
-    sysres2gammas_func_kwargs : dict, optional
-        A dictionary of named arguments to be passed to sysres2gammas_func,
-        by default an empty dictionary.
-
-    Returns
-    -------
-    (..., n_data_vec_bins)
-        The modified pspipe-ordered and cut theory vector, corresponding to the
-        output of get_data_vec_indices_and_bin_means. Same prepended shape
-        as x.
-    """
-    if sysres2gammas_func_kwargs is None:
-        sysres2gammas_func_kwargs = {}
-
-    gammas = sysres2gammas_func(x, fields, spline_bin_mean, **sysres2gammas_func_kwargs) # ([num walkers,] num_fields, num_spline_bin_mean)
-    gammas = gammas.reshape(-1, max(fields.values())+1, len(spline_bin_mean)) # (num walkers, num_fields, num_spline_bin_mean)
-
-    # need to go from bin_mean to spline_bin_mean in order
-    # to apply gammas to theory. like theory[in_where]
-    bin_mean = th_vec_dict['bin_mean']
-
-    common_bin_mean, spl_where, in_where = np.intersect1d(
-        spline_bin_mean, bin_mean, return_indices=True
-        )
-    assert np.all(common_bin_mean == spline_bin_mean)
-    assert np.all(spl_where == np.arange(len(spline_bin_mean)))
-
-    # get the dimensions of the vector
-    dv_size = 0
-    for spec, array_cross_dict in data_vec_dict.items():
-        for _, (idxs, _) in array_cross_dict.items():
-            dv_size += len(idxs)
-
-    out = np.zeros((gammas.shape[0], dv_size)) # (num walkers, dv_size)
-    for spec, array_cross_dict in data_vec_dict.items():
-        for array_cross, (idxs, bin_means) in array_cross_dict.items():
-            na, nb = array_cross.split("x")
-            array_cross_ba = 'x'.join((nb, na))
-            
-            # need to go from spline_bin_mean to this specific spectrum's
-            # bin mean in order to construct the data vector here. like
-            # theory[spl_where]
-            common_bin_mean, out_where, spl_where = np.intersect1d(
-                bin_means, spline_bin_mean, return_indices=True
-                )
-            assert np.all(common_bin_mean == bin_means)
-            assert np.all(out_where == np.arange(len(bin_means)))
-
-            if spec == 'TT':
-                TT_ab = th_vec_dict['TT'][array_cross][in_where]
-                
-                try:
-                    delta_T_a = gammas[..., fields[('delta_T', na)], :]
-                except KeyError:
-                    delta_T_a = 0
-
-                try:
-                    delta_T_b = gammas[..., fields[('delta_T', nb)], :]
-                except KeyError:
-                    delta_T_b = 0
-
-                th_spl = (1+delta_T_a)*(1+delta_T_b)*TT_ab
-            
-            elif spec == 'TE':
-                # because for TE the TT arrays might be backwards
-                try:
-                    TT_ab = th_vec_dict['TT'][array_cross][in_where]
-                except KeyError:
-                    TT_ab = th_vec_dict['TT'][array_cross_ba][in_where]
-                
-                TE_ab = th_vec_dict['TE'][array_cross][in_where]
-                
-                try:
-                    delta_T_a = gammas[..., fields[('delta_T', na)], :]
-                except KeyError:
-                    delta_T_a = 0
-                
-                try:
-                    gamma_b = gammas[..., fields[('gamma', nb)], :]
-                except KeyError:
-                    gamma_b = 0
-
-                try:
-                    delta_E_b = gammas[..., fields[('delta_E', nb)], :]
-                except KeyError:
-                    delta_E_b = 0
-                
-                th_spl = (1+delta_T_a)*(1+delta_E_b)*TE_ab + (1+delta_T_a)*gamma_b*TT_ab
-            
-            elif spec == 'EE':
-                TT_ab = th_vec_dict['TT'][array_cross][in_where]
-                TE_ab = th_vec_dict['TE'][array_cross][in_where]
-                TE_ba = th_vec_dict['TE'][array_cross_ba][in_where]
-                EE_ab = th_vec_dict['EE'][array_cross][in_where]
-
-                try:
-                    gamma_a = gammas[..., fields[('gamma', na)], :]
-                except KeyError:
-                    gamma_a = 0
-                
-                try:
-                    gamma_b = gammas[..., fields[('gamma', nb)], :]
-                except KeyError:
-                    gamma_b = 0
-                
-                try:
-                    delta_E_a = gammas[..., fields[('delta_E', na)], :]
-                except KeyError:
-                    delta_E_a = 0
-
-                try:
-                    delta_E_b = gammas[..., fields[('delta_E', nb)], :]
-                except KeyError:
-                    delta_E_b = 0
-                
-                th_spl = (1+delta_E_a)*(1+delta_E_b)*EE_ab + gamma_a*(1+delta_E_b)*TE_ab + \
-                         gamma_b*(1+delta_E_a)*TE_ba + gamma_a*gamma_b*TT_ab
-
-            out[..., idxs] = th_spl[..., spl_where]
-
-    return out.reshape((*x.shape[:-1], -1)) # ([num walkers,] dv_size)
-
-# posterior funcs
-def log_prob(x, data_vec, inv_cov, data_vec_dict, th_vec_dict,
-             fields, spline_bin_mean, sysres2gammas_func,
-             sysres2gammas_func_kwargs=None):
-    """Evaluate the unnormalized log posterior for given cubic spline knot
-    points, data vector and covariance, and theory vector (to be modified
-    by the splines). There is a fixed prior on the knot values with sigma = 1;
-    this is very wide. The theory vector must already be binned and specified
-    by a two-level theory-vector-indexing-dictionary with the following form:
-
-    th_vec_dict[spec][array_cross] = binned_th_vec_values
-    th_vec_dict['bin_mean'] = bin_mean
-
-    where spec is a polarization pair in canonical order (e.g., no 'ET' keys),
-    array_cross is the '{array1}x{array2}' formatted cross of two arrays 
-    corresponding to the polarization legs, binned_th_vec_values is the
-    theory for that spectrum at the locations given by bin_mean. The theory
-    vector is assumed to not have any cuts applied, so it has a value at 
-    every point in bin_mean.
-
-    Parameters
-    ----------
-    x : (..., (max(fields.values())+1) * params_per_field) np.ndarray
-        The systematic values for each sampled field. These are the parameters
-        that are sampled. May have any prepended shape, e.g. if the sampler has
-        many parallel walkers.
-    data_vec : (n_data_vec_bins) np.ndarray
-        The fixed data vector.
-    inv_cov : (n_data_vec_bins, n_data_vec_bins) np.ndarray
-        The fixed inverse covariance matrix of the data vector.
-    data_vec_dict : dict
-        The output of get_data_vec_indices_and_bin_means.
-    th_vec_dict : dict
-        The theory-vector-indexing-dictionary.
-    fields : dict
-        dict of (param, array): int pairs, tracking which systematics are
-        actually being sampled, and of those, where in the parameter array they
-        are located. param must be one of 'delta_T', 'gamma', or 'delta_E'.
-    spline_bin_mean : iterable of scalar
-        Output locations in bin_mean space to evaluate the spline.
-    sysres2gammas_func : callable
-        A function with signature (x, fields, spline_bin_mean, *args, **kwargs)
-        where x has shape(..., (max(fields.values())+1) * params_per_field), and returns an
-        array of systematic residuals with shape
-        (..., max(fields.values())+1, len(spline_bin_mean)).
-    sysres2gammas_func_kwargs : dict, optional
-        A dictionary of named arguments to be passed to sysres2gammas_func,
-        by default an empty dictionary.
-
-    Returns
-    -------
-    (...) np.ndarray
-        Unnormalized log posterior values. Same prepended shape as x.
-    """
-    lp = -0.5 * np.sum(x**2, axis=-1) # fixed posterior with sigma=1 for each knot value
-    th_vec = sysres2th_vec(x, data_vec_dict, th_vec_dict, fields,
-                           spline_bin_mean, sysres2gammas_func,
-                           sysres2gammas_func_kwargs=sysres2gammas_func_kwargs)
-    res = data_vec - th_vec
-    return lp - 0.5 * np.einsum('...a,ab,...b->...', res, inv_cov,
-                                res, optimize='greedy')

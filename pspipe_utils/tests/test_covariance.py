@@ -78,14 +78,15 @@ class CovarianceUtilitiesTest(unittest.TestCase):
         # gives mc
         ana_cov = np.array([[4, 0, 1], [0, 4, 0], [1, 0, 4]])
         mc_cov = np.array([[9, 0, 1], [0, 9, 0], [1, 0, 9]])
+        ans_cov = np.array([[28/3, 0, 7/3], [0, 9, 0], [7/3, 0, 28/3]])
 
-        cor_cov = psc.correct_analytical_cov_keep_res_diag(ana_cov, mc_cov, return_diag=False)
-        test = np.allclose(cor_cov, mc_cov, rtol=1e-10, atol=0)
+        cor_cov = psc.correct_analytical_cov_eigenspectrum_ratio(ana_cov, mc_cov, return_all=False)
+        test = np.allclose(cor_cov, ans_cov, rtol=1e-10, atol=0)
         self.assertTrue(test)
 
-        cor_cov, res_diag = psc.correct_analytical_cov_keep_res_diag(ana_cov, mc_cov, return_diag=True)
-        test1 = np.allclose(cor_cov, mc_cov, rtol=1e-10, atol=0)
-        test2 = np.allclose(res_diag, np.array([8/3, 9/4, 10/5]))
+        cor_cov, res_diag = psc.correct_analytical_cov_eigenspectrum_ratio(ana_cov, mc_cov, return_all=True)
+        test1 = np.allclose(cor_cov, ans_cov, rtol=1e-10, atol=0)
+        test2 = np.allclose(res_diag, np.array([7/3, 9/4, 7/3]))
 
         self.assertTrue(test1)
         self.assertTrue(test2)
