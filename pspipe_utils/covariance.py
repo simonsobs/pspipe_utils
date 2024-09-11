@@ -2,6 +2,7 @@ import numpy as np
 import pylab as plt
 from pspy import pspy_utils, so_cov, so_spectra
 from pixell import utils
+from copy import deepcopy
 
 
 def read_cov_block_and_build_dict(spec_name_list,
@@ -701,8 +702,8 @@ def get_cross_indices(
                                                  bin_mean,
                                                  spec_name_list,
                                                  spectra_cuts=spectra_cuts,
-                                                 spectra_order=spectra,
-                                                 selected_spectra=spec_select,
+                                                 spectra_order=spectra_order,
+                                                 selected_spectra=selected_spectra,
                                                  excluded_map_set = None ,
                                                  only_TT_map_set=only_TT_map_set)
     
@@ -711,8 +712,8 @@ def get_cross_indices(
                                              bin_mean,
                                              spec_name_list,
                                              spectra_cuts=spectra_cuts,
-                                             spectra_order=spectra,
-                                             selected_spectra=spec_select,
+                                             spectra_order=spectra_order,
+                                             selected_spectra=selected_spectra,
                                              excluded_map_set = map_set_A,
                                              only_TT_map_set=only_TT_map_set)
 
@@ -721,8 +722,8 @@ def get_cross_indices(
                                              bin_mean,
                                              spec_name_list,
                                              spectra_cuts=spectra_cuts,
-                                             spectra_order=spectra,
-                                             selected_spectra=spec_select,
+                                             spectra_order=spectra_order,
+                                             selected_spectra=selected_spectra,
                                              excluded_map_set = map_set_B,
                                              only_TT_map_set=only_TT_map_set)
 
