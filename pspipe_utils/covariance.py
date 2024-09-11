@@ -696,50 +696,50 @@ def get_cross_indices(
         raise ValueError("map_set_A and map_set_B should not have common elements")
 
 
-    bin_out_dict_all,  all_indices = covariance.get_indices(bin_low,
-                                                            bin_high,
-                                                            bin_mean,
-                                                            spec_name_list,
-                                                            spectra_cuts=spectra_cuts,
-                                                            spectra_order=spectra,
-                                                            selected_spectra=spec_select,
-                                                            excluded_map_set = None ,
-                                                            only_TT_map_set=only_TT_map_set)
+    bin_out_dict_all,  all_indices = get_indices(bin_low,
+                                                 bin_high,
+                                                 bin_mean,
+                                                 spec_name_list,
+                                                 spectra_cuts=spectra_cuts,
+                                                 spectra_order=spectra,
+                                                 selected_spectra=spec_select,
+                                                 excluded_map_set = None ,
+                                                 only_TT_map_set=only_TT_map_set)
     
-    bin_out_dict_A,  indices_A = covariance.get_indices(bin_low,
-                                                        bin_high,
-                                                        bin_mean,
-                                                        spec_name_list,
-                                                        spectra_cuts=spectra_cuts,
-                                                        spectra_order=spectra,
-                                                        selected_spectra=spec_select,
-                                                        excluded_map_set = map_set_A,
-                                                        only_TT_map_set=only_TT_map_set)
+    bin_out_dict_noA,  indices_noA = get_indices(bin_low,
+                                             bin_high,
+                                             bin_mean,
+                                             spec_name_list,
+                                             spectra_cuts=spectra_cuts,
+                                             spectra_order=spectra,
+                                             selected_spectra=spec_select,
+                                             excluded_map_set = map_set_A,
+                                             only_TT_map_set=only_TT_map_set)
 
-    bin_out_dict_B,  indices_B = covariance.get_indices(bin_low,
-                                                        bin_high,
-                                                        bin_mean,
-                                                        spec_name_list,
-                                                        spectra_cuts=spectra_cuts,
-                                                        spectra_order=spectra,
-                                                        selected_spectra=spec_select,
-                                                        excluded_map_set = map_set_B,
-                                                        only_TT_map_set=only_TT_map_set)
+    bin_out_dict_noB,  indices_noB = get_indices(bin_low,
+                                             bin_high,
+                                             bin_mean,
+                                             spec_name_list,
+                                             spectra_cuts=spectra_cuts,
+                                             spectra_order=spectra,
+                                             selected_spectra=spec_select,
+                                             excluded_map_set = map_set_B,
+                                             only_TT_map_set=only_TT_map_set)
 
     indices_cross = []
     for ind in all_indices:
-        if ind in indices_A: continue
-        if ind in indices_B: continue
+        if ind in indices_noA: continue
+        if ind in indices_noB: continue
         indices_cross += [ind]
     
     bin_out_dict_cross = deepcopy(bin_out_dict_all)
     all_keys = list(bin_out_dict_all.keys())
-    keys_A = list(bin_out_dict_A.keys())
-    keys_B = list(bin_out_dict_B.keys())
+    keys_noA = list(bin_out_dict_noA.keys())
+    keys_noB = list(bin_out_dict_noB.keys())
 
     for key in all_keys:
-        if key in keys_A: bin_out_dict_cross.pop(key)
-        if key in keys_B: bin_out_dict_cross.pop(key, None)
+        if key in keys_noA: bin_out_dict_cross.pop(key)
+        if key in keys_noB: bin_out_dict_cross.pop(key, None)
 
     return bin_out_dict_cross,  indices_cross
 
