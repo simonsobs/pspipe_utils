@@ -643,6 +643,106 @@ def get_indices(
             shift_indices += nbins
                 
     return bin_out_dict,  indices_in.astype(int)
+    
+    
+    
+def get_cross_indices(
+    bin_low,
+    bin_high,
+    bin_mean,
+    spec_name_list,
+    map_set_A,
+    map_set_B,
+    spectra_cuts=None,
+    spectra_order=["TT", "TE", "ET", "EE"],
+    selected_spectra=None,
+    excluded_spectra=None,
+    only_TT_map_set=None,
+):
+    """
+    Select only the index of the spectra formed from the x-correlation of setA with setB
+    Imagine setA = [A, B]
+    And setB = [C, D]
+    what we do is first to get all spectra:
+    AA, AB, AC, AD, BB, BC, BD, CC, CD, DD
+    then we exclude AB and form a list of elements:  CC, CD, DD
+    then we exclude CD and form a list of elements:  AA, AB, BB
+    the list of x-correlation we would select is: AC, AD, BC, BD
+    
+    Parameters
+    ----------
+    bin_mean: 1d array
+        the center values of the data binning
+    spec_name_list: list of str
+        list of the cross spectra
+    map_set_A: list of str
+        list of the first leg for cross correlation
+    map_set_B: list of str
+        list of the second leg for cross correlation
+    spectra_cuts: dict
+        the dictionnary holding the multipole cuts. Its general form must be
+        '{"array1": {"T": [lmin1, lmax1], "P": [lmin2, lmax2]}...}'
+    spectra_order: list of str
+        the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    selected_spectra: list of str
+        the list of spectra to be kept
+    excluded_spectra: list of str
+        the list of spectra to be excluded
+    only_TT_map_set: list of str
+        map_set for which we only wish to use the TT power spectrum
+    """
+
+    if  bool(set(map_set_A) & set(map_set_B)):
+        raise ValueError("map_set_A and map_set_B should not have common elements")
+
+
+    bin_out_dict_all,  all_indices = covariance.get_indices(bin_low,
+                                                            bin_high,
+                                                            bin_mean,
+                                                            spec_name_list,
+                                                            spectra_cuts=spectra_cuts,
+                                                            spectra_order=spectra,
+                                                            selected_spectra=spec_select,
+                                                            excluded_map_set = None ,
+                                                            only_TT_map_set=only_TT_map_set)
+    
+    bin_out_dict_A,  indices_A = covariance.get_indices(bin_low,
+                                                        bin_high,
+                                                        bin_mean,
+                                                        spec_name_list,
+                                                        spectra_cuts=spectra_cuts,
+                                                        spectra_order=spectra,
+                                                        selected_spectra=spec_select,
+                                                        excluded_map_set = map_set_A,
+                                                        only_TT_map_set=only_TT_map_set)
+
+    bin_out_dict_B,  indices_B = covariance.get_indices(bin_low,
+                                                        bin_high,
+                                                        bin_mean,
+                                                        spec_name_list,
+                                                        spectra_cuts=spectra_cuts,
+                                                        spectra_order=spectra,
+                                                        selected_spectra=spec_select,
+                                                        excluded_map_set = map_set_B,
+                                                        only_TT_map_set=only_TT_map_set)
+
+    indices_cross = []
+    for ind in all_indices:
+        if ind in indices_A: continue
+        if ind in indices_B: continue
+        indices_cross += [ind]
+    
+    bin_out_dict_cross = deepcopy(bin_out_dict_all)
+    all_keys = list(bin_out_dict_all.keys())
+    keys_A = list(bin_out_dict_A.keys())
+    keys_B = list(bin_out_dict_B.keys())
+
+    for key in all_keys:
+        if key in keys_A: bin_out_dict_cross.pop(key)
+        if key in keys_B: bin_out_dict_cross.pop(key, None)
+
+    return bin_out_dict_cross,  indices_cross
+
 
 def compute_chi2(
     data_vec,
