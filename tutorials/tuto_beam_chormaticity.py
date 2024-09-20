@@ -29,8 +29,8 @@ for ar in arrays:
     l, nu_array, bl_nu = beam_chromaticity.get_multifreq_beam(l,
                                                               bl_mono,
                                                               passband_dict[ar],
-                                                              alpha_dict[ar],
-                                                              nu_ref_dict[ar])
+                                                              nu_ref_dict[ar],
+                                                              alpha_dict[ar])
                                         
 
 
