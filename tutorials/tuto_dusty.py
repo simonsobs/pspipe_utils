@@ -20,9 +20,10 @@ if not np.isclose((ref_freq_dusty_GHz  * 1e9 )* (ref_lam_dusty_um * 1e-6), 3e8, 
 
 S, dNdSdOmega = poisson_sources.read_bethermin_source_distrib(lam = ref_lam_dusty_um, plot_fname=f"{test_dir}/source_distrib_dusty.png")
 
-#Scale the 15 mJy cut at 148 GHz to 217 GHz.  Asssume we are in the RJ regime and beta = 1.6
+#Scale the 15 mJy cut at 148 GHz to 217 GHz. note that we divide by the scaling 217->148 (in order to have the scaling 148->217)
 Smax_148GHz = 0.015
-Smax_dusty_217GHz = (0.015) * (217 / 148)**(2 + 1.6)
+Smax_dusty_217GHz = Smax_148GHz / poisson_sources.CIB_scaling(148, temp = 9.7, beta = 2.0)
+
 
 poisson_power = poisson_sources.get_poisson_power(S, dNdSdOmega, plot_fname=f"{test_dir}/as_dusty.png", ref_freq_GHz=ref_freq_dusty_GHz)
 trispectrum = poisson_sources.get_trispectrum(S, dNdSdOmega, ref_freq_GHz=ref_freq_dusty_GHz)
