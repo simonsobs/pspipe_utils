@@ -31,7 +31,7 @@ trispectrum = poisson_sources.get_trispectrum(S, dNdSdOmega, ref_freq_GHz=ref_fr
 poisson_power_cut, trispectrum_cut = poisson_sources.get_power_and_trispectrum_at_Smax(S, poisson_power, trispectrum, Smax=Smax_dusty_217GHz)
 print(f"poisson_power_cut: {poisson_power_cut}", f"trispectrum_cut: {trispectrum_cut}")
 
-dunkley_dusty_data = {"S_cut_Jy" : 15e-3, "D3000" : 90, "sigmaD3000" : 10} # extracted from Dunkley et al. 
+dunkley_dusty_data = {"S_cut_Jy" : 15e-3, "D3000" : 78, "sigmaD3000" : 12} # extracted from Dunkley et al. 
 
 l0 = 3000 # pivot scale for the fg amplitude
 fac0 = (l0 * (l0 + 1)) / (2 * np.pi)
