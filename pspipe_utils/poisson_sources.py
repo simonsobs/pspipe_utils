@@ -7,7 +7,7 @@ import pylab as plt
 from pixell import enmap, utils
 from scipy.interpolate import InterpolatedUnivariateSpline
 from matplotlib import rcParams
-
+import fgspectra.frequency as fgf
 
 from . import get_data_path
 
@@ -246,3 +246,24 @@ def radio_scaling(freq_GHz, alpha = -.5):
     """
     
     return (freq_GHz / ref_freq_radio_GHz) ** alpha * convert_Jy_per_str_to_muK_cmb(freq_GHz) / convert_Jy_per_str_to_muK_cmb(ref_freq_radio_GHz)
+
+
+def CIB_scaling(freq_GHz, temp = 9.7, beta = 2.0):
+
+    """
+    Scale the intensity of the signal as a function of frequency
+    For example for power spectrum you will need this number ** 2 and for trispectrum this number ** 4
+    
+    Parameters
+    ----------
+    freq_GHz : float
+        the frequency you want to scale the signal at
+    temp : float
+        the CIB dust temperature
+    beta: float
+        Spectral index.
+    """
+    sed_cib = fgf.CIB(**{'nu': freq_GHz, 'nu_0': ref_freq_dusty_GHz , 'temp': temp, 'beta': beta})
+    
+    return sed_cib.eval()
+
