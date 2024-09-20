@@ -263,7 +263,10 @@ def CIB_scaling(freq_GHz, temp = 9.7, beta = 2.0):
     beta: float
         Spectral index.
     """
+    if not isinstance(freq_GHz, (float, int)):
+        raise ValueError("You should pass a float or an integer not a list")
+
     sed_cib = fgf.CIB(**{'nu': freq_GHz, 'nu_0': ref_freq_dusty_GHz , 'temp': temp, 'beta': beta})
     
-    return sed_cib.eval()
+    return sed_cib.eval()[0]
 
