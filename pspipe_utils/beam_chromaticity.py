@@ -11,12 +11,12 @@ def act_dr6_beam_scaling():
     the scaling of the dr6 beams
     """
     alpha_dict, nu_ref_dict = {}, {}
-    alpha_dict["pa4_f150"], nu_ref_dict["pa4_f150"] = 1.66, 148.47
-    alpha_dict["pa4_f220"], nu_ref_dict["pa4_f220"] = 1.13, 226.73
-    alpha_dict["pa5_f090"], nu_ref_dict["pa5_f090"] = 1.81, 96.54
-    alpha_dict["pa5_f150"], nu_ref_dict["pa5_f150"] = 1.60, 149.31
-    alpha_dict["pa6_f090"], nu_ref_dict["pa6_f090"] = 1.59, 95.33
-    alpha_dict["pa6_f150"], nu_ref_dict["pa6_f150"] = 1.59, 147.90
+    alpha_dict["dr6_pa4_f150"], nu_ref_dict["dr6_pa4_f150"] = 1.66, 148.47
+    alpha_dict["dr6_pa4_f220"], nu_ref_dict["dr6_pa4_f220"] = 1.13, 226.73
+    alpha_dict["dr6_pa5_f090"], nu_ref_dict["dr6_pa5_f090"] = 1.81, 96.54
+    alpha_dict["dr6_pa5_f150"], nu_ref_dict["dr6_pa5_f150"] = 1.60, 149.31
+    alpha_dict["dr6_pa6_f090"], nu_ref_dict["dr6_pa6_f090"] = 1.59, 95.33
+    alpha_dict["dr6_pa6_f150"], nu_ref_dict["dr6_pa6_f150"] = 1.59, 147.90
     return alpha_dict, nu_ref_dict
 
 def get_mono_b_ell(ells, b_ell_template, nu_array, nu_ref, alpha):
