@@ -53,6 +53,8 @@ class SimulationTest(unittest.TestCase):
         # Just check is the dict is correctly filled
         for k, v in fg_dict.items():
             self.assertEqual(v.size, ell.size)
-        # for mode, components in fg_components.items():
-        #     for component, (f1, f2) in product(components, cwr(frequencies, 2)):
-        #         self.assertIn((mode, component, f1, f2), fg_dict)
+        for mode, components in fg_components.items():
+            for component, (exp1, exp2) in product(components, cwr(bandpass, 2)):
+                if component == "tSZ_and_CIB":
+                    continue
+                self.assertIn((mode, component, exp1, exp2), fg_dict)
