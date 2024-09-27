@@ -44,6 +44,7 @@ class SimulationTest(unittest.TestCase):
             "alpha_dT": -0.6,
             "alpha_dE": -0.4,
             "alpha_p": 1.0,
+            "alpha_tSZ": 0.0,
         }
 
         from pspipe_utils.best_fits import get_foreground_dict
