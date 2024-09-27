@@ -232,7 +232,8 @@ def get_foreground_dict(ell,
                         fg_components,
                         fg_params,
                         fg_norm=None,
-                        band_shift_dict=None):
+                        band_shift_dict=None,
+                        beams=None):
     """This function computes the foreground power spectra for a given set of multipoles,
     foreground components and parameters. It uses mflike, note that mflike do not
     support foreground in tb, and bb therefore we include it here.
@@ -287,12 +288,18 @@ def get_foreground_dict(ell,
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     band_shift_dict: dict
         a dictionary with bandpass shift parameter
+    beams: dict
+        a dictionnary holding the beams per array and per frequencies
+        beams = {"{exp}_s0": {"nu": nu, "beams": array(freqs, ells+2)},
+                 "{exp}_s2": {"nu": nu, "beams": array(freqs, ells+2)},...}.
+
     """
     # The following defines foreground model bands and params to follow
     # MFLike conventions.
     fg_norm = fg_norm or {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     params = {
         "bands": {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()},
+        "beams": beams,
         "experiments":  external_bandpass.keys(),
         "normalisation": fg_norm,
         "components": fg_components
