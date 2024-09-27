@@ -142,12 +142,12 @@ def beam_dict_from_files(f_name_beam_T, f_name_beam_pol, sv_list, arrays, lmax, 
     bl_dict = {}
     for sv in sv_list:
         for ar in arrays[sv]:
-            
+
             l_beam, bl = misc.read_beams(f_name_beam_T.format(sv, ar),
                                          f_name_beam_pol.format(sv, ar))
-            
+
             id_beam = np.where((l_beam >= lmin) & (l_beam < lmax))
-            
+
             bl_dict[sv, ar] = {}
             for field in ["T", "E", "B"]:
                 bl_dict[sv, ar][field] = bl[field][id_beam]
@@ -202,7 +202,7 @@ def get_all_best_fit(spec_name_list, l_th, cmb_dict, fg_dict, spectra, delimiter
             noise_key_b = f"{ar_b}_{split_b}"
 
         for spec in spectra:
-        
+
             ps_all_th[ms_a, ms_b, spec] = cmb_dict[spec] + fg_dict[f"{sv_a}_{ar_a}", f"{sv_b}_{ar_b}"][spec]
             ps_all_th[ms_b, ms_a, spec] = ps_all_th[ms_a, ms_b, spec].copy()
 
@@ -232,7 +232,8 @@ def get_foreground_dict(ell,
                         fg_components,
                         fg_params,
                         fg_norm=None,
-                        band_shift_dict=None):
+                        band_shift_dict=None,
+                        beams=None):
     """This function computes the foreground power spectra for a given set of multipoles,
     foreground components and parameters. It uses mflike, note that mflike do not
     support foreground in tb, and bb therefore we include it here.
@@ -287,13 +288,19 @@ def get_foreground_dict(ell,
         the foreground normalisation. By default, {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     band_shift_dict: dict
         a dictionary with bandpass shift parameter
+    beams: dict
+        a dictionnary holding the beams per array and per frequencies
+        beams = {"{exp}_s0": {"nu": nu, "beams": array(freqs, ells+2)},
+                 "{exp}_s2": {"nu": nu, "beams": array(freqs, ells+2)},...}.
+
     """
     # The following defines foreground model bands and params to follow
     # MFLike conventions.
     fg_norm = fg_norm or {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     params = {
         "bands": {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()},
-        "experiments":  external_bandpass.keys(),
+        "beams": beams,
+        "experiments": external_bandpass.keys(),
         "normalisation": fg_norm,
         "components": fg_components
     }
@@ -311,22 +318,22 @@ def get_foreground_dict(ell,
 
     models = {}
     models["bb", "radio"] = fg_params["a_psbb"] * foregrounds.radio(
-        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
+        {"nu": foregrounds.bandint_freqs_P, "nu_0": nu_0, "beta": -0.5 - 2.0},
         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
     )
 
     models["bb", "dust"] = fg_params["a_gbb"] * foregrounds.dust(
-        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
+        {"nu": foregrounds.bandint_freqs_P, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
         {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
     )
 
     models["tb", "radio"] = fg_params["a_pstb"] * foregrounds.radio(
-        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
+        {"nu": foregrounds.bandint_freqs_T, "nu_0": nu_0, "beta": -0.5 - 2.0},
         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
     )
 
     models["tb", "dust"] = fg_params["a_gtb"] * foregrounds.dust(
-        {"nu": foregrounds.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
+        {"nu": foregrounds.bandint_freqs_T, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
         {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
     )
     for c1, f1 in enumerate(foregrounds.experiments):
