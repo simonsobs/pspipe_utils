@@ -273,7 +273,9 @@ def get_calibration_amplitudes(spectra_vec,
                                proj_pattern,
                                mode,
                                lrange,
-                               chain_name):
+                               chain_name,
+                               Rminus1_stop=0.01,
+                               Rminus1_cl_stop=0.01):
     """
     Get the calibration amplitude and the
     associated error
@@ -335,8 +337,8 @@ def get_calibration_amplitudes(spectra_vec,
         "sampler": {
             "mcmc": {
                 "max_tries": 1e4,
-                "Rminus1_stop": 0.03,
-                "Rminus1_cl_stop": 0.07,
+                "Rminus1_stop": Rminus1_stop,
+                "Rminus1_cl_stop": Rminus1_cl_stop,
                     }
                    },
         "output": chain_name,
