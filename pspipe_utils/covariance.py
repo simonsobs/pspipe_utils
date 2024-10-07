@@ -524,17 +524,15 @@ def smooth_gp_diag(lb, arr_diag, var_diag=None, idx_arr=None,
             y_train = y_train - prior_mean
         
         # get the fit
+        kernel = 1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
         if var_diag is None:
-            kernel = 1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds) + \
-                WhiteKernel(noise_level=noise_level, noise_level_bounds=noise_level_bounds)
-            gpr = GaussianProcessRegressor(kernel=kernel, alpha=0,
-                                           n_restarts_optimizer=n_restarts_optimizer,
-                                           random_state=random_state)
-        else:
-            kernel = 1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
-            gpr = GaussianProcessRegressor(kernel=kernel, alpha=var_diag[idx_arr],
-                                           n_restarts_optimizer=n_restarts_optimizer,
-                                           random_state=random_state)
+            kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=noise_level_bounds)
+
+        alpha = var_diag[idx_arr] if var_diag is not None else 0
+        gpr = GaussianProcessRegressor(kernel=kernel, alpha=alpha,
+                                       n_restarts_optimizer=n_restarts_optimizer,
+                                       random_state=random_state)
+
         gpr.fit(X_train, y_train)
         y_fit = gpr.predict(X_train, return_std=False)
 
