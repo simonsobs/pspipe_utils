@@ -72,9 +72,27 @@ def spec_dict_to_full_vec(spec_dict,
                           spec_name_list,
                           spectra_order=["TT", "TE", "ET", "EE"],
                           remove_doublon=False):
+    """Turn a spec dict with keys (spec_name, spec) into a concatenated
+    data vector according to the spec_name_list and spectra_order.
+
+    Parameters
+    ----------
+    spec_dict : dict
+        Dictionary holding the spectra indexed by (spec_name, spec)
+    spec_name_list : list
+        Ordering of spec_names
+    spectra_order : list, optional
+        Ordering of specs, by default ["TT", "TE", "ET", "EE"]
+    remove_doublon : bool, optional
+        Whether to remove duplicate crosses in the full vec, by default False
+
+    Returns
+    -------
+    np.ndarray
+        The 1d concatenated data vector
+    """
     n_cross = len(spec_name_list)
     n_spec = len(spectra_order)
-    # this looks complicated but just read the first element of the dict, takes its shape and divide by len(
     n_bins = int(spec_dict[list(spec_dict)[0]].shape[0])
 
     full_vec = np.zeros(n_cross * n_spec * n_bins)
@@ -176,7 +194,20 @@ def full_cov_to_cov_dict(full_cov,
                          spec_name_list,
                          spectra_order=["TT", "TE", "ET", "EE"],
                          remove_doublon=False):
-    
+    """
+    Decompose the full covariance into a covariance dict.
+
+    Parameters
+    ----------
+    full_cov: 2d array
+        the full covariance to decompose
+    spec_name_list: list of str
+        list of the cross spectra
+    spectra_order: list of str
+        the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    remove_doublon: bool
+        whether the full_cov was made with doublons removed
+    """
     # we need nbins. to calculate that we need to know what n_cross * n_spec 
     # becomes when removing doublon
     n_cross = len(spec_name_list)
@@ -288,46 +319,6 @@ def read_cov_block_and_build_full_cov(spec_name_list,
     return full_cov
 
 
-# def full_cov_to_cov_dict(full_cov,
-#                          spec_name_list,
-#                          n_bins,
-#                          spectra_order=["TT", "TE", "ET", "EE"]):
-
-#     """
-#     Decompose the full covariance into a covariance dict, note that
-#     the full covariance should NOT have been produced with remove_doublon=True
-
-#     Parameters
-#     ----------
-#     full_cov: 2d array
-#         the full covariance to decompose
-#     spec_name_list: list of str
-#         list of the cross spectra
-#     n_bins: int
-#         the number of bins per spectra
-#     spectra_order: list of str
-#         the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
-#     """
-
-#     n_cross = len(spec_name_list)
-#     n_spec = len(spectra_order)
-#     assert full_cov.shape[0] == n_cross * n_spec * n_bins, "full covariance do not have the correct shape"
-
-
-#     cov_dict = {}
-#     for sid1, name1 in enumerate(spec_name_list):
-#         for sid2, name2 in enumerate(spec_name_list):
-#             if sid1 > sid2: continue
-#             for s1, spec1 in enumerate(spectra_order):
-#                 for s2, spec2 in enumerate(spectra_order):
-#                     id_start_1 = sid1 * n_bins + s1 * n_cross * n_bins
-#                     id_stop_1 = (sid1 + 1) * n_bins + s1 * n_cross * n_bins
-#                     id_start_2 = sid2 * n_bins + s2 * n_cross * n_bins
-#                     id_stop_2 = (sid2 + 1) * n_bins + s2 * n_cross * n_bins
-#                     cov_dict[name1, name2, spec1, spec2] = full_cov[id_start_1:id_stop_1, id_start_2: id_stop_2]
-
-#     return cov_dict
-
 def cov_dict_to_file(cov_dict,
                      spec_name_list,
                      cov_dir,
@@ -401,6 +392,86 @@ def correct_analytical_cov(an_full_cov,
 
     return corrected_cov
 
+def correct_analytical_cov_diagonal_ratio_gp_and_corr(lb, an_full_cov, mc_full_cov,
+                                                      var_diagonal_ratios_by_block=None,
+                                                      idx_arrs_by_block=None, return_all=False):
+    """Correct an analytical covariance matrix with a monte carlo covariance
+    matrix. Assumes the analytic correlation matrix is correct, and then fits the
+    diagonal with a Gaussian process (GP) on the observed values. Specifically,
+    the ratio of the MC to analytic diagonal is fit, and the resulting fit
+    re-multiplied by the analytic diagonal.
+
+    The GP is applied to each block diagonal separately.
+
+    Parameters
+    ----------
+    lb : (nbin,) np.ndarray
+        The locations in ell of the bins.
+    an_full_cov : (nblock*nbin, nblock*nbin) np.ndarray
+        Analytic covariance matrix to be corrected.
+    mc_full_cov : (nblock*nbin, nblock*nbin) np.ndarray
+        Noisy monte carlo matrix to use to correct the analytic matrix.
+    var_eigenspectrum_ratios_by_block : (nblock, nbin) np.ndarray, optional
+        The variance of the diagonal elements of mc_rot, by default None. These
+        would need to be precomputed in the rotated basis. If None, the
+        noise level in the diagonal elements of mc_rot is estimated from the  
+        elements themselves by the Gaussian process.
+    idx_arrs_by_block : (nblock,) list, optional
+        A list of np.ndarrays, each of which may have between 0 and nbin elements,
+        that gives for each block the bin indices that should actually be used
+        in the Gaussian Process, by default None. If the list is None, or if any
+        element of the list is None, all elements for all blocks (or for the 
+        specific block) are used in the Gaussian process. If an element of the list
+        is an empty array, then no Gaussian process is run on that block; its 
+        observed values are used without any smoothing applied to them.
+    return_all : bool, optional
+        If True, in addition to returning ana_corrected, also return the
+        diagonal of the mc_rot matrix, the smoothed diagonal, and a list
+        of the Gaussian process regression objects for each block,
+        by default False.
+
+    Returns
+    -------
+    (nblock*nbin, nblock*nbin) np.ndarray, {(nblock*nbin,) np.ndarray, 
+    (nblock*nbin,) np.ndarray, (nblock,) list of sklearn.GaussianProcessRegressor
+    objects}
+        ana_corrected as above, and if return_all, np.diag(mc_rot),
+        GP(np.diag(mc_rot)), and a list of the GPs for each block. If for any
+        block the idx_arrs_by_block array is empty, the returned GP is None 
+        since no GP was actually used for that block.
+    """
+    an_full_corr = so_cov.cov2corr(an_full_cov)
+    sqrt_an_full_diag = np.diag(np.diag(an_full_cov)**0.5)
+    inv_sqrt_an_full_diag = np.diag(1 / np.diag(an_full_cov)**0.5)
+    res = inv_sqrt_an_full_diag @ mc_full_cov @ inv_sqrt_an_full_diag.T
+    res_diag = np.diag(res)
+
+    n_spec = len(res_diag) // len(lb)
+
+    res_diags = np.split(res_diag, n_spec)
+    
+    if var_diagonal_ratios_by_block is None:
+        var_diagonal_ratios_by_block = [None] * n_spec
+
+    if idx_arrs_by_block is None:
+        idx_arrs_by_block = [None] * n_spec
+
+    smoothed_res_diags = []
+    gprs = []
+    for i in range(n_spec):
+        smoothed_gp_diag, gpr = smooth_gp_diag(lb, res_diags[i], var_diagonal_ratios_by_block[i],
+                                               idx_arr=idx_arrs_by_block[i], return_gpr=True)
+        smoothed_res_diags.append(smoothed_gp_diag)
+        gprs.append(gpr)
+
+    smoothed_res_diag = np.hstack(smoothed_res_diags)
+    corrected_an_full_diag = np.diag(sqrt_an_full_diag @ np.diag(smoothed_res_diag) @ sqrt_an_full_diag.T)
+    corrected_cov = so_cov.corr2cov(an_full_corr, corrected_an_full_diag)
+
+    if return_all:
+        return corrected_cov, res_diag, smoothed_res_diag, gprs
+    else:
+        return corrected_cov
 
 def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, do_final_mc=True, return_S=False):
     """
