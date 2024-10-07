@@ -457,8 +457,8 @@ def correct_analytical_cov_eigenspectrum_ratio_gp(lb, an_full_cov, mc_full_cov,
 def smooth_gp_diag(lb, arr_diag, var_diag=None, idx_arr=None,
                    length_scale=200.0, length_scale_bounds=(2, 2e4),
                    noise_level=0.01, noise_level_bounds=(1e-6, 1e1),
-                   n_restarts_optimizer=5, remove_mean=True, 
-                   return_gpr=False):
+                   n_restarts_optimizer=20, random_state=2,
+                   remove_mean=True, return_gpr=False):
     """Fit a Gaussian process (GP) to a 1-dimensional target from
     a 1-dimensional feature set. The GP uses a radial basis function (RBF)
     kernel to model the signal and a white noise kernel to model the noise.
@@ -490,8 +490,12 @@ def smooth_gp_diag(lb, arr_diag, var_diag=None, idx_arr=None,
         The bounds of the white noise level guess, by default (1e-6, 1e1).
         Only used if var_diag is None.
     n_restarts_optimizer : int, optional
-        The number of optimizers to run to try to find a gloval minimum, 
-        by default 5.
+        The number of optimizers to run to try to find a global minimum, 
+        by default 20.
+    random_state : int, RandomState instance, or None, optional
+        (From scikit-learn): determines random number generation used to
+        initialize the centers. Pass an int for reproducible results across
+        multiple function calls, by default 2.
     remove_mean : bool, optional
         If True, subtract the mean of the target prior to the fit and add it
         back in the prediction, by default True.
@@ -524,11 +528,13 @@ def smooth_gp_diag(lb, arr_diag, var_diag=None, idx_arr=None,
             kernel = 1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds) + \
                 WhiteKernel(noise_level=noise_level, noise_level_bounds=noise_level_bounds)
             gpr = GaussianProcessRegressor(kernel=kernel, alpha=0,
-                                           n_restarts_optimizer=n_restarts_optimizer)
+                                           n_restarts_optimizer=n_restarts_optimizer,
+                                           random_state=random_state)
         else:
             kernel = 1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
             gpr = GaussianProcessRegressor(kernel=kernel, alpha=var_diag[idx_arr],
-                                           n_restarts_optimizer=n_restarts_optimizer)
+                                           n_restarts_optimizer=n_restarts_optimizer,
+                                           random_state=random_state)
         gpr.fit(X_train, y_train)
         y_fit = gpr.predict(X_train, return_std=False)
 
