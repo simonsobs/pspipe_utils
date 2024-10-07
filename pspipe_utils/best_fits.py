@@ -296,16 +296,26 @@ def get_foreground_dict(ell,
     """
     # The following defines foreground model bands and params to follow
     # MFLike conventions.
+    from itertools import product
+
     fg_norm = fg_norm or {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725}
     params = {
-        "bands": {f"{k}_s0": {"nu": v[0], "bandpass": v[1]} for k, v in external_bandpass.items()},
+        "ells": ell,
+        "bands": {
+            f"{k}_{s}": {"nu": v[0], "bandpass": v[1]}
+            for s, (k, v) in product(["s0", "s2"], external_bandpass.items())
+        },
         "beams": beams,
         "experiments": external_bandpass.keys(),
         "normalisation": fg_norm,
-        "components": fg_components
+        "components": fg_components,
+        "beam_profile": dict(beam_from_file=None) if beams else None,
     }
     foregrounds = BandpowerForeground(params)
-    band_shift_dict = band_shift_dict or {f"bandint_shift_{exp}": 0.0 for exp in foregrounds.experiments}
+    band_shift_dict = band_shift_dict or {
+        f"bandint_shift_{exp}": 0.0 for exp in foregrounds.experiments
+    }
+    foregrounds.init_bandpowers()
     fg_dict = foregrounds.get_foreground_model(ell=ell, **(fg_params | band_shift_dict))
 
     # Let's add other foregrounds not available in mflike (BB and TB fg)

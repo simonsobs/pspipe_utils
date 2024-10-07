@@ -7,8 +7,19 @@ import numpy as np
 
 class SimulationTest(unittest.TestCase):
     def test_get_foreground_dict(self):
-        ell = np.arange(2, 5000)
-        bandpass = {"exp_f090": [[90.0], [1.0]], "exp_f150": [[150], [1.0]]}
+        ell = np.arange(5000)
+        beam = ell[::-1] / ell[-1]
+        bandpass = {
+            "exp_f090": np.array([[90, 95], [0.5, 0.5]]),
+            "exp_f150": np.array([[150, 155], [0.5, 0.5]]),
+        }
+        beams = {
+            "exp_f090_s0": {"nu": np.array([90, 95]), "beams": np.array([beam, beam])},
+            "exp_f150_s0": {"nu": np.array([150, 155]), "beams": np.array([beam, beam])},
+        }
+        beams["exp_f090_s2"] = beams["exp_f090_s0"]
+        beams["exp_f150_s2"] = beams["exp_f150_s0"]
+        # beams = None
 
         fg_components = {
             "tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
@@ -49,7 +60,7 @@ class SimulationTest(unittest.TestCase):
 
         from pspipe_utils.best_fits import get_foreground_dict
 
-        fg_dict = get_foreground_dict(ell, bandpass, fg_components, fg_params)
+        fg_dict = get_foreground_dict(ell, bandpass, fg_components, fg_params, beams=beams)
         # Just check is the dict is correctly filled
         for k, v in fg_dict.items():
             self.assertEqual(v.size, ell.size)
