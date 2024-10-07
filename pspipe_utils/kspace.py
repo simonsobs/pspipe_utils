@@ -229,7 +229,7 @@ def filter_map(map, filter, window, inv_pixwin=None, weighted_filter=False, tol=
     return map
 
 
-def get_kspace_filter(template, filter_dict, dtype=np.float64, **kwargs):
+def get_kspace_filter(template, filter_dict, dtype=np.float64):
 
     """build the kspace filter according to a dictionnary specifying the filter parameters
     Parameters
@@ -239,16 +239,14 @@ def get_kspace_filter(template, filter_dict, dtype=np.float64, **kwargs):
     filter_dict: dict
         a dictionnary that contains the filter properties
         e.g filter_dict = {..., "type":"binary_cross","vk_mask":[-90, 90], "hk_mask":[-50, 50], ...}
-    kwargs : dict, optional
-        additional keyword arguments to pass to the so_map_preprocessing.build_<type>_filter methods,
-        where type is inferred from filter_dict["type"]
+        
     """
 
     shape, wcs = template.data.shape, template.data.wcs
     if filter_dict["type"] == "binary_cross":
-        filter = so_map_preprocessing.build_std_filter(shape, wcs, vk_mask=filter_dict["vk_mask"], hk_mask=filter_dict["hk_mask"], dtype=dtype, **kwargs)
+        filter = so_map_preprocessing.build_std_filter(shape, wcs, vk_mask=filter_dict["vk_mask"], hk_mask=filter_dict["hk_mask"], dtype=dtype)
     elif filter_dict["type"] == "gauss":
-        filter = so_map_preprocessing.build_sigurd_filter(shape, wcs, filter_dict["lbounds"], dtype=dtype, **kwargs)
+        filter = so_map_preprocessing.build_sigurd_filter(shape, wcs, filter_dict["lbounds"], dtype=dtype)
     else:
         print("you need to specify a valid filter type")
 

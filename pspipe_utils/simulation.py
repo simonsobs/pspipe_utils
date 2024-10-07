@@ -3,7 +3,6 @@ Some utility functions for the generation of simulations.
 """
 import numpy as np
 from pixell import curvedsky
-from mnms import utils
 from pspy import so_spectra
 
 
@@ -115,8 +114,7 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
     return l, fl_array
 
 
-def generate_fg_alms(fg_mat, arrays_list, lmax, dtype="complex64",
-                     method='mnms', **method_kwargs):
+def generate_fg_alms(fg_mat, arrays_list, lmax, dtype="complex64"):
     """
     This function generate the alms corresponding to a fg matrix
     the alms are returned in the form of a dict with key "freq"
@@ -136,12 +134,7 @@ def generate_fg_alms(fg_mat, arrays_list, lmax, dtype="complex64",
 
     narrays = len(arrays_list)
 
-    if method == 'mnms':
-        func = utils.rand_alm
-    elif method == 'curvedsky':
-        func = curvedsky.rand_alm
-
-    fglms_all = func(fg_mat, lmax=lmax, dtype=dtype, **method_kwargs)
+    fglms_all = curvedsky.rand_alm(fg_mat, lmax=lmax, dtype=dtype)
     fglm_dict = {}
     for i, array in enumerate(arrays_list):
         fglm_dict[array] = [fglms_all[i + k * narrays] for k in range(3)]
