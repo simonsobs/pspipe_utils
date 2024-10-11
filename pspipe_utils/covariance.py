@@ -1,6 +1,12 @@
+from pspipe_utils import misc
+
 import numpy as np
 import pylab as plt
 from pspy import pspy_utils, so_cov, so_spectra
+
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+
 from pixell import utils
 from copy import deepcopy
 
@@ -39,6 +45,56 @@ def read_cov_block_and_build_dict(spec_name_list,
                     cov_dict[name1, name2, spec1, spec2] = sub_cov_block
 
     return cov_dict
+
+def spec_dict_to_full_vec(spec_dict,
+                          spec_name_list,
+                          spectra_order=["TT", "TE", "ET", "EE"],
+                          remove_doublon=False):
+    """Turn a spec dict with keys (spec_name, spec) into a concatenated
+    data vector according to the spec_name_list and spectra_order.
+
+    Parameters
+    ----------
+    spec_dict : dict
+        Dictionary holding the spectra indexed by (spec_name, spec)
+    spec_name_list : list
+        Ordering of spec_names
+    spectra_order : list, optional
+        Ordering of specs, by default ["TT", "TE", "ET", "EE"]
+    remove_doublon : bool, optional
+        Whether to remove duplicate crosses in the full vec, by default False
+
+    Returns
+    -------
+    np.ndarray
+        The 1d concatenated data vector
+    """
+    n_cross = len(spec_name_list)
+    n_spec = len(spectra_order)
+    n_bins = int(spec_dict[list(spec_dict)[0]].shape[0])
+
+    full_vec = np.zeros(n_cross * n_spec * n_bins)
+
+    for sid1, name1 in enumerate(spec_name_list):
+        for s1, spec1 in enumerate(spectra_order):
+            id_start_1 = sid1 * n_bins + s1 * n_cross * n_bins
+            id_stop_1 = (sid1 + 1) * n_bins + s1 * n_cross * n_bins
+            full_vec[id_start_1:id_stop_1] = spec_dict[name1, spec1]
+
+    if remove_doublon == True:
+        block_to_delete = []
+        for sid, name in enumerate(spec_name_list):
+            na, nb = name.split("x")
+            for s, spec in enumerate(spectra_order):
+                id_start = sid * n_bins + s * n_cross * n_bins
+                id_stop = (sid + 1) * n_bins + s * n_cross * n_bins
+                if (na == nb) & (spec == "ET" or spec == "BT" or spec == "BE"):
+                    block_to_delete = np.append(block_to_delete, np.arange(id_start, id_stop))
+        block_to_delete = block_to_delete.astype(int)
+
+        full_vec = np.delete(full_vec, block_to_delete, axis=0)        
+
+    return full_vec
 
 def cov_dict_to_full_cov(cov_dict,
                          spec_name_list,
@@ -85,7 +141,7 @@ def cov_dict_to_full_cov(cov_dict,
                     id_stop_1 = (sid1 + 1) * n_bins + s1 * n_cross * n_bins
                     id_start_2 = sid2 * n_bins + s2 * n_cross * n_bins
                     id_stop_2 = (sid2 + 1) * n_bins + s2 * n_cross * n_bins
-                    full_cov[id_start_1:id_stop_1, id_start_2: id_stop_2] = cov_dict[name1, name2, spec1, spec2]
+                    full_cov[id_start_1:id_stop_1, id_start_2:id_stop_2] = cov_dict[name1, name2, spec1, spec2]
     transpose = full_cov.copy().T
     transpose[full_cov != 0] = 0
     full_cov += transpose
@@ -313,6 +369,184 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=Fal
     
 
 
+def correct_analytical_cov_eigenspectrum_ratio_gp(lb, an_full_cov, mc_full_cov,
+                                                  var_eigenspectrum_ratios_by_block=None,
+                                                  idx_arrs_by_block=None, return_all=False):
+    """Correct an analytical covariance matrix with a monte carlo covariance
+    matrix. Assumes the following rotated monte carlo matrix is diagonal:
+
+    mc_rot = (ana**-.5) @ mc @ (ana**-.5).T
+
+    and then fits the diagonal in that basis with a Gaussian process (GP) on
+    the observed values:
+
+    ana_corrected = (ana**.5) @ np.diag(GP(np.diag(mc_rot))) @ (ana**.5).T
+
+    The GP is applied to each block diagonal separately.
+
+    Parameters
+    ----------
+    lb : (nbin,) np.ndarray
+        The locations in ell of the bins.
+    an_full_cov : (nblock*nbin, nblock*nbin) np.ndarray
+        Analytic covariance matrix to be corrected.
+    mc_full_cov : (nblock*nbin, nblock*nbin) np.ndarray
+        Noisy monte carlo matrix to use to correct the analytic matrix.
+    var_eigenspectrum_ratios_by_block : (nblock, nbin) np.ndarray, optional
+        The variance of the diagonal elements of mc_rot, by default None. These
+        would need to be precomputed in the rotated basis. If None, the
+        noise level in the diagonal elements of mc_rot is estimated from the  
+        elements themselves by the Gaussian process.
+    idx_arrs_by_block : (nblock,) list, optional
+        A list of np.ndarrays, each of which may have between 0 and nbin elements,
+        that gives for each block the bin indices that should actually be used
+        in the Gaussian Process, by default None. If the list is None, or if any
+        element of the list is None, all elements for all blocks (or for the 
+        specific block) are used in the Gaussian process. If an element of the list
+        is an empty array, then no Gaussian process is run on that block; its 
+        observed values are used without any smoothing applied to them.
+    return_all : bool, optional
+        If True, in addition to returning ana_corrected, also return the
+        diagonal of the mc_rot matrix, the smoothed diagonal, and a list
+        of the Gaussian process regression objects for each block,
+        by default False.
+
+    Returns
+    -------
+    (nblock*nbin, nblock*nbin) np.ndarray, {(nblock*nbin,) np.ndarray, 
+    (nblock*nbin,) np.ndarray, (nblock,) list of sklearn.GaussianProcessRegressor
+    objects}
+        ana_corrected as above, and if return_all, np.diag(mc_rot),
+        GP(np.diag(mc_rot)), and a list of the GPs for each block. If for any
+        block the idx_arrs_by_block array is empty, the returned GP is None 
+        since no GP was actually used for that block.
+    """
+    sqrt_an_full_cov = utils.eigpow(an_full_cov, 0.5)
+    inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
+    res = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T # res should be close to the identity if an_full_cov is good
+    res_diag = np.diag(res)
+
+    n_spec = len(res_diag) // len(lb)
+
+    res_diags = np.split(res_diag, n_spec)
+    
+    if var_eigenspectrum_ratios_by_block is None:
+        var_eigenspectrum_ratios_by_block = [None] * n_spec
+
+    if idx_arrs_by_block is None:
+        idx_arrs_by_block = [None] * n_spec
+
+    smoothed_res_diags = []
+    gprs = []
+    for i in range(n_spec):
+        smoothed_gp_diag, gpr = smooth_gp_diag(lb, res_diags[i], var_eigenspectrum_ratios_by_block[i],
+                                               idx_arr=idx_arrs_by_block[i], return_gpr=True)
+        smoothed_res_diags.append(smoothed_gp_diag)
+        gprs.append(gpr)
+
+    smoothed_res_diag = np.hstack(smoothed_res_diags)
+
+    corrected_cov = sqrt_an_full_cov @ np.diag(smoothed_res_diag) @ sqrt_an_full_cov.T
+
+    if return_all:
+        return corrected_cov, res_diag, smoothed_res_diag, gprs
+    else:
+        return corrected_cov
+
+
+def smooth_gp_diag(lb, arr_diag, var_diag=None, idx_arr=None,
+                   length_scale=200.0, length_scale_bounds=(2, 2e4),
+                   noise_level=0.01, noise_level_bounds=(1e-6, 1e1),
+                   n_restarts_optimizer=20, random_state=2,
+                   remove_mean=True, return_gpr=False):
+    """Fit a Gaussian process (GP) to a 1-dimensional target from
+    a 1-dimensional feature set. The GP uses a radial basis function (RBF)
+    kernel to model the signal and a white noise kernel to model the noise.
+    The RBF kernel has a constant kernel prefactor.
+
+    Parameters
+    ----------
+    lb : (n,) np.ndarray
+        The featureset.
+    arr_diag : (n,) np.ndarray
+        The target.
+    var_diag : (n,) np.ndarray, optional
+        The white-noise variance in the target, by default None. If None, the
+        noise level in the target is estimated from the target values
+        themselves by the Gaussian process.
+    idx_arr : np.ndarray, optional
+        An array of size 0..n that indexes which data points are fit by the GP,
+        by default None. If None, all datapoints are used. Any unused datapoints
+        are not fit, but rather the target values are simply adopted at face 
+        value.
+    length_scale : float, optional
+        The initial RBF scale guess, by default 200.0.
+    length_scale_bounds : tuple, optional
+        The bounds of the RBF scale fit, by default (2, 2e4).
+    noise_level : float, optional
+        The initial white noise level guess, by default 0.01. Only used if 
+        var_diag is None.
+    noise_level_bounds : tuple, optional
+        The bounds of the white noise level guess, by default (1e-6, 1e1).
+        Only used if var_diag is None.
+    n_restarts_optimizer : int, optional
+        The number of optimizers to run to try to find a global minimum, 
+        by default 20.
+    random_state : int, RandomState instance, or None, optional
+        (From scikit-learn): determines random number generation used to
+        initialize the centers. Pass an int for reproducible results across
+        multiple function calls, by default 2.
+    remove_mean : bool, optional
+        If True, subtract the mean of the target prior to the fit and add it
+        back in the prediction, by default True.
+    return_gpr : bool, optional
+        If True, also return the sklearn.GaussianProcessRegressor object, by
+        default False.
+
+    Returns
+    -------
+    (n,) np.ndarray, {sklearn.GaussianProcessRegressor object}
+        The smoothed target, and optionally the object used to smooth.
+    """
+    if idx_arr is None:
+        idx_arr = np.arange(lb.size)
+
+    out = arr_diag.copy()
+
+    if len(idx_arr) > 0:
+        # fit only on the indexed data bins
+        X_train = lb[idx_arr, None]
+        y_train = arr_diag[idx_arr]
+
+        # remove mean
+        if remove_mean:
+            prior_mean = y_train.mean()
+            y_train = y_train - prior_mean
+        
+        # get the fit
+        kernel = 1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
+        if var_diag is None:
+            kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=noise_level_bounds)
+
+        alpha = var_diag[idx_arr] if var_diag is not None else 0
+        gpr = GaussianProcessRegressor(kernel=kernel, alpha=alpha,
+                                       n_restarts_optimizer=n_restarts_optimizer,
+                                       random_state=random_state)
+
+        gpr.fit(X_train, y_train)
+        y_fit = gpr.predict(X_train, return_std=False)
+
+        if remove_mean:
+            y_fit += prior_mean
+        
+        out[idx_arr] = y_fit
+    else:
+        gpr = None
+    
+    if return_gpr:
+        return out, gpr
+    else:
+        return out
 
 def read_covariance(cov_file,
                     beam_error_corrections,
