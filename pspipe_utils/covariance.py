@@ -737,7 +737,8 @@ def read_x_ar_theory_vec(bestfit_dir,
                          mcm_dir,
                          spec_name_list,
                          lmax,
-                         spectra_order=["TT", "TE", "ET", "EE"]):
+                         spectra_order=["TT", "TE", "ET", "EE"],
+                         foreground_only=False):
 
     """
     This function read the theory and fg model from disk and bin it to create a vector that correspond
@@ -756,6 +757,8 @@ def read_x_ar_theory_vec(bestfit_dir,
         the maximum multipole to consider
     spectra_order: list of str
          the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
+    foreground_only: boolean
+        wether to return only the fg
      """
 
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
@@ -769,8 +772,12 @@ def read_x_ar_theory_vec(bestfit_dir,
 
             # this is slightly incaccurate in some cases
             Bbl = np.load(f"{mcm_dir}/{spec_name}_Bbl_spin0xspin0.npy")
-            Db = np.dot(Bbl, Dl[spec][:lmax] + Dfl[spec][:lmax])
-
+            
+            if foreground_only:
+                Db = np.dot(Bbl, Dfl[spec][:lmax])
+            else:
+                Db = np.dot(Bbl, Dl[spec][:lmax] + Dfl[spec][:lmax])
+        
             if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
             theory_vec = np.append(theory_vec, Db)
 
