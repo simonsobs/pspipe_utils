@@ -543,8 +543,8 @@ def correct_analytical_cov_block_diag_gp(lb, an_full_cov, mc_full_cov,
 
             smoothed_block_diag, gpr = smooth_gp_diag(lb, block_diag, var_block_diag,
                                                       idx_arr=idxs, return_gpr=True)
-            smoothed_mc_cov_anaflat[sel] = smoothed_block_diag
-            smoothed_mc_cov_anaflat.T[sel] = smoothed_block_diag
+            smoothed_mc_cov_anaflat[sel] = np.diag(smoothed_block_diag)
+            smoothed_mc_cov_anaflat.T[sel] = np.diag(smoothed_block_diag)
             gprs[i, j] = gpr
 
     corrected_mc_cov = sqrt_an_full_cov @ smoothed_mc_cov_anaflat @ sqrt_an_full_cov.T
