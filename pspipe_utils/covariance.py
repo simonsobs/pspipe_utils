@@ -372,16 +372,17 @@ def correct_analytical_cov_block_diag_gp(lb, an_full_cov, mc_full_cov,
                                          var_mc_cov_anaflat=None,
                                          idx_arrs_by_block=None, return_all=False):
     """Correct an analytical covariance matrix with a monte carlo covariance
-    matrix. Assumes the following rotated monte carlo matrix is diagonal:
+    matrix. Assumes the following rotated monte carlo matrix is diagonal
+    in each cross-block:
 
     mc_rot = (ana**-.5) @ mc @ (ana**-.5).T
 
-    and then fits the diagonal in that basis with a Gaussian process (GP) on
-    the observed values:
+    and then fits the cross-block diagonals in that basis with a Gaussian process
+    (GP) on the observed values:
 
-    ana_corrected = (ana**.5) @ np.diag(GP(np.diag(mc_rot))) @ (ana**.5).T
+    ana_corrected = (ana**.5) @ GP(mc_rot) @ (ana**.5).T
 
-    The GP is applied to each block diagonal separately.
+    The GP is applied to each diagonal separately.
 
     Parameters
     ----------
