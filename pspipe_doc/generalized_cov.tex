@@ -1,0 +1,184 @@
+\documentclass[a4paper, 11pt]{article}
+
+\usepackage[applemac]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage[frenchb]{babel}
+\usepackage{geometry}
+\geometry{hmargin=2cm, vmargin=2cm}
+\usepackage{wrapfig}
+\usepackage{subfigure}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{textcomp}
+\usepackage{epsfig}
+\usepackage{bm}
+
+\def\Box{\mathord{\dalemb{7.9}{8}\hbox{\hskip1pt}}}
+\def\dalemb#1#2{{\vbox{\hrule height.#2pt
+        \hbox{\vrule width.#2pt height#1pt \kern#1pt \vrule width.#2pt}
+        \hrule height.#2pt}}}
+
+\def\eop{\mathcal{E}}
+\def\bop{\mathcal{B}}
+\def\vl{\vec{\ell}}
+\def\ba{\begin{eqnarray}}
+\def\ea{\end{eqnarray}}
+\def\be{\begin{equation}}
+\def\ee{\end{equation}}
+\def\tr{{\rm tr}}
+\def\Var{{\rm Var}}
+\def\gtorder{\mathrel{\raise.3ex\hbox{$>$}\mkern-14mu
+             \lower0.6ex\hbox{$\sim$}}}
+\def\ltorder{\mathrel{\raise.3ex\hbox{$<$}\mkern-14mu
+             \lower0.6ex\hbox{$\sim$}}}
+
+\def\bb{{\mathfrak b}}
+\newcommand{\ellb }{\boldsymbol{\ell }}
+
+
+
+
+\begin{document}
+
+\title{\textbf{pspipe notes: generalized covariance}}
+\author{Louis Thibaut}
+\maketitle
+
+\section{Combinatoric: on the full sky}
+
+X,Y,W,Z denote $\{T, E, B \}$. \\
+$\alpha$, $\beta$, $\nu$, $\mu$ denote the different detectors arrays. \\
+i,j,k,l denotes the split number. \\
+$s_{a}$, $s_{b}$, $s_{c}$, $s_{d}$ denote the different surveys.
+Let's write the estimator assuming full sky and no beam, we will include complexity later.
+\ba
+C^{X^{s_{a}}_{\alpha, i} Y^{s_{b}}_{\beta, j}}_{\ell} = \frac{1}{2\ell +1} \sum_{m} a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m} (1-\delta_{s_{a}s_{b}}\delta_{ij}) .
+\ea
+We average all cross split power spectra
+\ba
+C^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta}}_{\rm cross, \ell} =  \frac{1}{ n^{s_{a} s_{b}}_{c}} \sum^{n^{s_{a}}_{\rm split}}_{i=1} \sum^{n^{s_{b}}_{\rm split}}_{j=1} \frac{1}{2\ell +1} \sum_{m} a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m} (1-\delta_{s_{a}s_{b}}\delta_{ij}) .
+\ea
+
+$n^{s_{a}}_{\rm split}$ is the number of splits of the data of the survey $s_{a}$ and  $n^{s_{a} s_{b}}_{c}$ is the number of individual cross split power spectra between the survey $n^{s_{a}}$ and $n^{s_{b}}$. 
+\ba
+n^{s_{a} s_{b}}_{c} =  \sum^{n^{s_{a}}_{\rm split}}_{i=1} \sum^{n^{s_{b}}_{\rm split}}_{j=1}  (1-\delta_{s_{a}s_{b}}\delta_{ij})  = n^{s_{a}}_{\rm split}( n^{s_{b}}_{\rm split} -  \delta_{s_{a}s_{b}}) .
+\ea
+The role of the delta function is to remove any auto-power spectrum. 
+We can compute the covariance of any mean cross power spectrum as follow
+
+
+\ba
+\Xi^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta} W^{s_{c}}_{\gamma} Z^{s_{d}}_{\eta}} = \langle ( C^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta}}_{\rm cross, \ell} - C_{\ell} )  (C^{ W^{s_{c}}_{\gamma} Z^{s_{d}}_{\eta}}_{\rm cross, \ell}- C_{\ell} )   \rangle =  \langle  C^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta}}_{\rm cross, \ell}  C^{ W^{s_{c}}_{\gamma} Z^{s_{d}}_{\eta}}_{\rm cross, \ell} \rangle-  C^{X_{\alpha} Y_{\beta}}_{\ell} C^{W_{\gamma} Z_{\eta}}_{\ell} .
+\ea
+Replacing the estimate of the cross spectra $\hat{C}$ by their explicit expression we get
+\ba
+\langle  C^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta}}_{\rm cross, \ell}  C^{ W^{s_{c}}_{\gamma} Z^{s_{d}}_{\eta}}_{\rm cross, \ell} \rangle =  \frac{1}{(2\ell +1)^{2}}  \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl} \sum_{mm'} \langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) .
+\ea
+Since the $a_{\ell m}$ follow a gaussian distribution, we can then expand the four point function using the Wick theorem
+\ba
+\langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle =  
+\langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m} \rangle \langle a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle +
+\langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'} \rangle \langle a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}    a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle +
+\langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Z^{s_{d}}_{\eta,l}*}_{\ell m'} \rangle \langle a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  \rangle \nonumber
+\ea
+
+
+
+
+and the covariance matrix become a sum of four terms:
+\ba
+\Xi^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta} W^{s_{c}}_{\gamma} Z^{s_{d}}_{\eta}}   &=&  \frac{1}{(2\ell +1)^{2}}  \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl}   \sum_{mm'}\langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m} \rangle \langle a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle(1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) \nonumber \\
+&+&  \frac{1}{(2\ell +1)^{2}}  \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl}   \sum_{mm'} \langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'} \rangle \langle a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}    a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle(1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) \nonumber \\
+&+&   \frac{1}{(2\ell +1)^{2}}  \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl}   \sum_{mm'}   \langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Z^{s_{d}}_{\eta,l}*}_{\ell m'} \rangle \langle a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  \rangle (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) \nonumber \\
+&-&  C^{X_{\alpha} Y_{\beta}}_{\ell} C^{W_{\gamma} Z_{\eta}}_{\ell} .
+\ea
+Each contribution can be easily computed, we first have to expand
+\ba
+\sum_{mm'}  \langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{Y^{s_{b}}_{\beta, j}*}_{\ell m} \rangle \langle a^{W^{s_{c}}_{\gamma, k} }_{\ell m'}  a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle &=& (2\ell +1)^{2} C^{X^{s_{a}}_{\alpha, i} Y^{s_{b}}_{\beta, j}}_{\ell} C^{W^{s_{c}}_{\gamma, l} Z^{s_{d}}_{\eta, l}}_{\ell}  \nonumber \\
+&=&   (2\ell +1)^{2} ( C^{X_{\alpha} Y_{\beta}}_{\ell} + N^{X_{\alpha} Y_{\beta}}_{\ell, s_{a}} \delta_{ij}\delta_{s_{a}s_{b}}) ( C^{W_{\gamma} Z_{\eta}}_{\ell} + N^{W_{\gamma} Z_{\eta}}_{\ell, s_{c}} \delta_{kl}\delta_{s_{c}s_{d}})
+\ea
+where each $C_{\ell}$ is written as the sum of the underlying power spectrum and a noise bias term $ N_{\ell}$. The first term of the covariance matrix becomes
+
+\ba
+\frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl}  ( C^{X_{\alpha} Y_{\beta}}_{\ell} + N^{X_{\alpha} Y_{\beta}}_{\ell, s_{a}} \delta_{ij}\delta_{s_{a}s_{b}}) ( C^{W_{\gamma} Z_{\eta}}_{\ell} + N^{W_{\gamma} Z_{\eta}}_{\ell, s_{c}} \delta_{kl}\delta_{s_{c}s_{d}})(1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) 
+ \ea
+ which is simply equal to $ C^{X_{\alpha} Y_{\beta}}_{\ell} C^{W_{\gamma} Z_{\eta}}_{\ell}$. This is easy to see because any contribution of the form  $\sum_{ij} \delta_{s_{a}s_{b}}\delta_{ij} (1-\delta_{s_{a}s_{b}}\delta_{ij})  $ is going to be zero. 
+The covariance matrix thus simplify to the sum of two terms, 
+\ba
+\Xi^{X^{s_{a}}_{\alpha} Y^{s_{b}}_{\beta} W^{s_{c}}_{\gamma} Z^{s_{d}}_{\eta}}= \frac{1}{2\ell + 1} (T^{X^{s_{a}}_{\alpha} W^{s_{c}}_{\gamma}}_{Y^{s_{b}}_{\beta} Z^{s_{d}}_{\eta}} + T^{X^{s_{a}}_{\alpha} Z^{s_{d}}_{\eta}}_{Y^{s_{b}}_{\beta} W^{s_{c}}_{\gamma}})
+\ea
+
+we focus on one of them
+\ba
+T^{X^{s_{a}}_{\alpha} W^{s_{c}}_{\gamma}}_{Y^{s_{b}}_{\beta} Z^{s_{d}}_{\eta}} = \frac{1}{(2\ell +1)}   \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl}   \sum_{mm'} \langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'} \rangle \langle a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}    a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}),
+\ea
+expanding
+\ba
+ \sum_{mm'} \langle a^{X^{s_{a}}_{\alpha, i} }_{\ell m}  a^{W^{s_{c}}_{\gamma, k} }_{\ell m'} \rangle \langle a^{Y^{s_{b}}_{\beta, j}*}_{\ell m}    a^{Z^{s_{d}}_{\eta, l}*}_{\ell m'} \rangle &=& (2\ell+1)  C^{X^{s_{a}}_{\alpha, i} W^{s_{c}}_{\gamma, k}}_{\ell} C^{Y^{s_{b}}_{\beta, j} Z^{s_{d}}_{\eta, l}}_{\ell}  \nonumber \\
+ &=&   (2\ell+1)  ( C^{X_{\alpha} W_{\gamma}}_{\ell} + N^{X_{\alpha} W_{\gamma}}_{\ell, s_{a}} \delta_{ik}\delta_{s_{a}s_{c}}) ( C^{
+ Y_{\beta} Z_{\eta}}_{\ell} + N^{Y_{\beta} Z_{\eta}}_{\ell, s_{b}} \delta_{jl}\delta_{s_{b}s_{d}})
+\ea
+we get
+\ba
+T^{X^{s_{a}}_{\alpha} W^{s_{c}}_{\gamma}}_{Y^{s_{b}}_{\beta} Z^{s_{d}}_{\eta}}  &=&   \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl}   ( C^{X_{\alpha} W_{\gamma}}_{\ell} + N^{X_{\alpha} W_{\gamma}}_{\ell, s_{a}} \delta_{ik}\delta_{s_{a}s_{c}}) ( C^{Y_{\beta} Z_{\eta}}_{\ell} + N^{Y_{\beta} Z_{\eta}}_{\ell, s_{b}} \delta_{jl}\delta_{s_{b}s_{d}}) (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl})\nonumber \\
+&=&   \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}}  \sum_{ijkl}   C^{X_{\alpha} W_{\gamma}}_{\ell} C^{Y_{\beta} Z_{\eta}}_{\ell} (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) \nonumber \\
+&+&   \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}}  \sum_{ijkl}  ( C^{X_{\alpha} W_{\gamma}}_{\ell} N^{Y_{\beta} Z_{\eta}}_{\ell, s_{b}} \delta_{jl}\delta_{s_{b}s_{d}} +  C^{Y_{\beta} Z_{\eta}}_{\ell} N^{X_{\alpha} W_{\gamma}}_{\ell, s_{a}} \delta_{ik}\delta_{s_{a}s_{c}} )  (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) \nonumber \\
+&+&   \frac{1}{n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}} \sum_{ijkl} N^{X_{\alpha} W_{\gamma}}_{\ell, s_{a}} \delta_{ik}\delta_{s_{a}s_{c}}  N^{Y_{\beta} Z_{\eta}}_{\ell, s_{b}} \delta_{jl}\delta_{s_{b}s_{d}} (1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) . 
+\ea
+The remaining work is to compute sum of $\delta$ function
+\ba
+&\sum_{ijkl}&   \delta_{jl}\delta_{s_{b}s_{d}}( 1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl})= \nonumber \\
+ &\sum_{ijkl} & \delta_{jl}\delta_{s_{b}s_{d}}-  \delta_{jl}\delta_{s_{b}s_{d}} \delta_{s_{a}s_{b}}\delta_{ij} -  \delta_{jl}\delta_{s_{b}s_{d}}\delta_{s_{c}s_{d}}\delta_{kl}+  \delta_{jl}\delta_{s_{b}s_{d}} \delta_{s_{a}s_{b}}\delta_{ij}\delta_{s_{c}s_{d}}\delta_{kl}  = \nonumber \\
+ && n^{s_{a}}_{\rm split} n^{s_{c}}_{\rm split}n^{s_{b}}_{\rm split} \delta_{s_{b}s_{d}} - n^{s_{b}}_{\rm split}n^{s_{c}}_{\rm split} \delta_{s_{b}s_{d}} \delta_{s_{a}s_{b}}   -  n^{s_{a}}_{\rm split} n^{s_{b}}_{\rm split} \delta_{s_{b}s_{d}}   \delta_{s_{c}s_{d}}    + n^{s_{b}}_{\rm split} \delta_{s_{b}s_{d}} \delta_{s_{a}s_{b}}\delta_{s_{c}s_{d}}  = \nonumber \\
+&& n^{s_{b}}_{\rm split} (n^{s_{a}}_{\rm split} n^{s_{c}}_{\rm split} \delta_{s_{b}s_{d}} -   n^{s_{c}}_{\rm split} \delta_{s_{a}s_{b}s_{d}} -  n^{s_{a}}_{\rm split} \delta_{s_{b}s_{d}s_{c}}  +   \delta_{s_{a}s_{b}s_{d}s_{d}}   ) = \nonumber \\
+&& f_{s_{b} s_{d}}^{ s_{a} s_{c}} n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}, 
+\ea
+and 
+\ba
+&\sum_{ijkl}  & \delta_{ik}\delta_{jl}\delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}}(1-\delta_{s_{a}s_{b}}\delta_{ij}) (1-\delta_{s_{c}s_{d}}\delta_{kl}) =\nonumber \\
+& &  \sum_{ijkl}   \delta_{ik}\delta_{jl}\delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} -   \delta_{ik}\delta_{jl}\delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} \delta_{s_{a}s_{b}}\delta_{ij} -  \delta_{ik}\delta_{jl}\delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} \delta_{s_{c}s_{d}}\delta_{kl}+ \delta_{ik}\delta_{jl}\delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} \delta_{s_{a}s_{b}}\delta_{ij} \delta_{s_{c}s_{d}}\delta_{kl}=\nonumber \\
+&&  n^{s_{a}}_{\rm split} n^{s_{b}}_{\rm split} \delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} -n^{s_{a}}_{\rm split}  \delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} \delta_{s_{a} s_{b}}- n^{s_{a}}_{\rm split}\delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}}\delta_{s_{a} s_{b}}+  n^{s_{a}}_{\rm split} \delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}}\delta_{s_{a} s_{b}}\delta_{s_{c} s_{d}}=\nonumber \\
+&&   n^{s_{a}}_{\rm split} (n^{s_{b}}_{\rm split}  \delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} - \delta_{s_{a} s_{b} s_{c} s_{d}}) = \nonumber \\
+&& g_{s_{a} s_{c},  s_{b} s_{d}}   n^{s_{a} s_{b}}_{c} n^{s_{c} s_{d}}_{c}
+\ea
+With these expressions we can write
+\ba
+T^{X^{s_{a}}_{\alpha} W^{s_{c}}_{\gamma}}_{Y^{s_{b}}_{\beta} Z^{s_{d}}_{\eta}} =   \left(  C^{X_{\alpha} W_{\gamma}}_{\ell} C^{Y_{\beta} Z_{\eta}}_{\ell}  + f_{s_{b} s_{d}}^{ s_{a} s_{c}} C^{X_{\alpha} W_{\gamma}}_{\ell} N^{Y_{\beta} Z_{\eta}}_{\ell, s_{b}} + f_{s_{a} s_{c}}^{ s_{b} s_{d}} C^{Y_{\beta} Z_{\eta}}_{\ell} N^{X_{\alpha} W_{\gamma}}_{\ell, s_{a}}     + g_{s_{a} s_{c},  s_{b} s_{d}} N^{X_{\alpha} W_{\gamma}}_{\ell, s_{a}} N^{Y_{\beta} Z_{\eta}}_{\ell, s_{b}} \right)
+\ea
+
+\ba
+ f_{s_{b} s_{d}}^{ s_{a} s_{c}} &=& \frac{n^{s_{b}}_{\rm split} (n^{s_{a}}_{\rm split} n^{s_{c}}_{\rm split} \delta_{s_{b}s_{d}} -   n^{s_{c}}_{\rm split} \delta_{s_{a}s_{b}s_{d}} -  n^{s_{a}}_{\rm split} \delta_{s_{b}s_{d}s_{c}}  +   \delta_{s_{a}s_{b}s_{d}s_{d}}) }{n^{s_{a}}_{\rm split} n^{s_{c}}_{\rm split}( n^{s_{b}}_{\rm split} -  \delta_{s_{a}s_{b}}) ( n^{s_{d}}_{\rm split} -  \delta_{s_{c}s_{d}})}  \nonumber \\
+g_{s_{a} s_{c},  s_{b} s_{d}}  &=& \frac{n^{s_{a}}_{\rm split} (n^{s_{b}}_{\rm split}  \delta_{s_{a} s_{c}} \delta_{s_{b} s_{d}} - \delta_{s_{a} s_{b} s_{c} s_{d}})}{n^{s_{a}}_{\rm split} n^{s_{c}}_{\rm split}( n^{s_{b}}_{\rm split} -  \delta_{s_{a}s_{b}}) ( n^{s_{d}}_{\rm split} -  \delta_{s_{c}s_{d}})} 
+ \ea 
+ 
+ \section{Beam covariance}
+
+let's compute the form of the beam covariance, we assume T = P beam, and that the beam do not depend on split, we therefore only keep one index (e.g $\alpha$) to denote the array band
+
+\ba
+\Xi^{ \alpha \beta \gamma \eta } = \langle ( C^{\alpha \beta}_{\ell} - \langle C^{\alpha \beta}_{\ell} \rangle) ( C^{\gamma \eta}_{\ell} - \langle C^{\gamma \eta}_{\ell} \rangle)   \rangle = \langle C^{\alpha \beta}_{\ell}C^{\gamma \eta}_{\ell}  \rangle -  \langle C^{\alpha \beta}_{\ell} \rangle  \langle C^{\gamma \eta}_{\ell} \rangle
+\ea
+Let's assume the beam we measure is denoted by $B^{\alpha}_{\ell}$ and that the true beam is $B^{\alpha}_{\ell} + \delta B^{\alpha}_{\ell}$.
+Now let's denote $C_{\ell}$ the actual spectra on the sky,  we can notice that our estimate for the beam deconvolved spectrum is biased
+\ba
+\langle C^{\alpha \beta}_{\ell} \rangle   =  \left \langle \frac{B^{\alpha}_{\ell} + \delta B^{\alpha}_{\ell}}{B^{\alpha}_{\ell} } \frac{B^{\beta}_{\ell} + \delta B^{\beta}_{\ell}}{B^{\beta}_{\ell} } \right \rangle C_{\ell} = \left\langle \left(1 + \frac{\delta B^{\alpha}_{\ell}}{ B^{\alpha}_{\ell}} \right) \left(1 + \frac{\delta B^{\beta}_{\ell}}{ B^{\beta}_{\ell}} \right)  \right\rangle C_{\ell} = \left(1 + \left \langle \frac{\delta B^{\alpha}_{\ell}}{ B^{\alpha}_{\ell}}  \frac{\delta B^{\beta}_{\ell}}{ B^{\beta}_{\ell}} \right \rangle \right) C_{\ell} 
+\ea
+Now let's compute the covariance
+
+\ba
+\Xi^{ \alpha \beta \gamma \eta } &=& \left \langle \left(1 + \frac{\delta B^{\alpha}_{\ell}}{ B^{\alpha}_{\ell}} \right) \left(1 + \frac{\delta B^{\beta}_{\ell}}{ B^{\beta}_{\ell}} \right) \left(1 + \frac{\delta B^{\gamma}_{\ell}}{ B^{\gamma}_{\ell}} \right) \left(1 + \frac{\delta B^{\eta}_{\ell}}{ B^{\eta}_{\ell}} \right) \right \rangle C^{2}_{\ell} \nonumber \\
+&-& \left(1 + \left \langle \frac{\delta B^{\alpha}_{\ell}}{ B^{\alpha}_{\ell}}  \frac{\delta B^{\beta}_{\ell}}{ B^{\beta}_{\ell}} \right \rangle \right) \left(1 + \left \langle \frac{\delta B^{\gamma}_{\ell}}{ B^{\gamma}_{\ell}}  \frac{\delta B^{\eta}_{\ell}}{ B^{\eta}_{\ell}} \right \rangle \right) C^{2}_{\ell} \nonumber \\
+&\sim& \left( \left \langle \frac{\delta B^{\alpha}_{\ell}}{ B^{\alpha}_{\ell}}  \frac{\delta B^{\gamma}_{\ell}}{ B^{\gamma}_{\ell}} \right \rangle +  \left \langle \frac{\delta B^{\alpha}_{\ell}}{ B^{\alpha}_{\ell}}  \frac{\delta B^{\eta}_{\ell}}{ B^{\eta}_{\ell}} \right \rangle  + \left \langle \frac{\delta B^{\beta}_{\ell}}{ B^{\beta}_{\ell}}  \frac{\delta B^{\gamma}_{\ell}}{ B^{\gamma}_{\ell}} \right \rangle +  \left \langle \frac{\delta B^{\beta}_{\ell}}{ B^{\beta}_{\ell}}  \frac{\delta B^{\eta}_{\ell}}{ B^{\eta}_{\ell}} \right \rangle \right) C^{2}_{\ell} 
+\ea
+where we dropped all term of order >2 in beam errors.
+Assuming no correlation in the beam measurement from different arrays:
+    \ba
+\Xi^{ \alpha \beta \gamma \eta } =   \left[  (\delta_{\alpha \gamma} + \delta_{\alpha \eta})  \left\langle  \frac{\delta B^{\alpha}_\ell \delta B^{\alpha}_\ell}{B^{\alpha}_{\ell}B^{\alpha}_{\ell}}   \right\rangle +  (\delta_{\beta \gamma} + \delta_{\beta \eta})  \left\langle  \frac{\delta B^{\beta}_\ell \delta B^{\beta}_\ell}{B^{\beta}_{\ell}B^{\beta}_{\ell}}  \right \rangle  \right] C^{2}_{\ell}  \nonumber \\ 
+  \ea
+
+\end{document}
+
+
