@@ -15,6 +15,8 @@ def get_bicep_BB_spectrum():
     y_err = np.stack([Db - Db_low, Db_high - Db])
     
     return lb, Db, y_err
+    
+    
 
 
 def get_sptpol_BB_spectrum():
@@ -24,6 +26,16 @@ def get_sptpol_BB_spectrum():
     
     bin_lo, bin_hi, lb, Db, sigmab = np.loadtxt(f"{get_data_path()}/spectra/sptpol/sptpol_B_modes.txt", unpack=True)
     return lb, Db,  sigmab
+
+def get_polarbear_BB_spectrum():
+    """
+    Read in the POLARBEAR BB CMB only power spectrum, Fig 11 of https://iopscience.iop.org/article/10.3847/1538-4357/aa8e9f/pdf
+    """
+    
+    lb, Db, sigmab = np.loadtxt(f"{get_data_path()}/spectra/polarbear/polarbear_B_modes.txt", unpack=True)
+    return lb, Db,  sigmab
+
+
 
 
 def get_choi_spectra(spec, survey="deep", return_Dl=True):
