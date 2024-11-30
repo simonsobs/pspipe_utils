@@ -2,6 +2,7 @@
 Some utility functions for handling external data.
 """
 import numpy as np
+from scipy.io import FortranFile
 
 from . import get_data_path
 
@@ -104,6 +105,84 @@ def get_planck_spectra(spec, return_Dl=True):
             cl[fp], err[fp] = cl[fp] * fac, err[fp] * fac
 
     return fp_planck, l, cl, err
+    
+    
+def get_planck_cmb_only_data():
+    """
+    Read the cmb only data corresponding to the likelihood 'like_cmbonly_plikv22'
+    Return the data in Cls (not Dls)
+    """
+
+    planck_cmb_only_path =  f"{get_data_path()}/spectra/planck_cmb_only"
+
+    nbin_TT = 215 #30-2508
+    nbin_TE = 199 #30-1996
+    nbin_EE = 199 #30-1996
+
+    l, cl, sigma, cov_dict = {}, {}, {}, {}
+
+    l["TT"], cl["TT"], sigma["TT"] = np.loadtxt(f"{planck_cmb_only_path}/cl_cmb_plik_v22_TT.dat", unpack=True)
+    l["TE"], cl["TE"], sigma["TE"] = np.loadtxt(f"{planck_cmb_only_path}/cl_cmb_plik_v22_TE.dat", unpack=True)
+    l["EE"], cl["EE"], sigma["EE"] = np.loadtxt(f"{planck_cmb_only_path}/cl_cmb_plik_v22_EE.dat", unpack=True)
+
+    cov = FortranFile(f"{planck_cmb_only_path}/c_matrix_plik_v22.dat").read_reals()
+    i = int(np.sqrt(len(cov)))
+    cov = cov.reshape((i, i))
+    cov = np.tril(cov) + np.tril(cov, -1).T
+
+    start_TE = nbin_TT
+    start_EE = nbin_TT + nbin_TE
+    
+    cov_dict["TTTT"] = cov[0:start_TE, 0:start_TE]
+    cov_dict["TETE"] = cov[start_TE:start_EE, start_TE:start_EE]
+    cov_dict["EEEE"] = cov[start_EE:start_EE + nbin_EE, start_EE:start_EE + nbin_EE]
+
+    return l, cl, sigma, cov_dict
+
+def bin_ala_planck_cmb_only(lth, ps_th):
+    """
+    Bin theory spectra using the weight of the Planck CMB-only likelihood
+    Return spectra in Cls (not Dls)
+    
+    Parameters
+    ----------
+    lth: 1d integer array
+         the multipoles
+    ps_th: dict
+         a dictionnary with CAMB theory power spectra
+    """
+
+    planck_cmb_only_path =  f"{get_data_path()}/spectra/planck_cmb_only"
+
+    bin_low = np.loadtxt(f"{planck_cmb_only_path}/blmin.dat")
+    bin_high= np.loadtxt(f"{planck_cmb_only_path}/blmax.dat")
+    bin_weight = np.loadtxt(f"{planck_cmb_only_path}/bweight.dat")
+    
+    plmin  = 30
+    nbin = {}
+    nbin["TT"] = 215 #30-2508
+    nbin["TE"] = 199 #30-1996
+    nbin["EE"] = 199 #30-1996
+
+    l_b, ps_b = {}, {}
+    
+    for spec in ["TT", "TE", "EE"]:
+    
+        ps_th[spec] = ps_th[spec] * 2 * np.pi / (lth * (lth+1))
+    
+        l_b[spec]= np.zeros(nbin[spec])
+        ps_b[spec]= np.zeros(nbin[spec])
+    
+        for i in range(nbin[spec]):
+            id = np.where( (lth >= plmin + bin_low[i]) & (lth <= plmin + bin_high[i])   )
+            ps_select =  ps_th[spec][id]
+            w_select = bin_weight[int(bin_low[i]):int(bin_high[i]+1)]
+        
+            l_b[spec][i] = np.sum(lth[id] * w_select)
+            ps_b[spec][i] = np.sum(ps_select * w_select)
+    
+    return l_b, ps_b
+
 
 def get_passband_dict_dr6(wafer_list):
     """

@@ -594,122 +594,77 @@ def read_covariance(cov_file,
     return cov
 
 
-def get_x_ar_to_x_freq_P_mat(x_ar_cov_list, x_freq_cov_list, binning_file, lmax):
+def rebin_spectrum_with_cov(l, ps, cov, rebin_fac=5, fig_dir=None):
     """
-    Create a projector matrix from x_freq spectra to x_array spectra
-    To understand why we need this projector let's imagine the following problem.
-    We have x_array spectra Dl_{x_ar}, and x_freq spectra Dl_{x_freq}, the idea of combining all x_ar spectra into a set of x_freq spectra
-    rely on the following assumption Dl_{x_ar} = Dl_{x_freq} + noise; that is: all array spectra are noisy measurement of
-    underlying x_freq spectra.
-    if we want to generalize the equation to many x_freq and x_ar spectra we can write \vec{Dl_{x_ar}} = P \vec{Dl_{x_freq}} + \vec{n}
-    the idea of this routine is to build the P_matrix, that is to associate x_freq spectra to each x_ar spectra.
-
+    Rebin a power spectrum using its covariance matrix
+    
     Parameters
-     ----------
-    x_ar_cov_list: list of tuples
-        this list represent the order of spectra entering the x_ar covariance matrix
-        it also give some other relevant information such as the effective frequency of each spectra
-        expected format is (spec, name, nu_pair)
-        e.g ('TT', 'dr6_ar1xdr6_ar1', (150,150))
-    x_freq_cov_list: list of tuples
-        this list represent the order of spectra entering the x_freq covariance matrix
-        expected format is (spec, nu_pair)
-        e.g ('TT', (150,150))
-    binning_file: str
-      a binning file with format bin low, bin high, bin mean
-    lmax: int
-      the maximum multipole to consider
+    ----------
+    l: 1d  array
+        the multipole location
+    ps: 1d  array
+        the power spectrum we want to re-bin
+    cov: 2d array
+        the covariance matrix of ps
+    rebin_fac: integer
+        the size of the new binning in term of the old binning
+        rebin_fac=5 mean that each new bin will contain 5 old bins
+    fig_dir: str
+        optionaly plot some figures
     """
+    
+    nbin = len(l)
+    new_nbin = int(np.ceil(nbin / rebin_fac))
+    P_mat = np.zeros((nbin, new_nbin))
 
-    bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
-    n_bins = len(bin_hi)
+    for i in range(nbin):
+        ii = i // rebin_fac
+        P_mat[i, ii] = 1
+        
+    i_cov = np.linalg.inv(cov)
+    cov_ML = get_max_likelihood_cov(P_mat,
+                                    i_cov,
+                                    force_sim = True,
+                                    check_pos_def = True)
+                                               
+    vec_ML = max_likelihood_spectra(cov_ML,
+                                    i_cov,
+                                    P_mat,
+                                    ps)
+                                               
+    # assume a non weighted average for multipoles
+    lb_ML = np.linalg.inv(P_mat.T @ P_mat) @ P_mat.T @ l
 
-    n_el_x_ar = len(x_ar_cov_list) # number of block in the x_ar cov mat
-    n_el_x_freq = len(x_freq_cov_list) # number of block in the x_freq cov mat
+    if fig_dir is not None:
+    
+        pspy_utils.create_directory(fig_dir)
+        
+        plt.figure(figsize=(8, 8))
+        plt.errorbar(l, ps, np.sqrt(cov.diagonal()), fmt=".")
+        plt.errorbar(lb_ML, vec_ML, np.sqrt(cov_ML.diagonal()), fmt=".")
+        plt.savefig(f"{fig_dir}/spectra.png")
+        plt.clf()
+        plt.close()
+        
+        plt.figure(figsize=(8, 8))
+        plt.imshow(P_mat)
+        plt.gca().set_aspect(0.2)
+        plt.tight_layout()
+        plt.savefig(f"{fig_dir}/pointing_matrix.png")
+        plt.clf()
+        plt.close()
 
-    P_mat = np.zeros((n_el_x_ar * n_bins, n_el_x_freq * n_bins))
-
-    for id_ar, x_ar_cov_el in enumerate(x_ar_cov_list):
-        spec1, _, nu_pair1 = x_ar_cov_el # spec1 here is TT,TE,...,BB, nupair1 is the associated effective freq in format (freq1, freq2)
-
-        for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
-            spec2, nu_pair2 = x_freq_cov_el # spec2 here is TT,TE,...,BB, nupair2 is the associated effective freq in format (freq1, freq2)
-
-            # so the first part if for spectra such as TT, EE, BB
-            if (spec1[0] == spec1[1]) and (spec1 == spec2):
-                # for these guys we want to check that the freq pair is the same (or inverted since <TT_90x150> = <TT_150x90>)
-                if (nu_pair1 == nu_pair2) or (nu_pair1 == nu_pair2[::-1]):
-                    # if that's the case we will include it in the projector, what this mean is that we say that this
-                    # particular x_freq spectrum will project into this particular x_ar spectrum
-                    P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
-
-            # for cross field spectra such as TE, TB, ET, BT, EB, BE we need a bit more work
-            # the idea is to construct a xfreq cov mat with only TE, TB, EB
-            # so x_freq_cov_list do not contains any ET, BT, BE
-            # the idea is to associate ET_90x150 to TE_150x90, so reverting the frequency pair ordering
-
-            # we start with the  TE, TB, EB case
-            if (spec1[0] != spec1[1]) and (spec1 == spec2):
-                if (nu_pair1 == nu_pair2):
-                    P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
-
-            # for the ET, BT, BE case we reverse the order of the freq pair E_90 T_150 = T_150 x E_90
-            if (spec1[0] != spec1[1]) and (spec1 == spec2[::-1]):
-                if (nu_pair1 == nu_pair2[::-1]):
-                    P_mat[id_ar * n_bins: (id_ar + 1) * n_bins, id_freq * n_bins: (id_freq + 1) * n_bins] = np.identity(n_bins)
-    return P_mat
+        plt.figure(figsize=(8, 8))
+        plt.imshow(so_cov.cov2corr(cov_ML, remove_diag=True))
+        plt.colorbar()
+        plt.tight_layout()
+        plt.savefig(f"{fig_dir}/ML_correlation.png")
+        plt.clf()
+        plt.close()
+                                 
+    return lb_ML, vec_ML, cov_ML
 
 
-def get_x_freq_to_final_P_mat(x_freq_cov_list, final_cov_list, binning_file, lmax):
-    """
-    Create a projector matrix from final spectra to x_freq spectra
-    To understand why we need this projector let's imagine the following problem.
-    We have x_freq spectra Dl_{x_freq}, and final spectra Dl_{final}, the idea of combining all x_freq spectra into a set of final spectra
-    rely on the following assumption Dl_{x_freq} = Dl_{x_final} + noise; that is: all x_freq spectra are noisy measurement of
-    underlying final spectra.
-    Of course this make no sense in Temperature, since different x_freq spectra see different level of foreground.
-    Given how small the fg are in polarisation, it does make sense to look at spectra combination of all cross frequency
-    (mostly for plotting)
-
-    we can write \vec{Dl_{x_freq}} = P \vec{Dl_{final}} + \vec{n}
-    the idea of this routine is to build the P matrix, which associates x_freq spectra to each final spectra.
-
-    Parameters
-     ----------
-    x_freq_cov_list: list of tuples
-        this list represents the order of spectra entering the x_freq covariance matrix
-        expected format is (spec, nu_pair)
-        e.g ('TT', (150,150))
-    final_cov_list: list of tuples
-        this list represents the order of spectra entering the final covariance matrix
-        expected format is (spec, nu_pair) for TT
-        or (spec, None) for other spectra since the final polarisation spectra are combined across the different frequency
-        pair
-    binning_file: str
-      a binning file with format bin low, bin high, bin mean
-    lmax: int
-      the maximum multipole to consider
-    """
-    bin_lo, bin_hi, bin_c, bin_size = pspy_utils.read_binning_file(binning_file, lmax)
-    n_bins = len(bin_hi)
-
-    n_el_x_freq = len(x_freq_cov_list)
-    n_el_final = len(final_cov_list)
-
-    P_mat = np.zeros((n_el_x_freq * n_bins, n_el_final * n_bins))
-
-    for id_freq, x_freq_cov_el in enumerate(x_freq_cov_list):
-        spec1, nu_pair1 = x_freq_cov_el
-        for id_final, final_cov_el in enumerate(final_cov_list):
-            spec2, nu_pair2 = final_cov_el
-            if (spec1 == spec2) and (spec1 == "TT"):
-                if (nu_pair1 == nu_pair2):
-                    P_mat[id_freq * n_bins: (id_freq + 1) * n_bins, id_final * n_bins: (id_final + 1) * n_bins] = np.identity(n_bins)
-            else:
-                if (spec1 == spec2):
-                    P_mat[id_freq * n_bins: (id_freq + 1) * n_bins, id_final * n_bins: (id_final + 1) * n_bins] = np.identity(n_bins)
-
-    return P_mat
 
 
 def read_x_ar_spectra_vec(spec_dir,
