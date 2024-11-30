@@ -168,14 +168,14 @@ def bin_ala_planck_cmb_only(lth, ps_th):
     
     for spec in ["TT", "TE", "EE"]:
     
-        ps_th[spec] = ps_th[spec] * 2 * np.pi / (lth * (lth+1))
+        cl = ps_th[spec] * 2 * np.pi / (lth * (lth+1))
     
         l_b[spec]= np.zeros(nbin[spec])
         ps_b[spec]= np.zeros(nbin[spec])
     
         for i in range(nbin[spec]):
             id = np.where( (lth >= plmin + bin_low[i]) & (lth <= plmin + bin_high[i])   )
-            ps_select =  ps_th[spec][id]
+            ps_select =  cl[id]
             w_select = bin_weight[int(bin_low[i]):int(bin_high[i]+1)]
         
             l_b[spec][i] = np.sum(lth[id] * w_select)
