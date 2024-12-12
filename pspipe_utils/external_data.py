@@ -3,6 +3,7 @@ Some utility functions for handling external data.
 """
 import numpy as np
 from scipy.io import FortranFile
+from pspy import so_spectra
 
 from . import get_data_path
 
@@ -17,7 +18,31 @@ def get_bicep_BB_spectrum():
     
     return lb, Db, y_err
     
+def get_agora_spectrum(spec_name, comp1, comp2, spectrum=None):
+    """
+    We have computed the agora + pySM spectrum in DR6 bandpass, you can access the result here
+    Parameters
+    __________
+    spec_name: str
+      the name of the x_ar spectrum you want to consider e.g dr6_pa4_f220xdr6_pa5_f090
+    comp1: str
+      the first component in ["tsz","rksz","ksz","radio", "cib", "sync", "dust", "anomalous"]
+    comp2: str
+      the second component in ["tsz","rksz","ksz","radio", "cib", "sync", "dust", "anomalous"]
+    spectrum: str
+        optional return either "TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"
+
+    """
+    spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+
+    l, Dl = so_spectra.read_ps(f"{get_data_path()}/spectra/agora/Dl_{spec_name}_{comp1}x{comp2}.dat", spectra=spectra)
     
+    if spectrum is not None:
+        return l, Dl[spectrum]
+    else:
+        return l, Dl
+
+
 
 
 def get_sptpol_BB_spectrum():
