@@ -42,6 +42,15 @@ def get_agora_spectrum(spec_name, comp1, comp2, spectrum=None):
     else:
         return l, Dl
 
+def get_bahamas_tSZ(AGN_heating="7,8"):
+    """
+    CMB tSZ power spectrum corresponding to bahamas simulation for different AGN heating temperature (10^7.8 and 10^8.0)
+    https://arxiv.org/abs/1603.02702 and https://arxiv.org/abs/2212.07420
+    """
+    l, Dl = so_spectra.read_ps(f"{get_data_path()}/spectra/bahamas/cl_tsz_yy_agora_{AGN_heating}_binned_interp.dat")
+    
+    return l, Dl
+
 
 
 
