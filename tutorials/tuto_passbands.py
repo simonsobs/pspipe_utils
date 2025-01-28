@@ -3,6 +3,13 @@ import numpy as np
 from pspipe_utils import best_fits
 from pspipe_utils import external_data as ext
 from pspy import pspy_utils
+from matplotlib import rcParams
+
+rcParams["xtick.labelsize"] = 16
+rcParams["ytick.labelsize"] = 16
+rcParams["axes.labelsize"] = 20
+rcParams["axes.titlesize"] = 20
+
 
 output_dir = "results_passbands"
 pspy_utils.create_directory(output_dir)
@@ -19,11 +26,12 @@ passbands = {**dr6_passbands, **npipe_passbands}
 
 # Plot passbands
 plt.figure(figsize = (8, 6))
+plt.title("ACT DR6 Bandpasses", fontsize=18)
 plt.xlabel(r"$\nu$ [GHz]")
 for wafer in dr6_wafers:
     nu_ghz, trans = dr6_passbands[wafer]
     plt.plot(nu_ghz, trans / np.trapz(trans, nu_ghz), label = wafer)
-plt.legend()
+plt.legend(fontsize=18)
 plt.ylim(bottom = 0)
 plt.tight_layout()
 plt.savefig(f"{output_dir}/dr6_passbands.png", dpi = 300)
@@ -49,26 +57,37 @@ fg_components = {
     "eb": []
 }
 
-fg_params = {
-    "a_tSZ": 3.30,
-    "a_kSZ": 1.60,
-    "a_p": 5.71,
-    "beta_p": 2.20,
-    "a_c": 6.53,
-    "beta_c": 2.20,
-    "a_s": 3.10,
-    "xi": 0.1,
-    "T_d": 9.60,
-    "a_gtt": 13.5,
-    "a_gte": 0.36,
-    "a_gtb": 0.36,
-    "a_gee": 0.13,
-    "a_gbb": 0.13,
-    "a_psee": 0.05,
-    "a_psbb": 0.05,
-    "a_pste": 0,
-    "a_pstb": 0
-}
+
+
+fg_params = {"a_tSZ": 3.35,
+            "alpha_tSZ":-0.53,
+            "a_kSZ": 1.48,
+            "a_p": 7.65,
+            "beta_p": 1.87,
+            "a_c": 3.69,
+            "beta_c":  1.87,
+            "a_s": 2.86,
+            "beta_s":-2.78,
+            "xi": 0.09,
+            "a_gtt": 7.97,
+            "a_gte": 0.42,
+            "a_gtb": 0.01,
+            "a_gee": 0.17,
+            "a_gbb": 0.11,
+            "a_pste": 0,
+            "a_pstb": 0,
+            "a_psee": 0,
+            "a_psbb": 0,
+            "alpha_s":1.0,
+            "T_d": 9.60,
+            "T_effd":19.6,
+            "beta_d":1.5,
+            "alpha_dT":-0.6,
+            "alpha_dE":-0.4,
+            "alpha_p":1.}
+
+
+
 
 ell = np.arange(30, 5000)
 fg_dict = best_fits.get_foreground_dict(ell, passbands,
