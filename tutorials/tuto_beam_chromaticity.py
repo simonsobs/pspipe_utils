@@ -6,9 +6,13 @@ import numpy as np
 from pspipe_utils import get_data_path, beam_chromaticity, external_data
 from pspy import pspy_utils
 import matplotlib as mpl
+from matplotlib import rcParams
 
-
-output_dir = "beam_chorma"
+rcParams["xtick.labelsize"] = 16
+rcParams["ytick.labelsize"] = 16
+rcParams["axes.labelsize"] = 20
+rcParams["axes.titlesize"] = 20
+output_dir = "beam_chroma"
 pspy_utils.create_directory(output_dir)
 
 
@@ -45,12 +49,12 @@ for ar in arrays:
         ax.plot(l, bl_nu[:, i_nu], c=cmap(i_nu), alpha=0.2)
     
     ax.plot(l, bl_cmb, color="black", label="CMB beam")
-    plt.legend(fontsize=18)
-    plt.title(f"beam {ar}", fontsize=22)
-    plt.xlabel(r"$\ell$", fontsize=22)
-    plt.ylabel(r"$b_{\ell}(\nu)$", fontsize=22)
+    plt.legend(fontsize=30)
+    plt.title(f"beam {ar}", fontsize=30)
+    plt.xlabel(r"$\ell$", fontsize=30)
+    plt.ylabel(r"$b_{\ell}(\nu)$", fontsize=30)
 
-    plt.colorbar(sm, ax=plt.gca()).set_label(label=r"$\nu$ GHz",size=20)
+    plt.colorbar(sm, ax=plt.gca()).set_label(label=r"$\nu$ GHz",size=30)
     plt.tight_layout()
     plt.savefig(f"{output_dir}/beam_{ar}.png", dpi = 300)
     plt.clf()
