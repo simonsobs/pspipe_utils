@@ -134,8 +134,7 @@ def read_leakage_model_old(leakage_file_dir, file_name, lmax, lmin=0, include_er
     return l, gamma_TE, error_modes_gTE,  gamma_TB, error_modes_gTB
 
 
-def read_leakage_model(leakage_file_dir,
-                       file_name_TE,
+def read_leakage_model(file_name_TE,
                        file_name_TB,
                        lmax,
                        lmin=0,
@@ -148,8 +147,6 @@ def read_leakage_model(leakage_file_dir,
 
     Parameters
     ----------
-    leakage_file_dir : str
-        location of the files describing the leakage
     file_name_TE : str
         name of the  file  that contain gamma_TE and error_modes (e.g pa4_f150_gamma_t2e.txt)
     file_name_TB : str
@@ -163,7 +160,7 @@ def read_leakage_model(leakage_file_dir,
     """
     
     def extract_beam_leakage_and_error_modes(file_name):
-        data = np.loadtxt(f"{leakage_file_dir}/{file_name}")
+        data = np.loadtxt(file_name)
         l, gamma = data[lmin: lmax, 0], data[lmin: lmax, 1]
         error_modes = data[lmin: lmax, 2:]
         return l, gamma, error_modes
