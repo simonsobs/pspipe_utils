@@ -27,9 +27,12 @@ gamma, err_m, var = {}, {}, {}
 plt.figure(figsize=(12,8))
 for ar in arrays:
     gamma[ar], err_m[ar], var[ar] = {}, {}, {}
+    
+    leakage_beam_file_TE = f"{leakage_file_dir}/{ar}_gamma_t2e.txt"
+    leakage_beam_file_TB = f"{leakage_file_dir}/{ar}_gamma_t2b.txt"
 
-    l, gamma[ar]["TE"], err_m[ar]["TE"], gamma[ar]["TB"], err_m[ar]["TB"] = leakage.read_leakage_model(leakage_file_dir,
-                                                                                                       f"gamma_mp_uranus_{ar}.txt",
+    l, gamma[ar]["TE"], err_m[ar]["TE"], gamma[ar]["TB"], err_m[ar]["TB"] = leakage.read_leakage_model(leakage_beam_file_TE,
+                                                                                                       leakage_beam_file_TB,
                                                                                                        lmax,
                                                                                                        lmin=2)
 

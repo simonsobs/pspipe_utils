@@ -13,7 +13,7 @@ import time
 cosmo_params = {"cosmomc_theta":0.0104085, "logA": 3.044, "ombh2": 0.02237,
                 "omch2": 0.1200,  "ns": 0.9649, "tau": 0.0544}
 lmax = 4000
-n_sims = 300
+n_sims = 30
 type = "Dl"
 spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 
@@ -34,10 +34,17 @@ gamma, var, err_m = {}, {}, {}
 plt.figure(figsize=(12,8))
 for ar in arrays:
     gamma[ar], var[ar], err_m[ar] = {}, {}, {}
-    l, gamma[ar]["TE"], err_m[ar]["TE"], gamma[ar]["TB"], err_m[ar]["TB"] = leakage.read_leakage_model(leakage_file_dir,
-                                                                                                       f"gamma_mp_uranus_{ar}.txt",
+    
+    
+    leakage_beam_file_TE = f"{leakage_file_dir}/{ar}_gamma_t2e.txt"
+    leakage_beam_file_TB = f"{leakage_file_dir}/{ar}_gamma_t2b.txt"
+
+    l, gamma[ar]["TE"], err_m[ar]["TE"], gamma[ar]["TB"], err_m[ar]["TB"] = leakage.read_leakage_model(leakage_beam_file_TE,
+                                                                                                       leakage_beam_file_TB,
                                                                                                        lmax)
-                                                                                             
+
+    
+    gamma[ar]["TE"], gamma[ar]["TB"] =  gamma[ar]["TE"] * 5, gamma[ar]["TB"] * 5 # exagerate the effect
     var[ar]["TETE"] = leakage.error_modes_to_cov(err_m[ar]["TE"]).diagonal()
     var[ar]["TBTB"] = leakage.error_modes_to_cov(err_m[ar]["TB"]).diagonal()
     var[ar]["TETB"] = var[ar]["TETE"] * 0
@@ -51,6 +58,7 @@ for ar in arrays:
     plt.xlabel(r"$\ell$", fontsize=17)
     plt.errorbar(l, gamma[ar]["TB"], np.sqrt(var[ar]["TBTB"]), fmt=".", label=ar)
     plt.legend()
+    
 plt.savefig(f"{tuto_data_dir}/beam_leakage.png", bbox_inches="tight")
 plt.clf()
 plt.close()
@@ -95,6 +103,12 @@ for ar in arrays:
     var[ar]["TETE"] = var[ar]["TETE"][2:]
     var[ar]["TBTB"] = var[ar]["TBTB"][2:]
     var[ar]["TETB"] = var[ar]["TETB"][2:]
+    
+
+psb_th_dict = {}
+for spec in spectra:
+    l, psb_th_dict[spec] = pspy_utils.naive_binning(l_th, ps_th_dict[spec], binning_file, lmax)
+
 
 n_bins = len(lb)
 for id_ar1, ar1 in enumerate(arrays):
@@ -103,15 +117,20 @@ for id_ar1, ar1 in enumerate(arrays):
     
         mean, _, mc_cov = so_cov.mc_cov_from_spectra_list(ps_all[ar1, ar2], ps_all[ar1, ar2], spectra=spectra)
 
-        l, psb_th_dict = leakage.leakage_correction(l_th,
-                                                    ps_th_dict,
-                                                    gamma[ar1],
-                                                    var[ar1],
-                                                    lmax,
-                                                    gamma_beta=gamma[ar2],
-                                                    binning_file=binning_file)
+        l, residual = leakage.leakage_correction(l_th,
+                                                 ps_th_dict,
+                                                 gamma[ar1],
+                                                 var[ar1],
+                                                 lmax,
+                                                 gamma_beta=gamma[ar2],
+                                                 binning_file=binning_file,
+                                                 return_residual=True)
+                                                 
+                                                 
     
         for count, spec in enumerate(spectra):
+        
+            mean_corr = mean[spec] - residual[spec]
             sigma = so_cov.get_sigma(mc_cov, spectra, n_bins, spec)
         
             plt.figure(figsize=(15,10))
@@ -119,11 +138,16 @@ for id_ar1, ar1 in enumerate(arrays):
             plt.subplot(2,1,1)
             plt.ylabel(r"$D^{%s}_{\ell}$" % spec, fontsize=18)
             plt.xlabel(r"$\ell$", fontsize=18)
+            
             plt.errorbar(l, mean[spec], sigma, fmt=".", label="mean spectra with leakage", color="black")
-            plt.plot(l, psb_th_dict[spec], label="theory prediction", color="black")
+            plt.errorbar(l, mean_corr, sigma, fmt=".", label="mean spectra corrected", color="red")
+            plt.plot(l, psb_th_dict[spec], label="theory prediction (no leakage)", color="red")
+
             plt.legend()
             plt.subplot(2,1,2)
-            plt.errorbar(l, mean[spec] - psb_th_dict[spec], sigma, fmt=".")
+            plt.errorbar(l, mean[spec] - psb_th_dict[spec], sigma, fmt=".", label="data with leakage - model ")
+            plt.errorbar(l, mean_corr - psb_th_dict[spec], sigma, fmt=".", label="data with leakage corrected - model ")
+            plt.legend()
             plt.ylabel(r"$D^{%s}_{\ell}- D^{%s, th}_{\ell}$" % (spec, spec), fontsize=18)
             plt.xlabel(r"$\ell$", fontsize=18)
             plt.savefig(f"{tuto_data_dir}/spectra_{ar1}x{ar2}_{spec}.png", bbox_inches="tight")
