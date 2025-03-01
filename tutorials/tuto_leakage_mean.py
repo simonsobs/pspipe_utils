@@ -13,7 +13,7 @@ import time
 cosmo_params = {"cosmomc_theta":0.0104085, "logA": 3.044, "ombh2": 0.02237,
                 "omch2": 0.1200,  "ns": 0.9649, "tau": 0.0544}
 lmax = 4000
-n_sims = 30
+n_sims = 300
 type = "Dl"
 spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 
@@ -30,6 +30,7 @@ leakage_file_dir = "../pspipe_utils/data/beams/"
 arrays = ["pa5_f090", "pa5_f150", "pa6_f090", "pa6_f150"]
 
 gamma, var, err_m = {}, {}, {}
+boost = 5 # boost serve to exagerate the leakage effect.
 
 plt.figure(figsize=(12,8))
 for ar in arrays:
@@ -44,17 +45,17 @@ for ar in arrays:
                                                                                                        lmax)
 
     
-    gamma[ar]["TE"], gamma[ar]["TB"] =  gamma[ar]["TE"] * 5, gamma[ar]["TB"] * 5 # exagerate the effect
+    gamma[ar]["TE"], gamma[ar]["TB"] =  gamma[ar]["TE"] * boost, gamma[ar]["TB"] * boost 
     var[ar]["TETE"] = leakage.error_modes_to_cov(err_m[ar]["TE"]).diagonal()
     var[ar]["TBTB"] = leakage.error_modes_to_cov(err_m[ar]["TB"]).diagonal()
     var[ar]["TETB"] = var[ar]["TETE"] * 0
 
     plt.subplot(2,1,1)
     plt.errorbar(l, gamma[ar]["TE"], np.sqrt(var[ar]["TETE"]), fmt=".", label=ar)
-    plt.ylabel(r"$\gamma^{TE}_{\ell}$", fontsize=17)
+    plt.ylabel(r"$\gamma^{TE}_{\ell} \times %s $" % boost, fontsize=17)
     plt.legend()
     plt.subplot(2,1,2)
-    plt.ylabel(r"$\gamma^{TB}_{\ell}$", fontsize=17)
+    plt.ylabel(r"$\gamma^{TB}_{\ell} \times %s$" % boost, fontsize=17)
     plt.xlabel(r"$\ell$", fontsize=17)
     plt.errorbar(l, gamma[ar]["TB"], np.sqrt(var[ar]["TBTB"]), fmt=".", label=ar)
     plt.legend()
