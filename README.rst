@@ -24,7 +24,7 @@ The easiest way to install and to use ``pspipe_utils`` likelihood is *via* ``pip
 
 .. code:: shell
 
-    pip install pspipe_utils
+    python -m pip install pspipe_utils
 
 If you want to dig into the code, you'd better clone this repository to some location
 
@@ -36,7 +36,7 @@ Then you can install the ``pspipe_utils`` suite and its dependencies *via*
 
 .. code:: shell
 
-    pip install -e /where/to/clone
+    python -m pip install -e /where/to/clone
 
 The ``-e`` option allow the developer to make changes within the ``pspipe_utils`` directory without
 having to reinstall at every changes. If you plan to just use the utilities suite and do not develop
