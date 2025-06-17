@@ -42,16 +42,43 @@ def get_agora_spectrum(spec_name, comp1, comp2, spectrum=None):
     else:
         return l, Dl
 
-def get_bahamas_tSZ(AGN_heating="7,8"):
+def get_agora_bahamas_tSZ(AGN_heating="7,8"):
     """
-    CMB tSZ power spectrum corresponding to bahamas simulation for different AGN heating temperature (10^7.8 and 10^8.0)
+    CMB tSZ power spectrum corresponding to agora bahamas simulation for different AGN heating temperature (10^7.8 and 10^8.0)
     https://arxiv.org/abs/1603.02702 and https://arxiv.org/abs/2212.07420
     """
-    l, Dl = so_spectra.read_ps(f"{get_data_path()}/spectra/bahamas/cl_tsz_yy_agora_{AGN_heating}_binned_interp.dat")
+    l, Dl = so_spectra.read_ps(f"{get_data_path()}/spectra/bahamas_agora/cl_tsz_yy_agora_{AGN_heating}_binned_interp.dat")
     
     return l, Dl
 
 
+def get_bahamas_tSZ(high_AGN=False):
+    """
+    CMB tSZ power spectrum corresponding to the actual bahamas simulation for different AGN
+    https://arxiv.org/abs/1603.02702
+    """
+    
+    if high_AGN == True:
+        file =  f"{get_data_path()}/spectra/bahamas/BAHAMAS_tSZ_PS_Dellyy_highAGN.csv"
+        nline = 51
+    else:
+        file =  f"{get_data_path()}/spectra/bahamas/BAHAMAS_tSZ_PS_Dellyy_fiducial.csv"
+        nline = 48
+
+    with open(file) as csvfile:
+        spamreader = csv.reader(csvfile)
+        lb, Db = np.zeros((2, nline))
+
+        for i, row in enumerate(spamreader):
+            lb[i], Db[i] = row[0], row[1]
+            
+    spl = make_splrep(lb, Db, s=0.01)
+    
+    l = np.arange(2, 10000)
+    Dl = spl(l)
+    Dl[Dl<0] = 0
+    
+    return l, Dl
 
 
 def get_sptpol_BB_spectrum():
@@ -69,8 +96,6 @@ def get_polarbear_BB_spectrum():
     
     lb, Db, sigmab = np.loadtxt(f"{get_data_path()}/spectra/polarbear/polarbear_B_modes.txt", unpack=True)
     return lb, Db,  sigmab
-
-
 
 
 def get_choi_spectra(spec, survey="deep", return_Dl=True):

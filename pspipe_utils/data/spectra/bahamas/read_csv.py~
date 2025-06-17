@@ -1,0 +1,11 @@
+import csv
+import numpy
+import pylab
+file_list = ["BAHAMAS_tSZ_PS_Dellyy_fiducial.csv", "BAHAMAS_tSZ_PS_Dellyy_highAGN.csv"]
+
+
+for file in file_list:
+    with open(file, newline='') as csvfile:
+    spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+    for row in spamreader:
+        print(', '.join(row))
