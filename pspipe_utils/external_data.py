@@ -4,6 +4,8 @@ Some utility functions for handling external data.
 import numpy as np
 from scipy.io import FortranFile
 from pspy import so_spectra
+from scipy.interpolate import make_splrep
+import csv
 
 from . import get_data_path
 
