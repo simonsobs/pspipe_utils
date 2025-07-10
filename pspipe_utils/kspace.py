@@ -105,11 +105,10 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
     n_bins = len(lb)
     
     transfer_func = {}
-    kspace_filters = {}
     kf_tfs = {}
     for sv in surveys:
-        kspace_filters[sv] = get_kspace_filter(templates[sv], filter_dict[sv])
-        _, kf_tfs[sv] = so_map_preprocessing.analytical_tf(templates[sv], kspace_filters[sv], binning_file, lmax)
+        filter_sv = get_kspace_filter(templates[sv], filter_dict[sv])
+        _, kf_tfs[sv] = so_map_preprocessing.analytical_tf(templates[sv], filter_sv, binning_file, lmax)
 
     for sv1 in surveys:
         for sv2 in surveys:
