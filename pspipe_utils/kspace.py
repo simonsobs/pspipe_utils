@@ -105,16 +105,14 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
     n_bins = len(lb)
     
     transfer_func = {}
-    for id_sv1, sv1 in enumerate(surveys):
-        filter_sv1 = get_kspace_filter(templates[sv1], filter_dict[sv1])
-        _, kf_tf1 = so_map_preprocessing.analytical_tf(templates[sv1], filter_sv1, binning_file, lmax)
+    kf_tfs = {}
+    for sv in surveys:
+        filter_sv = get_kspace_filter(templates[sv], filter_dict[sv])
+        _, kf_tfs[sv] = so_map_preprocessing.analytical_tf(templates[sv], filter_sv, binning_file, lmax)
 
-        for id_sv2, sv2 in enumerate(surveys):
-            filter_sv2 = get_kspace_filter(templates[sv2], filter_dict[sv2])
-            _, kf_tf2 = so_map_preprocessing.analytical_tf(templates[sv2], filter_sv2, binning_file, lmax)
-
-            transfer_func[sv1, sv2] = np.minimum(kf_tf1, kf_tf2)
-
+    for sv1 in surveys:
+        for sv2 in surveys:
+            transfer_func[sv1, sv2] = np.minimum(kf_tfs[sv1], kf_tfs[sv2])
 
     transfer_mat = {}
     for id_sv1, sv1 in enumerate(surveys):
@@ -127,10 +125,9 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
                     transfer_mat[f"{sv1}_{ar1}x{sv2}_{ar2}"] = np.zeros((9 * n_bins, 9 * n_bins))
                     diag = np.tile(transfer_func[sv1, sv2], 9)
                     np.fill_diagonal(transfer_mat[f"{sv1}_{ar1}x{sv2}_{ar2}"], diag)
-               
+
     return transfer_mat
-    
-    
+
 
 def deconvolve_kspace_filter_matrix(lb, ps, kspace_filter_matrix, spectra, xtra_corr=None):
 
