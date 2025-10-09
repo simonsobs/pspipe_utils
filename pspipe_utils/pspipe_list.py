@@ -2,7 +2,7 @@
 Some utility functions for building list for mpi.
 """
 from itertools import combinations_with_replacement as cwr
-from itertools import product
+from itertools import permutations, product
 import numpy as np
 
 
@@ -292,3 +292,64 @@ def get_null_list(d, spectra, remove_TT_diff_freq=True):
                 null_list += [[m, ms1, ms2, ms3, ms4]]
                     
     return null_list
+
+def get_splits_auto_iterator(svi, nspliti, svj, nsplitj):
+    """List of the split pairs that enter the auto-spectrum of a given
+    spectrum measurement. If the surveys are the same, then the pairs are like
+    (0, 0), (1, 1) ... (n, n). There is no auto-spectrum if the surveys are not
+    the same.
+
+    Parameters
+    ----------
+    svi : str
+        Identifier of first survey.
+    nspliti : int
+        Number of splits in first survey.
+    svj : str
+        Identifier of second survey.
+    nsplitj : int
+        Number of splits in second survey.
+
+    Returns
+    -------
+    list
+        Pairs of splits that enter the auto-spectrum.
+    """
+    if svi == svj:
+        assert nspliti == nsplitj, \
+            f'{svi=} and {svj=} are equal but {nspliti=} and {nsplitj=} are not'
+        split_ij_iterator = list(zip(range(nspliti), range(nspliti)))
+    else:
+        split_ij_iterator = []
+
+    return split_ij_iterator
+
+def get_splits_cross_iterator(svi, nspliti, svj, nsplitj):
+    """List of the split pairs that enter the cross-spectrum of a given
+    spectrum measurement. If surveys are the same, this skips pairs that would
+    enter the autos-spectrum. If surveys are different, this is all pairs.
+
+    Parameters
+    ----------
+    svi : str
+        Identifier of first survey.
+    nspliti : int
+        Number of splits in first survey.
+    svj : str
+        Identifier of second survey.
+    nsplitj : int
+        Number of splits in second survey.
+
+    Returns
+    -------
+    list
+        Pairs of splits that enter the cross-spectrum.
+    """
+    if svi == svj:
+        assert nspliti == nsplitj, \
+            f'{svi=} and {svj=} are equal but {nspliti=} and {nsplitj=} are not'
+        split_ij_iterator = list(permutations(range(nspliti), r=2))
+    else:
+        split_ij_iterator = list(product(range(nspliti), range(nsplitj)))
+
+    return split_ij_iterator
