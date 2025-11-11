@@ -1,7 +1,7 @@
 """
 Some general utility functions that do not belong to other files.
 """
-
+import numpy as np
 from pspy import pspy_utils
 from pixell import curvedsky
 
@@ -44,6 +44,35 @@ def read_beams(f_name_beam_T, f_name_beam_pol, lmax=None):
     l, bl["E"] = pspy_utils.read_beam_file(f_name_beam_pol, lmax=lmax)
     bl["B"] = bl["E"]
     return l, bl
+
+def prep_beams(fn, norm=None):
+    """Read and normalize data from a beam file.
+
+    Parameters
+    ----------
+    fn : path-like
+        Beam file on disk.
+    norm : str or scalar, optional
+        Information to help scale the beam data, by default None. If 'mono',
+        then normalize the beam and beam error modes by the beam monopole.
+        Can also be an explicit scalar value.
+
+    Returns
+    -------
+    (nl) np.ndarray, (nmode, nl) np.ndarray
+        The beam and beam error modes.
+    """
+    beam = np.loadtxt(fn).T
+    l, bl, bl_err = beam[0], beam[1], beam[2:]
+    assert l[0] == 0, "the file is expected to start at l=0"
+    
+    if norm == 'mono':
+        norm = bl[0]
+    if norm is not None:
+        bl /= norm
+        bl_err /= norm
+    
+    return bl, bl_err
 
 def apply_beams(alms, bl):
     """
