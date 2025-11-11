@@ -339,8 +339,6 @@ class SignalModel:
                 info['mask_obs'] = mask == 1
 
     def _get_all_sim(self, sim_num):
-        self._current_sims = {} # reset
-
         # TODO: use parallelized mnms functions
         cdtype = np.result_type(1j, self._dtype)
 
@@ -633,8 +631,6 @@ class NoiseModel:
             info['noise_model'] = m_nm
 
     def _get_all_sim(self, tag, split_num, sim_num):
-        self._current_sims = {} # reset
-
         m_nm = self._modeltags2modelinfos[tag]['noise_model']
         lmax = self._modeltags2modelinfos[tag]['lmax']
 
