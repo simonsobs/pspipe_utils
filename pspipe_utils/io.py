@@ -78,7 +78,6 @@ def port2sacc(
             bfield = "T" if quantity == "temperature" else "E"
 
             tracer_kwargs = dict(
-                tracer_type="NuMap",
                 name=f"{map_set}_s{spin}",
                 quantity=f"cmb_{quantity}",
                 spin=spin,
@@ -88,7 +87,7 @@ def port2sacc(
                 beam=beam[bfield],
             )
 
-            s.add_tracer(**tracer_kwargs)
+            s.add_tracer("NuMap", **tracer_kwargs)
 
     for count, (spec, cross, *_) in enumerate(cov_order):
 
