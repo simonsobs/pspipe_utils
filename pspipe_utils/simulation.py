@@ -747,10 +747,18 @@ def generate_fg_alms(fg_mat, arrays_list, lmax, dtype=np.complex64):
 
     narrays = len(arrays_list)
 
+    # fg_mat is like (narray, 3, narray, 3, nl), but we want to make it square
+    fg_mat = fg_mat.reshape(narrays*3, narrays*3, -1)
+
     fglms_all = curvedsky.rand_alm(fg_mat, lmax=lmax, dtype=dtype)
+
+    # fglms_all is now (narray*3, ...), but we want (narray, 3, ...) to make it 
+    # easy
+    fglms_all = fglms_all.reshape(narrays, 3, -1)
+
     fglm_dict = {}
     for i, array in enumerate(arrays_list):
-        fglm_dict[array] = [fglms_all[i + k * narrays] for k in range(3)]
+        fglm_dict[array] = fglms_all[i]
 
     return fglm_dict
 
