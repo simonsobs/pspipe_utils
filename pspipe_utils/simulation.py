@@ -151,6 +151,127 @@ def foreground_matrix_from_files(f_name_tmp, arrays_list, lmax, spectra, input_t
 
     return l, fl_array
 
+class DataModel:
+
+    def __init__(self, signal_model_args, noise_model_args,
+                 signal_model_kwargs=None, noise_model_kwargs=None):
+        """A wrapper around a SignalModel and NoiseModel instance, allowing
+        interfacing with just one object. This also makes it easy to apply a 
+        mask_obs from a mnms.NoiseModel to a signal simulation (for extra
+        realism of the data), without the mess of dealing with mnms inside 
+        SignalModel instances too.
+
+        Parameters
+        ----------
+        signal_model_args : iterable
+            Positional arguments to pass to the SignalModel constructor.
+        noise_model_args : iterable
+            Positional arguments to pass to the NoiseModel constructor.
+        signal_model_kwargs : dict, optional
+            Keyword arguments to pass to the SignalModel constructor, by default
+            None.
+        noise_model_kwargs : dict, optional
+            Keyword arguments to pass to the NoiseModel constructor, by default
+            None.
+        """
+        if signal_model_kwargs is None:
+            signal_model_kwargs = {}
+        if noise_model_kwargs is None:
+            noise_model_kwargs = {}
+
+        self._signal_model = SignalModel(*signal_model_args, **signal_model_kwargs)
+        self._noise_model = NoiseModel(*noise_model_args, **noise_model_kwargs)
+
+    def get_signal_sim(self, mapname, sim_num):
+        """Get the signal sim for the given map and sim realization index. If
+        the currently-stored sim for the model is not this realization, a new one
+        will need to be drawn. Thus, it makes sense for a loop to iterate 
+        slowly over sim_num, and faster over mapname.
+
+        Parameters
+        ----------
+        mapname : str
+            The full survey and map information in format '{sv}_{m}'
+        sim_num : int
+            A sim realization index, used in setting the seed.
+
+        Returns
+        -------
+        (3, ny, nx) or (3, npix) so_map.so_map
+            A polarized realization for this signal map.
+
+        Notes
+        -----
+        Unlike SignalModel.get_sim, this will multiply the output map by the 
+        mask of observed pixels (as computed by the mnms.NoiseModel for this
+        map).
+        """
+        out = self._signal_model.get_sim(mapname, sim_num)
+
+        noise_info = self._noise_model._mapnames2minfos[mapname]['noise_info']
+        tag = noise_info['noise_model_tag']
+        m_nm = self._noise_model._modeltags2modelinfos[tag]['noise_model']
+        mask_obs_dg1 = m_nm.get_from_cache('mask_obs', downgrade=1)
+
+        # NOTE: extraction only works if full res nm data and geometry are
+        # compatible. this should be the case if people are careful
+        shape, wcs = out.data.geometry
+        mask_obs_dg1 = enmap.extract(mask_obs_dg1, shape, wcs)
+        
+        out.data *= mask_obs_dg1
+
+        return out
+    
+    def get_noise_sim(self, mapname, split_num, sim_num):
+        """Get the noise sim for the map, split, and sim realization index. If 
+        the currently-stored sim for the model is not this realization, a new one
+        will need to be drawn. Thus, it makes sense for a loop to iterate 
+        slowly over sim_num, and faster over mapname.
+
+        Parameters
+        ----------
+        mapname : str
+            The full survey and map information in format '{sv}_{m}'
+        split_num : int
+            The split to draw a simulation for.
+        sim_num : int
+            A sim realization index, used in setting the seed.
+
+        Returns
+        -------
+        (3, ny, nx) or (3, npix) so_map.so_map
+            A polarized realization for this noise map.
+
+        Notes
+        -----
+        This is just a wrapper for NoiseModel.get_sim.
+        """
+        return self._noise_model.get_sim(mapname, split_num, sim_num)
+        
+    def get_sim(self, mapname, split_num, sim_num):
+        """Get the signal + noise sim for the map, split, and sim realization
+        index. If the currently-stored sim for the model is not this realization,
+        a new one will need to be drawn. Thus, it makes sense for a loop to
+        iterate slowly over sim_num, and faster over mapname.
+
+        Parameters
+        ----------
+        mapname : str
+            The full survey and map information in format '{sv}_{m}'
+        split_num : int
+            The split to draw a simulation for.
+        sim_num : int
+            A sim realization index, used in setting the seed.
+
+        Returns
+        -------
+        (3, ny, nx) or (3, npix) so_map.so_map
+            A polarized realization for this signal + noise map.
+        """
+        out = self.get_signal_sim(mapname, sim_num)
+        out += self.get_noise_sim(mapname, split_num, sim_num)
+        return out
+
 class SignalModel:
 
     def __init__(self, mapnames2minfos, lmax, cmb_mat, fg_mat, bl, cal,
