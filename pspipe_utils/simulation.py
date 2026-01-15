@@ -1,6 +1,8 @@
 """
 Some utility functions for the generation of simulations.
 """
+from pspipe_utils import dict_utils
+
 import numpy as np
 from pixell import enmap, curvedsky, lensing
 from pspy import so_spectra, so_map
@@ -208,8 +210,7 @@ class DataModel:
         """
         out = self._signal_model.get_sim(mapname, sim_num)
 
-        noise_info = self._noise_model._mapnames2minfos[mapname]['noise_info']
-        tag = noise_info['noise_model_tag']
+        tag = self._noise_model._mapnames2modeltags[mapname]
         m_nm = self._noise_model._modeltags2modelinfos[tag]['noise_model']
         mask_obs_dg1 = m_nm.get_from_cache('mask_obs', downgrade=1)
 
@@ -613,14 +614,12 @@ class NoiseModel:
             with keys:
             * 'geometry': shape, wcs for that map.
             * 'noise_info': A dictionary with keys:
-                * 'noise_model_tag': The noise model this mapname will be drawn
-                from (a key in modeltags2modelinfos).
                 * 'qid': The qid that corresponds to this mapname 
                 * 'subproduct_kwargs': A dictionary with keys for possible 
                 subproduct_kwargs and their values, that further specifies this
                 mapname. Can be omitted if there are not any.
         modeltags2modelinfos : (nmodel,) dict
-            A dictionary with keys of 'noise_model_tag's (see above) and values:
+            A dictionary with keys of 'noise_model_tag's and values:
             * 'config_name': argument of mnms.noise_models.BaseNoiseModel.from_config
             * 'noise_model_name': argument of mnms.noise_models.BaseNoiseModel.from_config
             * 'qids': argument of mnms.noise_models.BaseNoiseModel.from_config
@@ -643,6 +642,9 @@ class NoiseModel:
                 
         self._mapnames2minfos = mapnames2minfos
         self._modeltags2modelinfos = modeltags2modelinfos
+        self._mapnames2modeltags = dict_utils.get_mapnames_to_noise_model_tags(
+             mapnames2minfos=mapnames2minfos, modeltags2modelinfos=modeltags2modelinfos
+        )
         self._add_white_noise_above_lmax = add_white_noise_above_lmax
         self._white_noise_ell_taper_width = white_noise_ell_taper_width
         self._keep_model = keep_model
@@ -791,8 +793,7 @@ class NoiseModel:
             f"{mapname=} not in this model's set of maps " + \
             f"({list(self._mapnames2minfos.keys())})"
 
-        noise_info = self._mapnames2minfos[mapname]['noise_info']
-        tag = noise_info['noise_model_tag']
+        tag = self._mapnames2modeltags[mapname]
 
         if self._current_sim_num[tag, split_num] != sim_num:
             self._get_all_sim(tag, split_num, sim_num)
