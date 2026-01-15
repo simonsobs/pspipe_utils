@@ -3,8 +3,25 @@ Some utility functions for building list for mpi.
 """
 from itertools import combinations_with_replacement as cwr
 from itertools import permutations, product
+import os
+import re
 import numpy as np
 
+def get_windownames_list(dict):
+    """Get the unique window names from the paramdict."""
+    windownames = set()
+    windowkey_pattern = 'window_(T|pol|kspace)'
+    windowname_pattern = 'window_(.*)_(kspace|baseline)'
+    for k, v in dict.items():
+        match_key = re.search(windowkey_pattern, k)
+        if match_key is not None:
+            windowname_text = os.path.splitext(os.path.basename(v))[0] # e.g. 'window_lat_iso_i1_kspace'
+            match_val = re.search(windowname_pattern, windowname_text)
+            if match_val is None:
+                raise ValueError(f"paramfile key {k} matches 'window_(T|pol|kspace)' but value {v} does not match 'window_(.*)_(kspace|baseline)'")
+            windowname = match_val.group(1)
+            windownames.add(windowname) # add item already in set to set does nothing
+    return len(windownames), list(windownames) # do set-to-list only once
 
 def get_arrays_list(dict):
     """This function creates the lists over which mpi is done
@@ -353,3 +370,79 @@ def get_splits_cross_iterator(svi, nspliti, svj, nsplitj):
         split_ij_iterator = list(product(range(nspliti), range(nsplitj)))
 
     return split_ij_iterator
+
+def canonize_connected_2pt(leg1, leg2):
+    """Re-order leg1 and leg2 to be in a canonical order with respect to a 
+    connected two-point function of the legs: sorted((leg1, leg2)).
+
+    Parameters
+    ----------
+    leg1 : any
+        A label for the first leg. Must support comparison operations.
+    leg2 : any
+        A label for the second leg. Must support comparison operations.
+
+    Returns
+    -------
+    any, any
+        canonical_leg_1, canonical_leg_2
+    """
+    # we dont need to see all legs because ordering is global
+    leg1, leg2 = sorted((leg1, leg2)) 
+    
+    return leg1, leg2
+
+def canonize_disconnected_4pt(leg1, leg2, leg3, leg4):
+    """Re-order the legs to be in a canonical order with respect to a 
+    disconnected four-point function of the legs:
+    sorted((sorted((leg1, leg2)), sorted((leg3, leg4)))).
+
+    Parameters
+    ----------
+    leg1 : any
+        A label for the first leg. Must support comparison operations.
+    leg2 : any
+        A label for the second leg. Must support comparison operations.
+    leg3 : any
+        A label for the third leg. Must support comparison operations.
+    leg4 : any
+        A label for the fourth leg. Must support comparison operations.
+
+    Returns
+    -------
+    any, any, any, any
+        canonical_leg_1, canonical_leg_2, canonical_leg_3, canonical_leg_4
+    """
+    canonical_pair_1 = canonize_connected_2pt(leg1, leg2)
+    canonical_pair_2 = canonize_connected_2pt(leg3, leg4)
+
+    # we dont need to see all legs because ordering is global
+    (leg1, leg2), (leg3, leg4) = sorted((canonical_pair_1, canonical_pair_2))
+    
+    return leg1, leg2, leg3, leg4
+
+def canonize_connected_4pt(leg1, leg2, leg3, leg4):
+    """Re-order the legs to be in a canonical order with respect to a 
+    connected four-point function of the legs:
+    sorted((leg1, leg2, leg3, leg4)).
+
+    Parameters
+    ----------
+    leg1 : any
+        A label for the first leg. Must support comparison operations.
+    leg2 : any
+        A label for the second leg. Must support comparison operations.
+    leg3 : any
+        A label for the third leg. Must support comparison operations.
+    leg4 : any
+        A label for the fourth leg. Must support comparison operations.
+
+    Returns
+    -------
+    any, any, any, any
+        canonical_leg_1, canonical_leg_2, canonical_leg_3, canonical_leg_4
+    """
+    # we dont need to see all legs because ordering is global
+    leg1, leg2, leg3, leg4 = sorted((leg1, leg2, leg3, leg4))
+    
+    return leg1, leg2, leg3, leg4

@@ -1143,3 +1143,15 @@ def plot_P_matrix(P_mat,
     plt.savefig(f"{file_name}.pdf")
     plt.clf()
     plt.close()
+
+def get_4pt_sn_term_type(split1, split2, split3, split4):
+    """Get a term type (ssss, ssnn, nnss, nnnn) from split strings"""
+    if split1 == 's' and split2 == 's' and split3 == 's' and split4 == 's':
+        term = 'ssss'
+    elif split1 == 's' and split2 == 's' and 'n' in split3 and 'n' in split4:
+        term = 'ssnn'
+    elif 'n' in split1 and 'n' in split2 and split3 == 's' and split4 == 's':
+        term = 'nnss'
+    elif 'n' in split1 and 'n' in split2 and 'n' in split3 and 'n' in split4:
+        term = 'nnnn' 
+    return term  
