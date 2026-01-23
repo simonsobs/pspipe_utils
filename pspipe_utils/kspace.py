@@ -79,7 +79,8 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
         return kspace_matrix
 
 
-def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dict, binning_file, lmax):
+def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dict, binning_file, lmax,
+                                          binmethod='harmonic'):
     """This function compute the analytical kspace filter transfer matrices
     
     Parameters
@@ -99,6 +100,11 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
       a binning file with format bin low, bin high, bin mean
     lmax: int
         the maximum multipole to consider
+    binmethod : str
+        If 'harmonic', use so_map_preprocessing.analytical_std_tf, which calculates
+        the tf analytically per ell and then bins. If 'fourier', then use the old
+        method, so_map_preprocessing.analytical_tf, which calculates the tf
+        by brute-force binning in Fourier space.
     """
     
     _, _, lb, _ = pspy_utils.read_binning_file(binning_file, lmax)
@@ -107,8 +113,16 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
     transfer_func = {}
     kf_tfs = {}
     for sv in surveys:
-        filter_sv = get_kspace_filter(templates[sv], filter_dict[sv])
-        _, kf_tfs[sv] = so_map_preprocessing.analytical_tf(templates[sv], filter_sv, binning_file, lmax)
+        if binmethod == 'harmonic':
+            shape, wcs = templates[sv].data.geometry
+            assert filter_dict[sv]["type"] == "binary_cross", \
+                f'filter must be binary cross, got {filter_dict[sv]["type"]}'
+            vk_mask = filter_dict[sv].get('vk_mask')
+            hk_mask = filter_dict[sv].get('hk_mask')
+            _, kf_tfs[sv] = so_map_preprocessing.analytical_std_tf(shape, wcs, vk_mask, hk_mask, lmax, binning_file=binning_file)
+        if binmethod == 'fourier':
+            filter_sv = get_kspace_filter(templates[sv], filter_dict[sv])
+            _, kf_tfs[sv] = so_map_preprocessing.analytical_tf(templates[sv], filter_sv, binning_file, lmax)
 
     for sv1 in surveys:
         for sv2 in surveys:
