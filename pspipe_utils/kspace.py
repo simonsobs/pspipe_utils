@@ -1,6 +1,7 @@
 """
 Some utility functions for the kspace filter.
 """
+from itertools import combinations_with_replacement as cwr
 from pspy import so_spectra, so_map, so_map_preprocessing, pspy_utils
 import numpy as np
 
@@ -78,9 +79,61 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
     else:
         return kspace_matrix
 
+def build_analytic_kspace_filter_diag(sv1, sv2, lmax, templates, filter_dicts,
+                                      dtype=np.float64, binning_file=None):
+    """Get the analytic kspace filter (binned or unbinned) for two surveys,
+    given a dictionary of survey geometries and their filters.
 
-def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dict, binning_file, lmax,
-                                          binmethod='harmonic'):
+    Parameters
+    ----------
+    sv1 : str
+        The first survey.
+    sv2 : str
+        The second survey
+    lmax : int
+        Maximum multipole of the filter.
+    templates : dict
+        A dictionary for each survey pointing to an so_map.so_map object giving
+        the geometry of that survey.
+    filter_dicts : dict
+        A dictionary pointing to another dictionary of kspace filter info. Keys
+        are surveys, but does not have to be every survey (equivalent to 
+        filter_dicts[sv] = None if sv not in filter_dicts).
+    dtype : np.dtype, optional
+        dtype of output array, by default np.float64.
+    binning_file : path-like, optional
+        If supplied, apply this binning with 2l+1 weights, by default None.
+
+    Returns
+    -------
+    (x, tf)
+        The ell (or binned-ell) points, and the value of the function at those 
+        points.
+    """
+    geometry_sv1 = templates[sv1].data.geometry
+    geometry_sv2 = templates[sv2].data.geometry
+    geometries = (geometry_sv1, geometry_sv2)
+    
+    vk_masks = []
+    hk_masks = []
+    geometries_to_filt = [] 
+    for i, filter_dict_sv in enumerate((filter_dicts.get(sv1), filter_dicts.get(sv2))):
+        if filter_dict_sv is not None:
+            assert filter_dict_sv["type"] == "binary_cross", \
+                f'filter must be binary cross, got {filter_dict_sv["type"]}'
+            
+            vk_masks.append(filter_dict_sv.get('vk_mask'))
+            hk_masks.append(filter_dict_sv.get('hk_mask'))
+            geometries_to_filt.append(i)
+
+    return so_map_preprocessing.analytical_std_tf(
+        lmax, vk_masks=vk_masks, hk_masks=hk_masks, geometries=geometries,
+        geometries_to_filt=geometries_to_filt, dtype=dtype, 
+        binning_file=binning_file
+        )    
+
+def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dicts, binning_file, lmax,
+                                          method='new'):
     """This function compute the analytical kspace filter transfer matrices
     
     Parameters
@@ -100,45 +153,30 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
       a binning file with format bin low, bin high, bin mean
     lmax: int
         the maximum multipole to consider
-    binmethod : str
-        If 'harmonic', use so_map_preprocessing.analytical_std_tf, which calculates
-        the tf analytically per ell and then bins. If 'fourier', then use the old
-        method, so_map_preprocessing.analytical_tf, which calculates the tf
-        by brute-force binning in Fourier space.
-    """
-    
-    _, _, lb, _ = pspy_utils.read_binning_file(binning_file, lmax)
-    n_bins = len(lb)
-    
+    """    
     transfer_func = {}
-    kf_tfs = {}
-    for sv in surveys:
-        if binmethod == 'harmonic':
-            shape, wcs = templates[sv].data.geometry
-            assert filter_dict[sv]["type"] == "binary_cross", \
-                f'filter must be binary cross, got {filter_dict[sv]["type"]}'
-            vk_mask = filter_dict[sv].get('vk_mask')
-            hk_mask = filter_dict[sv].get('hk_mask')
-            _, kf_tfs[sv] = so_map_preprocessing.analytical_std_tf(shape, wcs, vk_mask, hk_mask, lmax, binning_file=binning_file)
-        if binmethod == 'fourier':
-            filter_sv = get_kspace_filter(templates[sv], filter_dict[sv])
+    if method == 'new':
+        for sv1, sv2 in cwr(surveys, 2):
+            _, tfb = build_analytic_kspace_filter_diag(sv1, sv2, lmax, templates, filter_dicts, binning_file)
+            transfer_func[sv1, sv2] = tfb       
+    
+    if method == 'old':
+        kf_tfs = {}
+        for sv in surveys:                
+            filter_sv = get_kspace_filter(templates[sv], filter_dicts[sv])
             _, kf_tfs[sv] = so_map_preprocessing.analytical_tf(templates[sv], filter_sv, binning_file, lmax)
 
-    for sv1 in surveys:
-        for sv2 in surveys:
-            transfer_func[sv1, sv2] = np.minimum(kf_tfs[sv1], kf_tfs[sv2])
+        for sv1 in surveys:
+            for sv2 in surveys:
+                transfer_func[sv1, sv2] = np.minimum(kf_tfs[sv1], kf_tfs[sv2])
 
     transfer_mat = {}
-    for id_sv1, sv1 in enumerate(surveys):
-        for id_ar1, ar1 in enumerate(arrays[sv1]):
-            for id_sv2, sv2 in enumerate(surveys):
-                for id_ar2, ar2 in enumerate(arrays[sv2]):
-                    # This ensures that we do not repeat redundant computations
-                    if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
-                    if  (id_sv1 > id_sv2) : continue
-                    transfer_mat[f"{sv1}_{ar1}x{sv2}_{ar2}"] = np.zeros((9 * n_bins, 9 * n_bins))
-                    diag = np.tile(transfer_func[sv1, sv2], 9)
-                    np.fill_diagonal(transfer_mat[f"{sv1}_{ar1}x{sv2}_{ar2}"], diag)
+    mapnames = [f'{sv}_{m}' for sv in surveys for m in arrays[sv]]
+    for mapname1, mapname2 in cwr(mapnames, 2): # like spec_name_list
+        sv1 = mapname1.split('_')[0]
+        sv2 = mapname2.split('_')[0]
+        diag = np.tile(transfer_func[sv1, sv2], 9)
+        transfer_mat[f"{mapname1}x{mapname2}"] = np.diag(diag)
 
     return transfer_mat
 
