@@ -157,7 +157,8 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
     transfer_func = {}
     if method == 'new':
         for sv1, sv2 in cwr(surveys, 2):
-            _, tfb = build_analytic_kspace_filter_diag(sv1, sv2, lmax, templates, filter_dicts, binning_file)
+            _, tfb = build_analytic_kspace_filter_diag(sv1, sv2, lmax, templates, filter_dicts,
+                                                       dtype=np.float64, binning_file=binning_file)
             transfer_func[sv1, sv2] = tfb       
     
     if method == 'old':
@@ -171,10 +172,10 @@ def build_analytic_kspace_filter_matrices(surveys, arrays, templates, filter_dic
                 transfer_func[sv1, sv2] = np.minimum(kf_tfs[sv1], kf_tfs[sv2])
 
     transfer_mat = {}
-    mapnames = [f'{sv}_{m}' for sv in surveys for m in arrays[sv]]
-    for mapname1, mapname2 in cwr(mapnames, 2): # like spec_name_list
-        sv1 = mapname1.split('_')[0]
-        sv2 = mapname2.split('_')[0]
+    mapname_tuples = [(sv, m) for sv in surveys for m in arrays[sv]] # to avoid unsafe mapname.split('_')[0]
+    for (sv1, m1), (sv2, m2) in cwr(mapname_tuples, 2): # like spec_name_list
+        mapname1 = f'{sv1}_{m1}'
+        mapname2 = f'{sv2}_{m2}'
         diag = np.tile(transfer_func[sv1, sv2], 9)
         transfer_mat[f"{mapname1}x{mapname2}"] = np.diag(diag)
 
