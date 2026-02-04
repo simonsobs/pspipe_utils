@@ -711,6 +711,12 @@ class NoiseModel:
                         ivar = enmap.extract(ivar, *mask_obs_dg1.geometry)
                         sqrt_ivar[i, 0] = np.sqrt(ivar).astype(self._dtype, copy=False)
                     
+                    # NOTE: super important to mask sqrt_ivar by mask_obs, since
+                    # we are high pass filtering it later, any crazy pixels at
+                    # the edge will ring like crazy. if mask_obs isn't good
+                    # enough, this will still happen, so it's always important
+                    # to look at the sims
+                    sqrt_ivar *= mask_obs_dg1
                     m_nm.cache_data('sqrt_ivar', sqrt_ivar, split_num=s, downgrade=1)
                 
                     # get cov_ell for model facs 
