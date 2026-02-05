@@ -3,6 +3,7 @@ from pspipe_utils import misc
 import numpy as np
 import pylab as plt
 from pspy import pspy_utils, so_cov, so_spectra
+from pspipe_utils import pspipe_list
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
@@ -1155,3 +1156,101 @@ def get_4pt_sn_term_type(split1, split2, split3, split4):
     elif 'n' in split1 and 'n' in split2 and 'n' in split3 and 'n' in split4:
         term = 'nnnn' 
     return term  
+
+def TEB2pol(TEB):
+    """'T' -> 'T', 'E' or 'B' -> 'pol'"""
+    if TEB == 'T':
+        return 'T'
+    elif TEB in ('E', 'B'):
+        return 'pol'
+    else:
+        raise ValueError('Only valid strs are T, E, or B')
+    
+def get_can_discon_com_4pt(snf1, snf2, snf3, snf4,
+                           canonized_sn_field_info2canonized_disconnected_combo_4pt,
+                           reference_sn_field_info2reference_canonized_disconnected_combo_4pt=None):
+    """Based on an *ordered* combination of four field legs, get the 
+    *canonized disconnected* combination of their four effective window paths.
+
+    Parameters
+    ----------
+    snf1-4 : (sv1, m1, pol1, split1) tuple
+        The survey, mapname, pol (T or pol), and split (s, n{i}) strings for 
+        each leg.
+    canonized_sn_field_info2canonized_disconnected_combo_4pt : dict
+        A mapping from four canonized (disconnected) snfs to their exact
+        effective window combination
+    reference_sn_field_info2reference_canonized_disconnected_combo_4pt : dict, optional
+        As above, but instead maps to a "reference" effective window combination.
+        The canonized_sn_field_info must be in *exactly one* of the two dicts.
+
+    Returns
+    -------
+    (ew1, ew2, ew3, ew4)
+        Four effective windows (tuples of one or two string paths) for the 
+        canonized (disconnected) fields. Due to canonization, the 1, 2, 3, 4
+        order has no relationship to the input snf 1, 2, 3, 4 order.
+    """
+    if reference_sn_field_info2reference_canonized_disconnected_combo_4pt is None:
+        reference_sn_field_info2reference_canonized_disconnected_combo_4pt = {}
+
+    sv1, m1, pol1, split1 = snf1
+    sv2, m2, pol2, split2 = snf2
+    sv3, m3, pol3, split3 = snf3
+    sv4, m4, pol4, split4 = snf4
+    can_sn_field_info = pspipe_list.canonize_disconnected_4pt(snf1, snf2, snf3, snf4)
+    can = can_sn_field_info in canonized_sn_field_info2canonized_disconnected_combo_4pt
+
+    ref_split1, ref_split2, ref_split3, ref_split4 = get_4pt_sn_term_type(split1, split2, split3, split4)
+    ref_snf1 = (sv1, m1, pol1, ref_split1)
+    ref_snf2 = (sv2, m2, pol2, ref_split2)
+    ref_snf3 = (sv3, m3, pol3, ref_split3)
+    ref_snf4 = (sv4, m4, pol4, ref_split4)
+    ref_sn_field_info = (ref_snf1, ref_snf2, ref_snf3, ref_snf4)
+    ref = ref_sn_field_info in reference_sn_field_info2reference_canonized_disconnected_combo_4pt
+
+    if can and ref:
+        raise ValueError(
+            f'For sn_field_info {snf1, snf2, snf3, snf4}, the possible reference disconnected '
+            f'sn_field_info {ref_sn_field_info} is in '
+            'reference_sn_field_info2reference_canonized_disconnected_combo_4pt '
+            f'and canonized disconnected sn_field_info {can_sn_field_info} is in '
+            'canonized_sn_field_info2canonized_disconnected_combo_4pt'
+            )        
+
+    if can:
+        can_discon_com_4pt = canonized_sn_field_info2canonized_disconnected_combo_4pt[can_sn_field_info]
+    if ref:
+        can_discon_com_4pt = reference_sn_field_info2reference_canonized_disconnected_combo_4pt[ref_sn_field_info]
+    
+    return can_discon_com_4pt
+
+# NOTE: this function is insensitive to disconnected 4pt canonization
+def pols_disconnected_combo_4pt2ducc_optype(pol1, pol2, pol3, pol4,
+                                            cov_spin00_coupling_only=False):
+    """Get the spin-flavor of the coupling matrix for these four *ordered*
+    pol legs.
+
+    Parameters
+    ----------
+    pol1-4 : 'T' or 'pol'
+        'T' or 'pol' for each leg.
+    cov_spin00_coupling_only : bool, optional
+        If True, all possibilities map to 0, by default False.
+
+    Returns
+    -------
+    int
+        The optype for ducc couplings, where 0 means 00 coupling, 1 means 02
+        coupling, and 2 means ++ coupling.
+    """
+    if cov_spin00_coupling_only:
+        return 0 
+    else:
+        spin2_1 = int(pol1 == 'pol' and pol2 == 'pol')
+        spin2_2 = int(pol3 == 'pol' and pol4 == 'pol')
+
+        # if 0, then the spintype is 00, which is ducc optype 0
+        # if 1, then the spintype is 02 (or 20), which is ducc optype 1
+        # if 2, then the spintype is ++, which is ducc optype 2
+        return spin2_1 + spin2_2
