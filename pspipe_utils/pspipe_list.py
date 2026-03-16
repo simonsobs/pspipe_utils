@@ -9,19 +9,19 @@ import numpy as np
 
 def get_windownames_list(dict):
     """Get the unique window names from the paramdict."""
-    windownames = set()
+    windownames = []
     windowkey_pattern = 'window_(T|pol|kspace)'
     windowname_pattern = 'window_(.*)_(kspace|baseline)'
     for k, v in dict.items():
-        match_key = re.search(windowkey_pattern, k)
-        if match_key is not None:
-            windowname_text = os.path.splitext(os.path.basename(v))[0] # e.g. 'window_lat_iso_i1_kspace'
+        if re.search(windowkey_pattern, k):
+            windowname_text = os.path.splitext(os.path.basename(v))[0]
             match_val = re.search(windowname_pattern, windowname_text)
             if match_val is None:
                 raise ValueError(f"paramfile key {k} matches 'window_(T|pol|kspace)' but value {v} does not match 'window_(.*)_(kspace|baseline)'")
             windowname = match_val.group(1)
-            windownames.add(windowname) # add item already in set to set does nothing
-    return len(windownames), list(windownames) # do set-to-list only once
+            if windowname not in windownames:
+                windownames.append(windowname)
+    return len(windownames), windownames
 
 def get_arrays_list(dict):
     """This function creates the lists over which mpi is done
