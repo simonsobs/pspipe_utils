@@ -1,4 +1,34 @@
 # Utilities for making sense of information in paramfiles a.k.a. paramdicts
+import re
+import os
+
+def get_winname_from_map(d, m, polstr):
+    """Get the name of a window (e.g., "union" or "intersect") from the map
+    info. and the polarization string ('T' or 'pol').
+
+    Parameters
+    ----------
+    d : dict
+        The parsed parameter dictionary.
+    m : str
+        The map info, e.g. 'lat_iso_i1_f090' or 'dr6_pa5_f150'.
+    polstr : str
+        Either 'T' or 'pol', the requested window.
+
+    Returns
+    -------
+    str
+        The name of the window.
+    """
+    k = f'window_{polstr}_{m}'
+    v = d[k]
+
+    windowname_pattern = 'window_(.*)_baseline'
+    windowname_text = os.path.splitext(os.path.basename(v))[0]
+    match_val = re.search(windowname_pattern, windowname_text)
+    if match_val is None:
+        raise ValueError(f"paramfile key {k} matches 'window_(T|pol|kspace)' but value {v} does not match 'window_(.*)_(kspace|baseline)'")
+    return match_val.group(1)
 
 def get_noise_model_tags_to_noise_model_infos(d):
     """Get a dictionary that maps "noise model tags" to the information for that
