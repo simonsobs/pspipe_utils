@@ -6,6 +6,7 @@ from copy import deepcopy
 import numpy as np
 import sacc
 from pspy import pspy_utils, so_spectra, so_cov
+import h5py
 
 
 def port2sacc(
@@ -225,3 +226,81 @@ def load_ps_and_err(spec_name, spec_dir, cov_dir, cov_type_list, spectra, type, 
         return l, ps, err, full_cov
     else:
         return l, ps, err
+
+
+def _save_h5py_dict(h5group, dic):
+    """
+    Recursively save a nested dictionary into an HDF5 group.
+
+    Parameters
+    ----------
+    h5group : h5py.Group
+        HDF5 group where the dictionary should be saved.
+    dic : dict
+        Nested dictionary to save.
+        - dict values → create subgroup
+        - array-like, number, string → create dataset
+    """
+    for k, v in dic.items():
+        if isinstance(v, dict):
+            subgroup = h5group.create_group(k)
+            _save_h5py_dict(subgroup, v)
+        else:
+            h5group.create_dataset(k, data=v)
+
+
+def save_hdf5(filename, data):
+    """
+    Save a nested dictionary to an HDF5 file.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the HDF5 file to create.
+    data : dict
+        Nested dictionary to save.
+    """
+    with h5py.File(filename, "w") as f:
+        _save_h5py_dict(f, data)
+
+def _load_hdf5_dict(item):
+    """
+    Recursively load an HDF5 group into a nested dictionary.
+
+    Parameters
+    ----------
+    item : h5py.Group or h5py.Dataset
+        HDF5 group or dataset to load.
+
+    Returns
+    -------
+    dict or numpy.ndarray
+        - dict if item is a group
+        - dataset value if item is a dataset
+    """
+    if isinstance(item, h5py.Dataset):
+        value = item[()]
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        return value
+    else:  # Group
+        return {k: _load_hdf5_dict(v) for k, v in item.items()}
+
+def load_hdf5(filename, path="/"):
+    """
+    Load data from an HDF5 file.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the HDF5 file.
+    path : str, optional
+        Path inside the HDF5 file to load (default is root "/").
+
+    Returns
+    -------
+    dict or numpy.ndarray
+        Nested dictionary if path points to a group, dataset value otherwise.
+    """
+    with h5py.File(filename, "r") as f:
+        return _load_hdf5_dict(f[path])
