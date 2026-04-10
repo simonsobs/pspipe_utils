@@ -228,25 +228,97 @@ def load_ps_and_err(spec_name, spec_dir, cov_dir, cov_type_list, spectra, type, 
         return l, ps, err
 
 
+def _normalize_key(obj: Any) -> Any:
+    """
+    Normalize key types for consistency.
+
+    Converts NumPy scalar strings to Python strings and applies
+    recursively to tuples.
+
+    Parameters
+    ----------
+    obj : object
+
+    Returns
+    -------
+    object
+    """
+    if isinstance(obj, np.str_):
+        return str(obj)
+    elif isinstance(obj, tuple):
+        return tuple(_normalize_key(x) for x in obj)
+    return obj
+
+
+def _encode_key(key: Any) -> str:
+    """
+    Encode a Python key into an HDF5-compatible string.
+
+    Parameters
+    ----------
+    key : object
+
+    Returns
+    -------
+    str
+    """
+    key = _normalize_key(key)
+
+    if isinstance(key, tuple):
+        return "__tuple__" + repr(key)
+    elif isinstance(key, (str, bytes)):
+        return key
+    else:
+        return "__other__" + repr(key)
+
+
+def _decode_key(key: Union[str, bytes]) -> Any:
+    """
+    Decode an HDF5 key string to its original Python object.
+
+    Parameters
+    ----------
+    key : str or bytes
+
+    Returns
+    -------
+    object
+    """
+    if isinstance(key, bytes):
+        key = key.decode("utf-8")
+
+    if key.startswith("__tuple__"):
+        return ast.literal_eval(key[len("__tuple__"):])
+    elif key.startswith("__other__"):
+        return ast.literal_eval(key[len("__other__"):])
+    return key
+
+
 def _save_h5py_dict(h5group, dic):
     """
-    Recursively save a nested dictionary into an HDF5 group.
+    Recursively save a dictionary into an HDF5 group.
 
     Parameters
     ----------
     h5group : h5py.Group
-        HDF5 group where the dictionary should be saved.
+        Target HDF5 group.
     dic : dict
-        Nested dictionary to save.
-        - dict values → create subgroup
-        - array-like, number, string → create dataset
+        Dictionary to store.
+
+    Notes
+    -----
+    - Nested dictionaries are stored as subgroups.
+    - Non-dictionary values are stored as datasets.
+    - Keys are encoded to ensure HDF5 compatibility.
     """
     for k, v in dic.items():
+        k_enc = _encode_key(k)
+
         if isinstance(v, dict):
-            subgroup = h5group.create_group(k)
+            subgroup = h5group.create_group(k_enc)
             _save_h5py_dict(subgroup, v)
         else:
-            h5group.create_dataset(k, data=v)
+            h5group.create_dataset(k_enc, data=v)
 
 
 def save_hdf5(filename, data):
@@ -256,35 +328,48 @@ def save_hdf5(filename, data):
     Parameters
     ----------
     filename : str
-        Path to the HDF5 file to create.
+        Path to the output file.
     data : dict
-        Nested dictionary to save.
+        Dictionary to save.
+
+    Notes
+    -----
+    - Supports tuple and non-string keys.
+    - Keys are encoded internally for HDF5 compatibility.
     """
     with h5py.File(filename, "w") as f:
         _save_h5py_dict(f, data)
 
 def _load_hdf5_dict(item):
     """
-    Recursively load an HDF5 group into a nested dictionary.
+    Recursively load an HDF5 object into Python structures.
 
     Parameters
     ----------
     item : h5py.Group or h5py.Dataset
-        HDF5 group or dataset to load.
+        HDF5 object to load.
 
     Returns
     -------
-    dict or numpy.ndarray
-        - dict if item is a group
-        - dataset value if item is a dataset
+    dict or numpy.ndarray or scalar
+        Loaded data.
+
+    Notes
+    -----
+    - Groups are converted to dictionaries.
+    - Dataset values are returned directly.
+    - Byte strings are decoded to UTF-8.
     """
     if isinstance(item, h5py.Dataset):
         value = item[()]
         if isinstance(value, bytes):
             value = value.decode("utf-8")
         return value
-    else:  # Group
-        return {k: _load_hdf5_dict(v) for k, v in item.items()}
+
+    result = {}
+    for k, v in item.items():
+        k_dec = _decode_key(k)
+
 
 def load_hdf5(filename, path="/"):
     """
@@ -294,13 +379,35 @@ def load_hdf5(filename, path="/"):
     ----------
     filename : str
         Path to the HDF5 file.
-    path : str, optional
-        Path inside the HDF5 file to load (default is root "/").
+    path : str or object, optional
+        Path inside the file. Default is "/".
+
+        Accepted forms:
+        - "/" : root group
+        - str : direct HDF5 key
+        - tuple or other object : automatically encoded
+        - str representing a Python literal : parsed and encoded
 
     Returns
     -------
-    dict or numpy.ndarray
-        Nested dictionary if path points to a group, dataset value otherwise.
+    dict or numpy.ndarray or scalar
+        Loaded data.
+
+    Notes
+    -----
+    - Keys are automatically decoded to their original Python types.
+    - Uses `ast.literal_eval` for safe parsing of string paths.
     """
     with h5py.File(filename, "r") as f:
+
+        if path != "/":
+            if not isinstance(path, (str, bytes)):
+                path = _encode_key(path)
+            else:
+                try:
+                    parsed = ast.literal_eval(path)
+                    path = _encode_key(parsed)
+                except Exception:
+                    pass
+
         return _load_hdf5_dict(f[path])
