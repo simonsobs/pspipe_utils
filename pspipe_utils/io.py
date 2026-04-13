@@ -7,7 +7,8 @@ import numpy as np
 import sacc
 from pspy import pspy_utils, so_spectra, so_cov
 import h5py
-
+import ast
+from typing import Any, Dict, Union
 
 def port2sacc(
     data_vec,
@@ -369,8 +370,10 @@ def _load_hdf5_dict(item):
     result = {}
     for k, v in item.items():
         k_dec = _decode_key(k)
+        result[k_dec] = _load_hdf5_dict(v)
 
-
+    return result
+    
 def load_hdf5(filename, path="/"):
     """
     Load data from an HDF5 file.
