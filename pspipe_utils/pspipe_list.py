@@ -44,7 +44,7 @@ def get_arrays_list(dict):
             n_arrays += 1
     return n_arrays, sv_list, ar_list
 
-def get_spectra_list(dict):
+def get_spectra_list(dict, ignore_combination_args=False):
     """This function creates the lists over which mpi is done
     when we parallelized over each spectra
     If combinations_infos appears in the paramfile, precompute the list of skipped computations
@@ -52,12 +52,13 @@ def get_spectra_list(dict):
     "skip": skips all combinations of sv1 with sv2
     "tube": skips all combinations except with same tube (using tags_sv*_ar*)
     "freq": skips all combinations except with same freq (using tags_sv*_ar*)
+    ["tube", "freq"]: skips all combinations that have different tube AND freq tags
     "smthg": skips all combinations except with same "smthg" (using tags_sv*_ar*)
     "tube" and "freq" are used by convention but you can put anything, 
     as long as it appears in tags_sv*_ar*.
     If the list is empty, then it will skip everything (like "skip").
-    To not skip anything, d["comibations_infos"][sv1, sv2] must be None
-    or [sv1, sv2] must not appear in d["comibations_infos"].
+    To not skip anything, d["combiations_infos"][sv1, sv2] must be None
+    or [sv1, sv2] must not appear in d["combiations_infos"].
     
     Parameters
     ----------
@@ -86,7 +87,12 @@ def get_spectra_list(dict):
                 for id_ar2, ar2 in enumerate(arrays_2):
                     if  (id_sv1 > id_sv2) : continue
                     if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
-                    if ('combination_args' not in dict) or (check_combination(sv1, ar1, sv2, ar2, dict['combination_args'][(sv1, sv2)])):
+                    if (
+                        ignore_combination_args 
+                        or ('combination_args' not in dict) 
+                        or (sv1, sv2) not in dict['combination_args'].keys()
+                        or check_combination(sv1, ar1, sv2, ar2, dict['combination_args'][(sv1, sv2)])
+                    ):
                         # This ensures that we do not repeat redundant computations
                         sv1_list += [sv1]
                         ar1_list += [ar1]
@@ -96,7 +102,7 @@ def get_spectra_list(dict):
 
     return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
-def get_covariances_list(dict, delimiter="&"):
+def get_covariances_list(dict, delimiter="&"):  # TODO: Make it skip stuff not computed by get_spectra_list ?
     """This function creates the lists over which mpi is done
     when we parallelized over each covariance element
 
@@ -124,7 +130,7 @@ def get_covariances_list(dict, delimiter="&"):
 
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, delimiter="&"):
+def get_spec_name_list(dict, delimiter="&", ignore_combination_args=False):
     """This function creates a list with the name of all spectra we consider
 
     Parameters
@@ -136,7 +142,7 @@ def get_spec_name_list(dict, delimiter="&"):
     """
 
     spec_name_list = []
-    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict)
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, ignore_combination_args=ignore_combination_args)
     for sv1, ar1, sv2, ar2 in zip(sv1_list, ar1_list, sv2_list, ar2_list):
         spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
 
