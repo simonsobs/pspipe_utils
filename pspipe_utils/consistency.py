@@ -429,9 +429,10 @@ def get_ps_and_cov_dict(ar_list,
 
 def compute_ps_and_cov_ratio(ps_dict,
                              cov_dict,
-                             spec_list):
+                             spec_list,
+                             snr_threshold=3):
     """
-    Compute the ratio between two power spectra
+    Compute the ratio between two power spectra (XY / WZ)
     and the associated covariance matrix.
 
     Parameters
@@ -445,7 +446,7 @@ def compute_ps_and_cov_ratio(ps_dict,
     XY, WZ = spec_list
 
     snr = ps_dict[WZ] / np.sqrt(cov_dict[WZ, WZ].diagonal())
-    snr_cut = np.where(snr >= 3)[0]
+    snr_cut = np.where(snr >= snr_threshold)[0]
 
     bias = cov_dict[WZ, WZ] / np.outer(ps_dict[WZ], ps_dict[WZ])
     try:

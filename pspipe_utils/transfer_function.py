@@ -100,14 +100,32 @@ def tf_model(ell, aa, bb, cc, method="logistic"):
 
     if method == "logistic":
         tf = aa / (1 + bb * np.exp(-cc * ell))
+        
+    if method == "logistic2":
+        tf = aa / (1 + np.exp(-(ell - bb) / cc))
+
+    if method == "lorentz":
+        tf = (1 - (1 - aa) / (1 + (ell / bb)**cc))
+    
+    if method == "broken":
+        tf = np.minimum(cc*ell + bb, np.full_like(ell, aa))
+        
+    if method == "soft":
+        base_id = 8
+        base = 10**base_id
+        tf = - np.emath.logn(base, base**(- (cc*ell + bb)) + base**(np.full_like(ell, - aa)))
+        
+    if method == "detau":
+        tf = 1 - aa * np.exp(ell / bb + cc)
 
     return tf
 
-def fit_tf(lb, tf_est, tf_cov, prior_dict, chain_name, method="logistic", fixed_amp=False):
+def fit_tf(lb, tf_est, tf_cov, prior_dict, chain_name, method="logistic", fixed_amp=False, no_mpi=False):
 
+    tf_cov_inv = np.linalg.inv(tf_cov)
     def loglike(aa, bb, cc):
         res = tf_est - tf_model(lb, aa, bb, cc, method=method)
-        chi2 = res @ np.linalg.inv(tf_cov) @ res
+        chi2 = res @ tf_cov_inv @ res
         return -0.5 * chi2
 
     info = {"likelihood": {
@@ -134,7 +152,7 @@ def fit_tf(lb, tf_est, tf_cov, prior_dict, chain_name, method="logistic", fixed_
     if fixed_amp:
         info["params"]["aa"] = 1.0
 
-    updated_info, sampler = run(info)
+    updated_info, sampler = run(info, no_mpi=no_mpi)
 
 def get_parameter_mean_and_std(chain_name, pars):
 
@@ -145,11 +163,62 @@ def get_parameter_mean_and_std(chain_name, pars):
 
     return mean, np.sqrt(cov.diagonal())
 
-def get_tf_bestfit(ell, chain_name, method="logistic"):
+def get_tf_bestfit(ell, chain_name, method="logistic", fixed_amp=False):
 
-    mu, _ = get_parameter_mean_and_std(chain_name, ["aa", "bb", "cc"])
-    aa, bb, cc = mu
+    if not fixed_amp:
+        mu, _ = get_parameter_mean_and_std(chain_name, ["aa", "bb", "cc"])
+        aa, bb, cc = mu
+    else:
+        mu, _ = get_parameter_mean_and_std(chain_name, ["bb", "cc"])
+        aa, bb, cc = 1, *mu
 
     tf = tf_model(ell, aa, bb, cc, method=method)
 
     return tf
+
+
+prior_dict = {}
+
+prior_dict["aa", "logistic"] = {"min": 0, "max": 5}
+prior_dict["bb", "logistic"] = {"min": 0, "max": 1}
+prior_dict["cc", "logistic"] = {"min": 0, "max": 1}
+
+prior_dict["aa", "logistic2"] = {"min": 0, "max": 5}
+prior_dict["bb", "logistic2"] = {
+    "dist": "norm",
+    "loc": 0.,
+    "scale": 300,
+}
+prior_dict["cc", "logistic2"] = {"min": 1, "max": 1000}
+
+prior_dict["aa", "beta"] = {"min": 0, "max": 1}
+prior_dict["bb", "beta"] = {"min": 100, "max": 1500}
+prior_dict["cc", "beta"] = {"min": 0, "max": 5}
+
+prior_dict["aa", "sigurd2"] = {"min": 0, "max": 5}
+prior_dict["bb", "sigurd2"] = {"min": 0, "max": 5}
+prior_dict["cc", "sigurd2"] = {"min": 30, "max": 850}
+
+prior_dict["aa", "sigurd"] = {"min": 0, "max": 5}
+prior_dict["bb", "sigurd"] = {"min": 0, "max": 5}
+prior_dict["cc", "sigurd"] = {"min": 30, "max": 850}
+
+prior_dict["aa", "thib"] = {"min": 0, "max": 5}
+prior_dict["bb", "thib"] = {"min": 10, "max": 1000}
+prior_dict["cc", "thib"] = {"min": 10, "max": 1000}
+
+prior_dict["aa", "lorentz"] = {"min": 0, "max": 5}
+prior_dict["bb", "lorentz"] = {"min": 0, "max": 700}
+prior_dict["cc", "lorentz"] = {"min": 0, "max": 5}
+
+prior_dict["aa", "broken"] = {"min": 0, "max": 5}
+prior_dict["bb", "broken"] = {"min": 0, "max": 1.}
+prior_dict["cc", "broken"] = {"min": 0, "max": .002}
+
+prior_dict["aa", "soft"] = {"min": 0, "max": 5}
+prior_dict["bb", "soft"] = {"min": 0, "max": 2.}
+prior_dict["cc", "soft"] = {"min": 0, "max": .01}
+
+prior_dict["aa", "detau"] = {"min": 0, "max": 5}
+prior_dict["bb", "detau"] = {"min": 0, "max": 100}
+prior_dict["cc", "detau"] = {"min": 100, "max": 600}
