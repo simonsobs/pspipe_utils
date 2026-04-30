@@ -426,6 +426,76 @@ def get_ps_and_cov_dict(ar_list,
 
     return ps_dict, cov_dict
 
+def get_nulls_ps_and_cov_dict(null_list,
+                        ps_template,
+                        cov_template,
+                        spectra_order=["TT", "TE", "ET", "EE"],
+                        skip_auto=False):
+    """
+    Load power spectra and covariances for
+    arrays listed in `ar_list`.
+
+    Parameters
+    ----------
+    ar_list: 1d array [str]
+        List of the arrays we want to use
+    ps_template: str
+        Template for the name of the power spectra files
+        ex : "spectra/Dl_{}x{}_cross.dat"
+    cov_template: str
+        Template for the name of the covariance files
+        ex : "covariances/analytic_cov_{}x{}_{}x{}.npy"
+    spectra_order: list
+    skip_auto: bool
+    """
+    ps_dict = {}
+    cov_dict = {}
+
+    spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+    ps_dict = {}
+    cov_dict = {}
+    
+    for spec, svar1, svar2, svar3, svar4 in null_list:
+        
+        if (svar1, svar2, spec) not in ps_dict:
+            ps_file = ps_template.format(svar1, svar2)
+            lb, ps = so_spectra.read_ps(ps_file, spectra = spectra) # FIXME: not optimal, will load this for every spectrum
+            ps_dict |= {(svar1, svar2, m): ps[m] for m in spectra}
+            
+        if (svar3, svar4, spec) not in ps_dict:
+            ps_file = ps_template.format(svar3, svar4)
+            lb, ps = so_spectra.read_ps(ps_file, spectra = spectra)
+            ps_dict |= {(svar3, svar4, m): ps[m] for m in spectra}
+        
+        if ((svar1, svar2, spec), (svar3, svar4, spec)) not in cov_dict:
+            try: 
+                cov_file = cov_template.format(svar1, svar2, svar3, svar4)
+                cov = np.load(cov_file)
+            except FileNotFoundError:
+                cov_file = cov_template.format(svar3, svar4, svar1, svar2)
+                cov = np.load(cov_file)
+            except:
+                raise FileNotFoundError(f'No cov found for {svar1}x{svar2}-{svar3}{svar4}')
+            
+            cov_dict |= {((svar1, svar2, m), (svar3, svar4, m)): so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m+m) for m in spectra}  # On s'en fout des XY WZ blocks nn ? (si XY!=WZ)
+            
+        # Also add 1x2_1x2 and 3x4_3x4 covs block
+        if ((svar1, svar2, spec), (svar1, svar2, spec)) not in cov_dict:
+            cov_file = cov_template.format(svar1, svar2, svar1, svar2)
+            cov = np.load(cov_file)
+
+            cov_dict |= {((svar1, svar2, m), (svar1, svar2, m)): so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m+m) for m in spectra}  # On s'en fout des XY WZ blocks nn ? (si XY!=WZ)
+        
+        if ((svar3, svar4, spec), (svar3, svar4, spec)) not in cov_dict:
+            cov_file = cov_template.format(svar3, svar4, svar3, svar4)
+            cov = np.load(cov_file)
+
+            cov_dict |= {((svar3, svar4, m), (svar3, svar4, m)): so_cov.selectblock(cov, spectra_order, n_bins=len(lb), block = m+m) for m in spectra}  # On s'en fout des XY WZ blocks nn ? (si XY!=WZ)
+        
+    ps_dict["ell"] = lb
+
+    return ps_dict, cov_dict
+
 
 def compute_ps_and_cov_ratio(ps_dict,
                              cov_dict,

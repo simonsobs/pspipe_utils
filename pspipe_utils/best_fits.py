@@ -75,6 +75,47 @@ def fg_dict_from_files(f_name_fg, map_set_list, lmax, spectra, lmin=2, f_name_cm
 
     return l_fg, fg_dict
 
+def fg_dict_from_files_and_spec_list(f_name_fg, spec_list, lmax, spectra, lmin=2, f_name_cmb=None):
+    """
+    create a fg power spectrum dict from files
+
+    Parameters
+    __________
+    f_name_fg: string
+      a template for the name of the fg power spectra files
+    spec_list: list
+      list of spectra as returned by get_spec_list
+    lmax: integer
+      the maximum multipole to consider (not inclusive)
+    spectra: list
+      the list of spectra ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
+    lmin: integer
+      the minimum multipole to consider
+    f_name_cmb: str
+      optionnaly include the cmb
+    """
+
+    if f_name_cmb is not None:
+        l_cmb, cmb_dict = cmb_dict_from_file(f_name_cmb, lmax, spectra, lmin)
+        
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = spec_list
+
+    fg_dict = {}
+    for sv1, ar1, sv2, ar2 in zip(sv1_list, ar1_list, sv2_list, ar2_list):
+        ms_1 = f"{sv1}_{ar1}"
+        ms_2 = f"{sv2}_{ar2}"
+        l_fg, fg = so_spectra.read_ps(f_name_fg.format(ms_1, ms_2), spectra=spectra)
+        id_fg = np.where((l_fg >= lmin) & (l_fg < lmax))
+        fg_dict[ms_1, ms_2] = {}
+        for spec in spectra:
+            fg_dict[ms_1, ms_2][spec] = fg[spec][id_fg]
+            if f_name_cmb is not None:
+                fg_dict[ms_1, ms_2][spec] += cmb_dict[spec]
+
+    l_fg = l_fg[id_fg]
+
+    return l_fg, fg_dict
+
 
 def noise_dict_from_files(f_name_noise, sv_list, arrays, lmax, spectra, n_splits=None, lmin=2):
     """
