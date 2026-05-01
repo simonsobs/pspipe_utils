@@ -22,7 +22,8 @@ def port2sacc(
     metadata=None,
     sacc_file_name="data_sacc.fits",
     log=None,
-):
+    binned_mcm = False
+    ):
     """
     This function computes the chi2 value between data/sim spectra wrt theory spectra given
     the data covariance and a set of multipole cuts
@@ -51,6 +52,8 @@ def port2sacc(
       the sacc file name
     log: logger
       the logger to print message (default gets back to logging library with debug level)
+    binned_mcm: boolean
+      whether data are binned or not
     """
 
     passbands = passbands or {}
@@ -111,10 +114,19 @@ def port2sacc(
         # Add Bbl
         bp_window = None
         if bbls is not None:
-            if (bbl := bbls.get(cross)) is None:
+            if (bbl_s := bbls.get(cross)) is None:
                 raise ValueError(f"Missing bbl for '{cross}' cross spectra!")
+            if not binned_mcm:
+                # if no binning, the bbl in the same for all spin combo
+                bbl = bbl_s
+            else:
+                # reading the bbl for the correct spin combo
+                spin = f"spin{tracer1[-1]}xspin{tracer2[-1]}"
+                bbl = bbl_s[spin]
+
             ls_w = np.arange(2, bbl.shape[-1] + 2)
             bp_window = sacc.BandpowerWindow(ls_w, bbl.T)
+
 
         log.debug(f"Adding '{cross}', {spec} spectrum as {data_type} {tracer1} {tracer2}")
 
