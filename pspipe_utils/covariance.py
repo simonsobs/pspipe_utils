@@ -3,7 +3,7 @@ from pspipe_utils import misc
 import numpy as np
 import pylab as plt
 from pspy import pspy_utils, so_cov, so_spectra
-from pspipe_utils import pspipe_list
+from pspipe_utils import pspipe_list, io
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
@@ -672,7 +672,8 @@ def read_x_ar_spectra_vec(spec_dir,
                           spec_name_list,
                           end_of_file,
                           spectra_order=["TT", "TE", "ET", "EE"],
-                          type="Dl"):
+                          type="Dl",
+                          file_extension = ".h5"):
 
 
     """
@@ -687,10 +688,12 @@ def read_x_ar_spectra_vec(spec_dir,
          path to the folder with the spectra
      end_of_file: str
          the str at the end of the spectra file
-    spectra_order: list of str
+     spectra_order: list of str
          the order of the spectra e.g  ["TT", "TE", "ET", "EE"]
      type: str
          the spectra type can be "Dl" or "Cl"
+     file_extension: str
+         file extension (whether ".h5" or ".dat")
      """
 
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
@@ -699,7 +702,26 @@ def read_x_ar_spectra_vec(spec_dir,
     for spec in spectra_order:
         for spec_name in spec_name_list:
             na, nb = spec_name.split("x")
-            lb, Db = so_spectra.read_ps(f"{spec_dir}/{type}_{spec_name}_{end_of_file}.dat", spectra=spectra)
+            if file_extension == ".dat":
+                lb, Db = so_spectra.read_ps(f"{spec_dir}/{type}_{spec_name}_{end_of_file}.dat", spectra=spectra)
+            if file_extension == ".h5":
+                # splitting the na and nb strings in the middle
+                # to separate survey and array
+                nastr = na.rsplit("_", 2)
+                nbstr = nb.rsplit("_", 2)
+                na_sv, nb_sv = nastr[0], nbstr[0]
+                # distinguish whether array is made of one string or two separated by _
+                if len(nastr[1:]) != 1:
+                    na_ar = "_".join(nastr[1:])
+                else:
+                    na_ar = nastr[1]
+                if len(nbstr[1:]) != 1:
+                    nb_ar = "_".join(nbstr[1:])
+                else:
+                    nb_ar = nbstr[1]
+
+                Db = io.load_hdf5(f"{spec_dir}/{type}_{end_of_file}.h5", path=f"(('{na_sv}', '{na_ar}'), ('{nb_sv}', '{nb_ar}'), 'cross')")
+
             if (spec == "ET" or spec == "BT" or spec == "BE") & (na == nb): continue
             data_vec = np.append(data_vec, Db[spec])
 

@@ -127,7 +127,6 @@ def port2sacc(
             ls_w = np.arange(2, bbl.shape[-1] + 2)
             bp_window = sacc.BandpowerWindow(ls_w, bbl.T)
 
-
         log.debug(f"Adding '{cross}', {spec} spectrum as {data_type} {tracer1} {tracer2}")
 
         kwargs = dict(
