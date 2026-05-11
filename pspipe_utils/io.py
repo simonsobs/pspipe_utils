@@ -122,7 +122,13 @@ def port2sacc(
             else:
                 # reading the bbl for the correct spin combo
                 spin = f"spin{tracer1[-1]}xspin{tracer2[-1]}"
-                bbl = bbl_s[spin]
+                if spin != "spin2xspin2":
+                    bbl = bbl_s[spin]
+                else:
+                    shape = bbl_s[spin].shape
+                    # reading only the first of the 4 blocks for the spin2xspin2 matrix,
+                    # since they are all the same
+                    bbl = bbl_s[spin][:int(shape[0]/4), :int(shape[-1]/4)]
 
             ls_w = np.arange(2, bbl.shape[-1] + 2)
             bp_window = sacc.BandpowerWindow(ls_w, bbl.T)
