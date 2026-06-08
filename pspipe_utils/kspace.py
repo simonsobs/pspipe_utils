@@ -5,7 +5,11 @@ from itertools import combinations_with_replacement as cwr
 from pspy import so_spectra, so_map, so_map_preprocessing, pspy_utils
 import numpy as np
 
-def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
+def ratio_std(mean_a, mean_b, std_a, std_b, cov_ab):
+    std_ratio = np.abs(mean_a/mean_b) * np.sqrt((std_a/mean_a)**2 + (std_b/mean_b)**2 - 2*(cov_ab/(mean_a*mean_b)))
+    return std_ratio
+
+def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict=False):
 
     """This function compute the kspace filter transfer matrix using
     a bunch of simulations,
@@ -24,13 +28,20 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
     lb : 1d array
         the binned multipoles
     ps_sims: dict
-        a dictionnary with all simulated power spectrum, form should be
-        ps[[key_a, key_b][spec]
+        a dictionnary with the mean of all simulated power spectrum, form should be
+        ps[[key_a, key_b]
         key_a is "filter" or "nofilter"
         key_b is "standard", "noE", or "noB"
-        spec is the spectra list ["TT","TE".....]
-    n_sims: integer
-        the number of simulations
+    ps_std: dict
+        a dictionnary with the std of all simulated power spectrum, form should be
+        ps[[key_a, key_b]
+        key_a is "filter" or "nofilter"
+        key_b is "standard", "noE", or "noB"
+    ps_cov: dict
+        a dictionnary with the cov of "filtered" and "unfiltered" simulated power spectrum, form should be
+        ps[[key_a, key_b]
+        key_a is "standard", "noE", or "noB"
+        key_b is "standard", "noE", or "noB"
     spectra: list of str
         the spectra list ["TT","TE".....]
     return dict: boolean
@@ -46,34 +57,49 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
         for spec2 in spectra:
             kspace_dict[f"{spec1}_to_{spec2}"] = np.zeros(n_bins)
         
+    cases_dict = {}
+
     elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE", "EE_to_EB", "EE_to_BE", "BB_to_EB", "BB_to_BE"] # "TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT", "EB_to_EB", "BE_to_BE", ]
-    for el in elements: kspace_dict[el] = []
-    for i in range(n_sims):
-        kspace_dict["TT_to_TT"] += [ps_sims["filter", "standard"][i]["TT"]/ps_sims["nofilter", "standard"][i]["TT"]]
-        
-        kspace_dict["EE_to_EE"] += [ps_sims["filter", "noB"][i]["EE"]/ps_sims["nofilter", "noB"][i]["EE"]]
-        kspace_dict["BB_to_BB"] += [ps_sims["filter", "noE"][i]["BB"]/ps_sims["nofilter", "noE"][i]["BB"]]
-        
-        kspace_dict["EE_to_BB"] += [ps_sims["filter", "noB"][i]["BB"]/ps_sims["nofilter", "noB"][i]["EE"]]
-        kspace_dict["BB_to_EE"] += [ps_sims["filter", "noE"][i]["EE"]/ps_sims["nofilter", "noE"][i]["BB"]]
+    #for el in elements: kspace_dict[el] = []
 
-        # #adding the other terms, but this does not work well because the spectra at denominators have zeros
-        # kspace_dict["TE_to_TE"] += [ps_sims["filter", "noB"][i]["TE"]/ps_sims["nofilter", "noB"][i]["TE"]]
-        # kspace_dict["ET_to_ET"] += [ps_sims["filter", "noB"][i]["ET"]/ps_sims["nofilter", "noB"][i]["ET"]]
-        # kspace_dict["TB_to_TB"] += [ps_sims["filter", "noE"][i]["TB"]/ps_sims["nofilter", "noE"][i]["TB"]]
-        # kspace_dict["BT_to_BT"] += [ps_sims["filter", "noE"][i]["BT"]/ps_sims["nofilter", "noE"][i]["BT"]]
-        # kspace_dict["EB_to_EB"] += [ps_sims["filter", "standard"][i]["EB"]/ps_sims["nofilter", "standard"][i]["EB"]]
-        # kspace_dict["BE_to_BE"] += [ps_sims["filter", "standard"][i]["BE"]/ps_sims["nofilter", "standard"][i]["BE"]]
+    kspace_dict["TT_to_TT"] = np.array(ps_sims["filter", "standard"]["TT"]/ps_sims["nofilter", "standard"]["TT"])
+    cases_dict["TT_to_TT"] = [("standard", "TT"), ("standard", "TT")]
 
-        # attempt to compute also mix between EE/BB and EB/BE, we neglect EB/BE to EE/BB since EB/BE should be subdominant
-        kspace_dict["EE_to_EB"] += [ps_sims["filter", "noB"][i]["EB"]/ps_sims["nofilter", "noB"][i]["EE"]]
-        kspace_dict["EE_to_BE"] += [ps_sims["filter", "noB"][i]["BE"]/ps_sims["nofilter", "noB"][i]["EE"]]
-        kspace_dict["BB_to_EB"] += [ps_sims["filter", "noE"][i]["EB"]/ps_sims["nofilter", "noE"][i]["BB"]]
-        kspace_dict["BB_to_BE"] += [ps_sims["filter", "noE"][i]["BE"]/ps_sims["nofilter", "noE"][i]["BB"]]
+    kspace_dict["EE_to_EE"] = np.array(ps_sims["filter", "noB"]["EE"]/ps_sims["nofilter", "noB"]["EE"])
+    kspace_dict["BB_to_BB"] = np.array(ps_sims["filter", "noE"]["BB"]/ps_sims["nofilter", "noE"]["BB"])
+    
+    cases_dict["EE_to_EE"] = [("noB", "EE"), ("noB", "EE")]
+    cases_dict["BB_to_BB"] = [("noE", "BB"), ("noE", "BB")]
+
+    kspace_dict["EE_to_BB"] = np.array(ps_sims["filter", "noB"]["BB"]/ps_sims["nofilter", "noB"]["EE"])
+    kspace_dict["BB_to_EE"] = np.array(ps_sims["filter", "noE"]["EE"]/ps_sims["nofilter", "noE"]["BB"])
+
+    cases_dict["EE_to_BB"] = [("noB", "BB"), ("noB", "EE")]
+    cases_dict["BB_to_EE"] = [("noE", "EE"), ("noE", "BB")]
+
+    # #adding the other terms, but this does not work well because the spectra at denominators have zeros
+    # kspace_dict["TE_to_TE"] += [ps_sims["filter", "noB"]["TE"]/ps_sims["nofilter", "noB"]["TE"]]
+    # kspace_dict["ET_to_ET"] += [ps_sims["filter", "noB"]["ET"]/ps_sims["nofilter", "noB"]["ET"]]
+    # kspace_dict["TB_to_TB"] += [ps_sims["filter", "noE"]["TB"]/ps_sims["nofilter", "noE"]["TB"]]
+    # kspace_dict["BT_to_BT"] += [ps_sims["filter", "noE"]["BT"]/ps_sims["nofilter", "noE"]["BT"]]
+    # kspace_dict["EB_to_EB"] += [ps_sims["filter", "standard"]["EB"]/ps_sims["nofilter", "standard"]["EB"]]
+    # kspace_dict["BE_to_BE"] += [ps_sims["filter", "standard"]["BE"]/ps_sims["nofilter", "standard"]["BE"]]
+
+    # attempt to compute also mix between EE/BB and EB/BE, we neglect EB/BE to EE/BB since EB/BE should be subdominant
+    kspace_dict["EE_to_EB"] = np.array(ps_sims["filter", "noB"]["EB"]/ps_sims["nofilter", "noB"]["EE"])
+    kspace_dict["EE_to_BE"] = np.array(ps_sims["filter", "noB"]["BE"]/ps_sims["nofilter", "noB"]["EE"])
+    kspace_dict["BB_to_EB"] = np.array(ps_sims["filter", "noE"]["EB"]/ps_sims["nofilter", "noE"]["BB"])
+    kspace_dict["BB_to_BE"] = np.array(ps_sims["filter", "noE"]["BE"]/ps_sims["nofilter", "noE"]["BB"])
         
-    for el in elements:
-        std[el] = np.std(kspace_dict[el], axis=0)
-        kspace_dict[el] = np.mean(kspace_dict[el], axis=0)
+    cases_dict["EE_to_EB"] = [("noB", "EB"), ("noB", "EE")]
+    cases_dict["EE_to_BE"] = [("noB", "BE"), ("noB", "EE")]
+    cases_dict["BB_to_EB"] = [("noE", "EB"), ("noE", "BB")]
+    cases_dict["BB_to_BE"] = [("noE", "BE"), ("noE", "BB")]
+
+
+    # for el in elements:
+    #     std[el] = np.std(kspace_dict[el], axis=0)
+    #     kspace_dict[el] = np.mean(kspace_dict[el], axis=0)
 
     elements = ["TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT"]
     for el in elements:
@@ -89,9 +115,16 @@ def build_kspace_filter_matrix(lb, ps_sims, n_sims, spectra, return_dict=False):
                 kspace_matrix[k + i * n_bins, k + j * n_bins] = kspace_dict[f"{spec1}_to_{spec2}"][k]
 
     if return_dict:
+        elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE", "EE_to_EB", "EE_to_BE", "BB_to_EB", "BB_to_BE"] # "TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT", "EB_to_EB", "BE_to_BE", ]
+        for el in elements:
+            scen_a, spec_a, scen_b, spec_b = cases_dict[el][0][0], cases_dict[el][0][1], cases_dict[el][1][0], cases_dict[el][1][1] 
+            std[el] = ratio_std(ps_sims["filter", scen_a][spec_a], ps_sims["nofilter", scen_b][spec_b], 
+                                    ps_std["filter", scen_a][spec_a], ps_std["nofilter", scen_b][spec_b], ps_cov[(scen_a, scen_b)][(spec_a, spec_b)])   
+
         return kspace_dict, std, kspace_matrix
     else:
         return kspace_matrix
+
 
 def build_analytic_kspace_filter_diag(sv1, sv2, lmax, templates, filter_dicts,
                                       dtype=np.float64, binning_file=None):
