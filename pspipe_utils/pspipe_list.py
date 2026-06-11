@@ -85,10 +85,11 @@ def get_spec2nullgroup2nullflag_mpairs(d, return_spectra_list=False):
     _, _sv_list, _m_list = get_arrays_list(d)
     _sv_m_list = ['_'.join(_sv_m) for _sv_m in zip(_sv_list, _m_list)] # assume delimiter = '_' to match against tags dict
     _full_mpairs_list = list(cwr(_sv_m_list, r=2))
+    _full_spec_name_list = [f'{m1}x{m2}' for m1, m2 in _full_mpairs_list]
     _full_mpairs_list_with_reversed = list(product(_sv_m_list, repeat=2))
 
     spec2nullgroup2nullflag_mpairs = {}
-    _spec_name_list = [], []
+    _spec_name_list = []
     for spec, nullgroup2nullflag_mpairrules in inp.items():
         if spec[0] == spec[1]:
             mpairs_iter = _full_mpairs_list
@@ -101,15 +102,13 @@ def get_spec2nullgroup2nullflag_mpairs(d, return_spectra_list=False):
         
             mpairrules = nullflag_mpairrules.get('mpair_rules', {})
             mpairs = [f'{m1}x{m2}' for m1, m2 in mpairs_iter if eval_mpair_rules(d[f'tags_{m1}'], d[f'tags_{m2}'], mpairrules)]
-            
             assert len(mpairs) == len(np.unique(mpairs)), \
                 f'mpairs from spec2nullgroup2nullflag_mpairs_yaml, {spec} not unique'
-
             spec2nullgroup2nullflag_mpairs[spec][nullgroup].append(mpairs)
             
             for mpair in mpairs:
                 for _mpair in (mpair, 'x'.join(mpair.split('x')[::-1])):
-                    if _mpair in _full_mpairs_list and _mpair not in _spec_name_list:
+                    if _mpair in _full_spec_name_list and _mpair not in _spec_name_list:
                         _spec_name_list.append(_mpair)
 
     # from _spec_name_list to spectra list. 
@@ -143,7 +142,7 @@ def get_spectra_list(dict, from_spec_nullgroups=False):
 
     """
     if from_spec_nullgroups:
-        _, (n_spec, sv1_list, ar1_list, sv2_list, ar2_list) = get_spec2nullgroup2nullflag_mpairs(dict, return_spec_name_list=True)
+        _, (n_spec, sv1_list, ar1_list, sv2_list, ar2_list) = get_spec2nullgroup2nullflag_mpairs(dict, return_spectra_list=True)
 
     else:
         surveys = dict["surveys"]
