@@ -135,7 +135,7 @@ def cov_dict_to_full_cov(cov_dict,
 
     for sid1, name1 in enumerate(spec_name_list):
         for sid2, name2 in enumerate(spec_name_list):
-            if sid1 > sid2: continue
+            if sid1 > sid2: continue # populate upper-right triangle of each specxspec block
             for s1, spec1 in enumerate(spectra_order):
                 for s2, spec2 in enumerate(spectra_order):
                     id_start_1 = sid1 * n_bins + s1 * n_cross * n_bins
@@ -367,9 +367,22 @@ def correct_analytical_cov_skew(an_full_cov, mc_full_cov, nkeep=50, return_S=Fal
         return S, corrected_cov
     else:
         return corrected_cov
-    
+
+def sqrt_inv_sqrt_eigh(mat):
+    sqrt_mat = utils.eigpow(mat, 0.5)
+    inv_sqrt_mat = np.linalg.inv(sqrt_mat)
+    return sqrt_mat, inv_sqrt_mat
+
+def sqrt_inv_sqrt_cholesky(mat):
+    d = np.diag(mat)**0.5
+    corrmat = so_cov.cov2corr(mat)
+    L = np.linalg.cholesky(corrmat) # make it easier on lapack by first dividing-out diagonal
+    sqrt_mat = d[:, None] * L
+    inv_sqrt_mat = np.linalg.inv(L) * (1/d) # make it easier on lapack by inverting better-conditioned L
+    return sqrt_mat, inv_sqrt_mat
 
 def correct_analytical_cov_block_diag_gp(lb, an_full_cov, mc_full_cov,
+                                         sqrt_inv_sqrt_op=sqrt_inv_sqrt_cholesky,
                                          var_mc_cov_anaflat=None,
                                          idx_arrs_by_block=None, return_all=False):
     """Correct an analytical covariance matrix with a monte carlo covariance
@@ -393,6 +406,9 @@ def correct_analytical_cov_block_diag_gp(lb, an_full_cov, mc_full_cov,
         Analytic covariance matrix to be corrected.
     mc_full_cov : (nblock*nbin, nblock*nbin) np.ndarray
         Noisy monte carlo matrix to use to correct the analytic matrix.
+    sqrt_inv_sqrt_op : function, optional
+        A function that takes a covariance matrix and returns its left square
+        root A (mat = A@A.T) and the inverse of that.
     var_mc_cov_anaflat : (nblock*nbin, nblock*nbin) np.ndarray, optional
         The variance of the elements of mc_rot, by default None. These
         would need to be precomputed in the rotated basis. If None, the
@@ -422,8 +438,7 @@ def correct_analytical_cov_block_diag_gp(lb, an_full_cov, mc_full_cov,
         block the idx_arrs_by_block array is empty, the returned GP is None 
         since no GP was actually used for that block.
     """
-    sqrt_an_full_cov = utils.eigpow(an_full_cov, 0.5)
-    inv_sqrt_an_full_cov = np.linalg.inv(sqrt_an_full_cov)
+    sqrt_an_full_cov, inv_sqrt_an_full_cov = sqrt_inv_sqrt_op(an_full_cov)
     
     # mc_cov_anaflat should be close to the identity if an_full_cov is good
     mc_cov_anaflat = inv_sqrt_an_full_cov @ mc_full_cov @ inv_sqrt_an_full_cov.T 
@@ -789,6 +804,7 @@ def get_indices(
     excluded_spectra=None,
     excluded_map_set=None,
     only_TT_map_set=None,
+    use_bin_edges=True
 ):
     """
     This function returns the covariance and spectra indices selected given a set of multipole cuts
@@ -812,6 +828,9 @@ def get_indices(
         the list of map set to be excluded
     only_TT_map_set: list of str
         map_set for which we only wish to use the TT power spectrum
+    use_bin_edges: bool
+        if True, the bin_low and bin_high are compared to the spectra cuts to
+        determine inclusion. if False, the bin_mean is used instead.
     """
     if selected_spectra and excluded_spectra:
         raise ValueError("Both 'selected_spectra' and 'excluded_spectra' can't be set together!")
@@ -868,7 +887,10 @@ def get_indices(
             lmin = np.maximum(lmin_Xa, lmin_Yb)
             lmax = np.minimum(lmax_Xa, lmax_Yb)
 
-            idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            if use_bin_edges:
+                idx = np.arange(nbins)[(lmin < bin_low) & (bin_high < lmax)]
+            else:
+                idx = np.arange(nbins)[(lmin < bin_mean) & (bin_mean < lmax)]
             
             indices_in = np.append(indices_in, idx + shift_indices)
             

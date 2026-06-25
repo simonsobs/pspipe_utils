@@ -47,7 +47,18 @@ def get_arrays_list(dict):
 def get_spectra_list(dict):
     """This function creates the lists over which mpi is done
     when we parallelized over each spectra
-
+    If combinations_infos appears in the paramfile, precompute the list of skipped computations
+    It look at keys (sv1, sv2) in d["comibations_infos"] that should be a list of :
+    "skip": skips all combinations of sv1 with sv2
+    "tube": skips all combinations except with same tube (using tags_sv*_ar*)
+    "freq": skips all combinations except with same freq (using tags_sv*_ar*)
+    "smthg": skips all combinations except with same "smthg" (using tags_sv*_ar*)
+    "tube" and "freq" are used by convention but you can put anything, 
+    as long as it appears in tags_sv*_ar*.
+    If the list is empty, then it will skip everything (like "skip").
+    To not skip anything, d["comibations_infos"][sv1, sv2] must be None
+    or [sv1, sv2] must not appear in d["comibations_infos"].
+    
     Parameters
     ----------
     dict : dict
@@ -55,6 +66,15 @@ def get_spectra_list(dict):
 
     """
     surveys = dict["surveys"]
+    
+    def check_combination(sv1, ar1, sv2, ar2, comb_list):
+        if comb_list is None: return True
+        elif 'skip' in comb_list: return False  # If skip, doesnot even need tags_...
+                
+        tags_ar1 = dict[f'tags_{sv1}_{ar1}']
+        tags_ar2 = dict[f'tags_{sv2}_{ar2}']
+        
+        return any(tags_ar1[kw] == tags_ar2[kw] for kw in comb_list)
 
     sv1_list, ar1_list, sv2_list, ar2_list = [], [], [], []
     n_spec = 0
@@ -64,14 +84,15 @@ def get_spectra_list(dict):
             for id_sv2, sv2 in enumerate(surveys):
                 arrays_2 = dict[f"arrays_{sv2}"]
                 for id_ar2, ar2 in enumerate(arrays_2):
-                    # This ensures that we do not repeat redundant computations
-                    if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
                     if  (id_sv1 > id_sv2) : continue
-                    sv1_list += [sv1]
-                    ar1_list += [ar1]
-                    sv2_list += [sv2]
-                    ar2_list += [ar2]
-                    n_spec += 1
+                    if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
+                    if ('combination_args' not in dict) or (check_combination(sv1, ar1, sv2, ar2, dict['combination_args'][(sv1, sv2)])):
+                        # This ensures that we do not repeat redundant computations
+                        sv1_list += [sv1]
+                        ar1_list += [ar1]
+                        sv2_list += [sv2]
+                        ar2_list += [ar2]
+                        n_spec += 1
 
     return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
@@ -103,7 +124,7 @@ def get_covariances_list(dict, delimiter="&"):
 
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, delimiter="&", kind=None, freq_pair=None, remove_same_ar_and_sv=False, return_nu_tag=False):
+def get_spec_name_list(dict, delimiter="&"):
     """This function creates a list with the name of all spectra we consider
 
     Parameters
@@ -112,54 +133,14 @@ def get_spec_name_list(dict, delimiter="&", kind=None, freq_pair=None, remove_sa
         the global dictionnary file used in pspipe
     delimiter: str
         a character that separate the suvey and array name
-    kind : str
-        if "noise" or "auto" won't return
-        a spectra with different survey1 and survey2
-    freq_pair: list of two elements
-        select only spectra with effective frequencies corresponding
-        to the specified freq_pair
-    same_ar_and_sv: boolean
-        select only spectra from a same array and season
-    return_nu_tag: boolean
-        also return a list of frequency tags in the same order
     """
 
-    surveys = dict["surveys"]
     spec_name_list = []
-    nu_tag_list = []
-    for id_sv1, sv1 in enumerate(surveys):
-        arrays_1 = dict[f"arrays_{sv1}"]
-        for id_ar1, ar1 in enumerate(arrays_1):
-            for id_sv2, sv2 in enumerate(surveys):
-                arrays_2 = dict[f"arrays_{sv2}"]
-                for id_ar2, ar2 in enumerate(arrays_2):
-                    # This ensures that we do not repeat redundant computations
-                    if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
-                    if  (id_sv1 > id_sv2) : continue
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict)
+    for sv1, ar1, sv2, ar2 in zip(sv1_list, ar1_list, sv2_list, ar2_list):
+        spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
 
-                    if (kind == "noise") or (kind == "auto"):
-                        if (sv1 != sv2): continue
-
-                    nu_tag1 = dict[f"freq_info_{sv1}_{ar1}"]["freq_tag"]
-                    nu_tag2 = dict[f"freq_info_{sv2}_{ar2}"]["freq_tag"]
-                    c = 0
-
-                    if freq_pair is not None:
-                        f1, f2 = freq_pair
-                        if (f1 != nu_tag1) or (f2 != nu_tag2): c +=1
-                        if (f2 != nu_tag1) or (f1 != nu_tag2): c +=1
-                    if c == 2: continue
-
-                    if remove_same_ar_and_sv == True:
-                        if (sv1 == sv2) & (ar1 == ar2): continue
-
-                    spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
-                    nu_tag_list += [(nu_tag1, nu_tag2)]
-
-    if return_nu_tag == False:
-        return spec_name_list
-    else:
-        return spec_name_list, nu_tag_list
+    return spec_name_list
 
 def get_freq_list(dict):
     """This function creates the list of all frequencies to consider
