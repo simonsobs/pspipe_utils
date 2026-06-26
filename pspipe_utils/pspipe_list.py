@@ -124,7 +124,7 @@ def get_covariances_list(dict, delimiter="&"):
 
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, delimiter="&"):
+def get_spec_name_list(dict, delimiter="&", return_nu_tag=False):
     """This function creates a list with the name of all spectra we consider
 
     Parameters
@@ -133,14 +133,24 @@ def get_spec_name_list(dict, delimiter="&"):
         the global dictionnary file used in pspipe
     delimiter: str
         a character that separate the suvey and array name
+    return_nu_tag : bool
+        if True, return a list of two-tuples of nu tags in the same order
     """
 
     spec_name_list = []
+    nu_tag_list = []
     n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict)
     for sv1, ar1, sv2, ar2 in zip(sv1_list, ar1_list, sv2_list, ar2_list):
         spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
 
-    return spec_name_list
+        nu_tag1 = dict[f"freq_info_{sv1}_{ar1}"]["freq_tag"]
+        nu_tag2 = dict[f"freq_info_{sv2}_{ar2}"]["freq_tag"]
+        nu_tag_list += [(nu_tag1, nu_tag2)]
+
+    if return_nu_tag:
+        return spec_name_list, nu_tag_list
+    else:
+        return spec_name_list
 
 def get_freq_list(dict):
     """This function creates the list of all frequencies to consider
