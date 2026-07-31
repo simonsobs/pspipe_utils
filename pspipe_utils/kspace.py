@@ -6,22 +6,39 @@ from pspy import so_spectra, so_map, so_map_preprocessing, pspy_utils
 import numpy as np
 
 def ratio_std(mean_a, mean_b, std_a, std_b, cov_ab):
+    """
+    computes the standard deviation of a ratio of two quantities
+
+    Parameters
+    ----------
+    mean_a: 1d array
+         mean value of quantity A
+    mean_b: 1d array
+         mean value of quantity B
+    std_a: 1d array
+         std of quantity A
+    std_b: 1d array
+         std of quantity B
+    cov_ab: 1d array
+         covariance between A and B (diagonal in bin space)
+    """
     std_ratio = np.abs(mean_a/mean_b) * np.sqrt((std_a/mean_a)**2 + (std_b/mean_b)**2 - 2*(cov_ab/(mean_a*mean_b)))
     return std_ratio
 
-def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict=False):
+def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict=False, dr6_like = False):
 
     """This function compute the kspace filter transfer matrix using
     a bunch of simulations,
     The matrix acts on unfiltered power spectra and return filtered power spectra.
     We will use the inverse of the matrix to remove the biais from the kspace filter.
     the elements that we estimate explicitely are
-     "TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE"
+     "TT_to_TT", "EE_to_EE", "BB_to_BB", (if dr6_like, also "EE_to_BB", "BB_to_EE", 
+     "EE_to_EB/BE" and "BB_to_EB/BE" )
      
      ps_filt_x = \sum_y x_to_y ps_unfilt_y
      
      we then set "TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT" to sqrt(TT_to_TT * EE_to_EE)
-     and "EB_to_EB", "BE_to_BE" to "EE_to_EE"
+     and "EB_to_EB", "BE_to_BE" to sqrt(BB_to_BB * EE_to_EE)
      
     Parameters
     ----------
@@ -31,22 +48,27 @@ def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict
         a dictionnary with the mean of all simulated power spectrum, form should be
         ps[[key_a, key_b]
         key_a is "filter" or "nofilter"
-        key_b is "standard", "noE", or "noB"
+        key_b is "standard" (if dr6_like is True, also "noE", or "noB")
     ps_std: dict
         a dictionnary with the std of all simulated power spectrum, form should be
         ps[[key_a, key_b]
         key_a is "filter" or "nofilter"
-        key_b is "standard", "noE", or "noB"
+        key_b is "standard", (if dr6_like is True, also "noE", or "noB")
     ps_cov: dict
         a dictionnary with the cov of "filtered" and "unfiltered" simulated power spectrum, form should be
         ps[[key_a, key_b]
-        key_a is "standard", "noE", or "noB"
-        key_b is "standard", "noE", or "noB"
+        key_a is "standard", (if dr6_like is True, also "noE", or "noB")
+        key_b is "standard", (if dr6_like is True, also "noE", or "noB")
     spectra: list of str
         the spectra list ["TT","TE".....]
     return dict: boolean
         wether to return a dictionnary with the term of the matrix in
         addition to the matrix
+
+    Returns
+    -------
+    if return_dict is True, returns a dictionary with kspace elements kspace_dict, their std, and the kspace_matrix
+    if return_dict is False, returns only the kspace_matrix
     """
 
     n_bins = len(lb)
@@ -59,43 +81,45 @@ def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict
         
     cases_dict = {}
 
-    #elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE", "EE_to_EB", "EE_to_BE", "BB_to_EB", "BB_to_BE"] 
-    elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB"] 
-    #for el in elements: kspace_dict[el] = []
+    if dr6_like:
+        elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE", "EE_to_EB", "EE_to_BE", "BB_to_EB", "BB_to_BE"] 
 
-    kspace_dict["TT_to_TT"] = np.array(ps_sims["filter", "standard"]["TT"]/ps_sims["nofilter", "standard"]["TT"])
-    cases_dict["TT_to_TT"] = [("standard", "TT"), ("standard", "TT")]
-
-    kspace_dict["EE_to_EE"] = np.array(ps_sims["filter", "standard"]["EE"]/ps_sims["nofilter", "standard"]["EE"])
-    kspace_dict["BB_to_BB"] = np.array(ps_sims["filter", "standard"]["BB"]/ps_sims["nofilter", "standard"]["BB"])
-    
-    cases_dict["EE_to_EE"] = [("standard", "EE"), ("standard", "EE")]
-    cases_dict["BB_to_BB"] = [("standard", "BB"), ("standard", "BB")]
-
-    # DR6-like below, using noE/noB sims to compute the EE to BB and vice versa mixing
-    # kspace_dict["EE_to_EE"] = np.array(ps_sims["filter", "noB"]["EE"]/ps_sims["nofilter", "noB"]["EE"])
-    # kspace_dict["BB_to_BB"] = np.array(ps_sims["filter", "noE"]["BB"]/ps_sims["nofilter", "noE"]["BB"])
-    
-    # cases_dict["EE_to_EE"] = [("noB", "EE"), ("noB", "EE")]
-    # cases_dict["BB_to_BB"] = [("noE", "BB"), ("noE", "BB")]
-
-    # kspace_dict["EE_to_BB"] = np.array(ps_sims["filter", "noB"]["BB"]/ps_sims["nofilter", "noB"]["EE"])
-    # kspace_dict["BB_to_EE"] = np.array(ps_sims["filter", "noE"]["EE"]/ps_sims["nofilter", "noE"]["BB"])
-
-    # cases_dict["EE_to_BB"] = [("noB", "BB"), ("noB", "EE")]
-    # cases_dict["BB_to_EE"] = [("noE", "EE"), ("noE", "BB")]
-
-    # attempt to compute also mix between EE/BB and EB/BE, we neglect EB/BE to EE/BB since EB/BE should be subdominant
-    # kspace_dict["EE_to_EB"] = np.array(ps_sims["filter", "noB"]["EB"]/ps_sims["nofilter", "noB"]["EE"])
-    # kspace_dict["EE_to_BE"] = np.array(ps_sims["filter", "noB"]["BE"]/ps_sims["nofilter", "noB"]["EE"])
-    # kspace_dict["BB_to_EB"] = np.array(ps_sims["filter", "noE"]["EB"]/ps_sims["nofilter", "noE"]["BB"])
-    # kspace_dict["BB_to_BE"] = np.array(ps_sims["filter", "noE"]["BE"]/ps_sims["nofilter", "noE"]["BB"])
+        # DR6-like below, using noE/noB sims to compute the EE to BB and vice versa mixing
+        kspace_dict["EE_to_EE"] = np.array(ps_sims["filter", "noB"]["EE"]/ps_sims["nofilter", "noB"]["EE"])
+        kspace_dict["BB_to_BB"] = np.array(ps_sims["filter", "noE"]["BB"]/ps_sims["nofilter", "noE"]["BB"])
         
-    # cases_dict["EE_to_EB"] = [("noB", "EB"), ("noB", "EE")]
-    # cases_dict["EE_to_BE"] = [("noB", "BE"), ("noB", "EE")]
-    # cases_dict["BB_to_EB"] = [("noE", "EB"), ("noE", "BB")]
-    # cases_dict["BB_to_BE"] = [("noE", "BE"), ("noE", "BB")]
+        cases_dict["EE_to_EE"] = [("noB", "EE"), ("noB", "EE")]
+        cases_dict["BB_to_BB"] = [("noE", "BB"), ("noE", "BB")]
 
+        kspace_dict["EE_to_BB"] = np.array(ps_sims["filter", "noB"]["BB"]/ps_sims["nofilter", "noB"]["EE"])
+        kspace_dict["BB_to_EE"] = np.array(ps_sims["filter", "noE"]["EE"]/ps_sims["nofilter", "noE"]["BB"])
+
+        cases_dict["EE_to_BB"] = [("noB", "BB"), ("noB", "EE")]
+        cases_dict["BB_to_EE"] = [("noE", "EE"), ("noE", "BB")]
+
+        # attempt to compute also mix between EE/BB and EB/BE, we neglect EB/BE to EE/BB since EB/BE should be subdominant
+        kspace_dict["EE_to_EB"] = np.array(ps_sims["filter", "noB"]["EB"]/ps_sims["nofilter", "noB"]["EE"])
+        kspace_dict["EE_to_BE"] = np.array(ps_sims["filter", "noB"]["BE"]/ps_sims["nofilter", "noB"]["EE"])
+        kspace_dict["BB_to_EB"] = np.array(ps_sims["filter", "noE"]["EB"]/ps_sims["nofilter", "noE"]["BB"])
+        kspace_dict["BB_to_BE"] = np.array(ps_sims["filter", "noE"]["BE"]/ps_sims["nofilter", "noE"]["BB"])
+            
+        cases_dict["EE_to_EB"] = [("noB", "EB"), ("noB", "EE")]
+        cases_dict["EE_to_BE"] = [("noB", "BE"), ("noB", "EE")]
+        cases_dict["BB_to_EB"] = [("noE", "EB"), ("noE", "BB")]
+        cases_dict["BB_to_BE"] = [("noE", "BE"), ("noE", "BB")]
+    else:
+        elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB"] 
+        
+        # computing only diagonal elements using standard sims
+        kspace_dict["TT_to_TT"] = np.array(ps_sims["filter", "standard"]["TT"]/ps_sims["nofilter", "standard"]["TT"])
+        cases_dict["TT_to_TT"] = [("standard", "TT"), ("standard", "TT")]
+
+        kspace_dict["EE_to_EE"] = np.array(ps_sims["filter", "standard"]["EE"]/ps_sims["nofilter", "standard"]["EE"])
+        kspace_dict["BB_to_BB"] = np.array(ps_sims["filter", "standard"]["BB"]/ps_sims["nofilter", "standard"]["BB"])
+        
+        cases_dict["EE_to_EE"] = [("standard", "EE"), ("standard", "EE")]
+        cases_dict["BB_to_BB"] = [("standard", "BB"), ("standard", "BB")]
+     
 
     elements = ["TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT"]
     for el in elements:
@@ -111,8 +135,10 @@ def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict
                 kspace_matrix[k + i * n_bins, k + j * n_bins] = kspace_dict[f"{spec1}_to_{spec2}"][k]
 
     if return_dict:
-        #elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE", "EE_to_EB", "EE_to_BE", "BB_to_EB", "BB_to_BE"] # "TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT", "EB_to_EB", "BE_to_BE", ]
-        elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB"] # "TE_to_TE", "ET_to_ET", "TB_to_TB", "BT_to_BT", "EB_to_EB", "BE_to_BE", ]
+        if dr6_like:
+            elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB", "EE_to_BB", "BB_to_EE", "EE_to_EB", "EE_to_BE", "BB_to_EB", "BB_to_BE"] 
+        else:
+            elements = ["TT_to_TT", "EE_to_EE", "BB_to_BB"] 
         for el in elements:
             scen_a, spec_a, scen_b, spec_b = cases_dict[el][0][0], cases_dict[el][0][1], cases_dict[el][1][0], cases_dict[el][1][1] 
             std[el] = ratio_std(ps_sims["filter", scen_a][spec_a], ps_sims["nofilter", scen_b][spec_b], 
