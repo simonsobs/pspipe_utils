@@ -22,7 +22,10 @@ def ratio_std(mean_a, mean_b, std_a, std_b, cov_ab):
     cov_ab: 1d array
          covariance between A and B (diagonal in bin space)
     """
-    std_ratio = np.abs(mean_a/mean_b) * np.sqrt((std_a/mean_a)**2 + (std_b/mean_b)**2 - 2*(cov_ab/(mean_a*mean_b)))
+    sqrt_arg = (std_a/mean_a)**2 + (std_b/mean_b)**2 - 2*(cov_ab/(mean_a*mean_b))
+    # the argument of sqrt could be negative, prevent the nan
+    sqrt_arg = np.maximum(sqrt_arg, 0)
+    std_ratio = np.abs(mean_a/mean_b) * np.sqrt(sqrt_arg)
     return std_ratio
 
 def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict=False, dr6_like = False):
@@ -46,17 +49,17 @@ def build_kspace_filter_matrix(lb, ps_sims, ps_std, ps_cov, spectra, return_dict
         the binned multipoles
     ps_sims: dict
         a dictionnary with the mean of all simulated power spectrum, form should be
-        ps[[key_a, key_b]
+        ps[key_a, key_b]
         key_a is "filter" or "nofilter"
         key_b is "standard" (if dr6_like is True, also "noE", or "noB")
     ps_std: dict
         a dictionnary with the std of all simulated power spectrum, form should be
-        ps[[key_a, key_b]
+        ps[key_a, key_b]
         key_a is "filter" or "nofilter"
         key_b is "standard", (if dr6_like is True, also "noE", or "noB")
     ps_cov: dict
         a dictionnary with the cov of "filtered" and "unfiltered" simulated power spectrum, form should be
-        ps[[key_a, key_b]
+        ps[key_a, key_b]
         key_a is "standard", (if dr6_like is True, also "noE", or "noB")
         key_b is "standard", (if dr6_like is True, also "noE", or "noB")
     spectra: list of str
