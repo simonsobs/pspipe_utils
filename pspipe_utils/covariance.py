@@ -666,8 +666,6 @@ def rebin_spectrum_with_cov(l, ps, cov, rebin_fac=5, fig_dir=None):
     return lb_ML, vec_ML, cov_ML
 
 
-
-
 def read_x_ar_spectra_vec(spec_dir,
                           spec_name_list,
                           end_of_file,
@@ -682,10 +680,11 @@ def read_x_ar_spectra_vec(spec_dir,
 
     Parameters
      ----------
-     spec_name_list: list of str
-         list of the cross spectra
      spec_dir: str
          path to the folder with the spectra
+     spec_name_list: list of str
+         list of the cross spectra (if file_extension is not ".h5"),
+         otherwise list of list of surveys and arrays
      end_of_file: str
          the str at the end of the spectra file
      spectra_order: list of str
@@ -693,7 +692,7 @@ def read_x_ar_spectra_vec(spec_dir,
      type: str
          the spectra type can be "Dl" or "Cl"
      file_extension: str
-         file extension (whether ".h5" or ".dat")
+         file extension (whether ".h5" or ".dat",)
      """
 
     spectra = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
@@ -701,24 +700,13 @@ def read_x_ar_spectra_vec(spec_dir,
 
     for spec in spectra_order:
         for spec_name in spec_name_list:
-            na, nb = spec_name.split("x")
             if file_extension == ".dat":
+                na, nb = spec_name.split("x")
                 lb, Db = so_spectra.read_ps(f"{spec_dir}/{type}_{spec_name}_{end_of_file}.dat", spectra=spectra)
             if file_extension == ".h5":
-                # splitting the na and nb strings in the middle
-                # to separate survey and array
-                nastr = na.rsplit("_", 2)
-                nbstr = nb.rsplit("_", 2)
-                na_sv, nb_sv = nastr[0], nbstr[0]
-                # distinguish whether array is made of one string or two separated by _
-                if len(nastr[1:]) != 1:
-                    na_ar = "_".join(nastr[1:])
-                else:
-                    na_ar = nastr[1]
-                if len(nbstr[1:]) != 1:
-                    nb_ar = "_".join(nbstr[1:])
-                else:
-                    nb_ar = nbstr[1]
+                na_sv, na_ar, nb_sv, nb_ar = spec_name
+                na = na_sv + na_ar
+                nb = nb_sv + nb_ar
 
                 Db = io.load_hdf5(f"{spec_dir}/{type}_{end_of_file}.h5", path=f"(('{na_sv}', '{na_ar}'), ('{nb_sv}', '{nb_ar}'), 'cross')")
 
