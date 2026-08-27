@@ -94,17 +94,17 @@ def port2sacc(
 
             s.add_tracer("NuMap", **tracer_kwargs)
 
-	if binned_mcm:
+    if binned_mcm:
         # fill dictionary with all the cross spectra names and corresponding indices
-		dl = {}
-		for i in spectra_order:
-			dl[i] = {"cross" : [], "count": []}
-		for count, (spec, cross, *_) in enumerate(cov_order):
-			for sp_ord in spectra_order:
-				if spec == sp_ord:
-					# collect freq array names under cross and their indices in the cov_order list
-					dl[sp_ord]["cross"].append(cross)
-					dl[sp_ord]["count"].append(count)
+        dl = {}
+        for i in spectra_order:
+            dl[i] = {"cross" : [], "count": []}
+        for count, (spec, cross, *_) in enumerate(cov_order):
+            for sp_ord in spectra_order:
+                if spec == sp_ord:
+                    # collect freq array names under cross and their indices in the cov_order list
+                    dl[sp_ord]["cross"].append(cross)
+                    dl[sp_ord]["count"].append(count)
 
     for count, (spec, cross, *_) in enumerate(cov_order):
 
@@ -118,86 +118,86 @@ def port2sacc(
         if p2 == "T":
             data_type = "cl_" + map_types[p2] + map_types[p1]
         else:
-			if p1 != "T" and p2 != "T" and binned_mcm:
-				data_type = "cl_22"
-			else:
-				data_type = "cl_" + map_types[p1] + map_types[p2]
+            if p1 != "T" and p2 != "T" and binned_mcm:
+                data_type = "cl_22"
+            else:
+                data_type = "cl_" + map_types[p1] + map_types[p2]
 
         # compute Dl to add to sacc
-		if p1 != "T" and p2 != "T" and binned_mcm:
-			if spec == "EE":
-				# select the EE, EB and BB spectra associated to a specific array and build a 4 x bins pol array [EE, EB, BE, BB] 
-				# same ordering as the spin2xspin2 bbl block from so_mcm.get_coupling_dict
-				Dbee = data_vec[count * n_bins : (count + 1) * n_bins]
-				# select index corresponding to the cross spectra, and then select the corresponding EB and BB spectra
-				icross = np.where(np.array(dl["EE"]["cross"]) == cross)[0][0]
-				Dbeb = data_vec[dl["EB"]["count"][icross] * n_bins : (dl["EB"]["count"][icross] + 1) * n_bins]		
-				Dbbb = data_vec[dl["BB"]["count"][icross] * n_bins : (dl["BB"]["count"][icross] + 1) * n_bins]
-				if tracer1 == tracer2:
-					# for symmetric cross spectra, we don't save BE = EB
-					Db = np.zeros((3 * n_bins))
-					Db[:n_bins] = Dbee
-					Db[n_bins : 2 * n_bins] = Dbeb
-					Db[2 * n_bins : 3 * n_bins] = Dbbb
-					#Dbbe = Dbeb
-				else:
-					# different array index for BE, dl["BE"]["cross"] does not have symmetric freq arrays
-					Db = np.zeros((4 * n_bins))
-					icross = np.where(np.array(dl["BE"]["cross"]) == cross)[0][0]
-					Dbbe = data_vec[dl["BE"]["count"][icross] * n_bins : (dl["BE"]["count"][icross] + 1) * n_bins]
+        if p1 != "T" and p2 != "T" and binned_mcm:
+            if spec == "EE":
+                # select the EE, EB and BB spectra associated to a specific array and build a 4 x bins pol array [EE, EB, BE, BB] 
+                # same ordering as the spin2xspin2 bbl block from so_mcm.get_coupling_dict
+                Dbee = data_vec[count * n_bins : (count + 1) * n_bins]
+                # select index corresponding to the cross spectra, and then select the corresponding EB and BB spectra
+                icross = np.where(np.array(dl["EE"]["cross"]) == cross)[0][0]
+                Dbeb = data_vec[dl["EB"]["count"][icross] * n_bins : (dl["EB"]["count"][icross] + 1) * n_bins]		
+                Dbbb = data_vec[dl["BB"]["count"][icross] * n_bins : (dl["BB"]["count"][icross] + 1) * n_bins]
+                if tracer1 == tracer2:
+                    # for symmetric cross spectra, we don't save BE = EB
+                    Db = np.zeros((3 * n_bins))
+                    Db[:n_bins] = Dbee
+                    Db[n_bins : 2 * n_bins] = Dbeb
+                    Db[2 * n_bins : 3 * n_bins] = Dbbb
+                    #Dbbe = Dbeb
+                else:
+                    # different array index for BE, dl["BE"]["cross"] does not have symmetric freq arrays
+                    Db = np.zeros((4 * n_bins))
+                    icross = np.where(np.array(dl["BE"]["cross"]) == cross)[0][0]
+                    Dbbe = data_vec[dl["BE"]["count"][icross] * n_bins : (dl["BE"]["count"][icross] + 1) * n_bins]
 
-					Db[:n_bins] = Dbee
-					Db[n_bins : 2 * n_bins] = Dbeb
-					Db[2 * n_bins : 3 * n_bins] = Dbbe
-					Db[3 * n_bins : 4 * n_bins] = Dbbb
-			else:
-				log.info(f"{spec}, skipping this")
-				pass
-		else:
-			Db = data_vec[count * n_bins : (count + 1) * n_bins]
+                    Db[:n_bins] = Dbee
+                    Db[n_bins : 2 * n_bins] = Dbeb
+                    Db[2 * n_bins : 3 * n_bins] = Dbbe
+                    Db[3 * n_bins : 4 * n_bins] = Dbbb
+            else:
+                log.info(f"{spec}, skipping this")
+                pass
+        else:
+            Db = data_vec[count * n_bins : (count + 1) * n_bins]
 
 
         # Add Bbl
-		bp_window = None
-		spin = f"spin{tracer1[-1]}xspin{tracer2[-1]}"
-		if bbls is not None:
-			if (bbl_s := bbls.get(cross)) is None:
-				raise ValueError(f"Missing bbl for '{cross}' cross spectra!")
-			if not binned_mcm:
-				bbl = bbl_s
-			else:
-				bbl = bbl_s[spin]
+        bp_window = None
+        spin = f"spin{tracer1[-1]}xspin{tracer2[-1]}"
+        if bbls is not None:
+            if (bbl_s := bbls.get(cross)) is None:
+                raise ValueError(f"Missing bbl for '{cross}' cross spectra!")
+            if not binned_mcm:
+                bbl = bbl_s
+            else:
+                bbl = bbl_s[spin]
                 if tracer1 == tracer2 and spin == "spin2xspin2":
-					# resize spin2xspin2 bbl to avoid BE = EB, cancel blocks associated to BE (third row/cols blocks)
-					row_block = int(bbl.shape[0]/4)
-					col_block = int(bbl.shape[1]/4)
-					keep_rows = np.r_[0:2*row_block, 3*row_block:4*row_block]
-					keep_cols = np.r_[0:2*col_block, 3*col_block:4*col_block]
-					bbl = bbl[np.ix_(keep_rows, keep_cols)]
-				
-			ls_w = np.arange(2, bbl.shape[-1] + 2)
-			bp_window = sacc.BandpowerWindow(ls_w, bbl.T)
+                    # resize spin2xspin2 bbl to avoid BE = EB, cancel blocks associated to BE (third row/cols blocks)
+                    row_block = int(bbl.shape[0]/4)
+                    col_block = int(bbl.shape[1]/4)
+                    keep_rows = np.r_[0:2*row_block, 3*row_block:4*row_block]
+                    keep_cols = np.r_[0:2*col_block, 3*col_block:4*col_block]
+                    bbl = bbl[np.ix_(keep_rows, keep_cols)]
+                
+            ls_w = np.arange(2, bbl.shape[-1] + 2)
+            bp_window = sacc.BandpowerWindow(ls_w, bbl.T)
 
-		if not binned_mcm or (binned_mcm and spec not in ["EE", "EB", "BE", "BB"]):
-			log.debug(f"Adding '{cross}', {spec} spectrum as {data_type} {tracer1} {tracer2}")
-		if binned_mcm and spec == "EE":
-				log.debug(f"Adding '{cross}', EE-EB-BB spectra as {data_type} {tracer1} {tracer2}")
+        if not binned_mcm or (binned_mcm and spec not in ["EE", "EB", "BE", "BB"]):
+            log.debug(f"Adding '{cross}', {spec} spectrum as {data_type} {tracer1} {tracer2}")
+        if binned_mcm and spec == "EE":
+                log.debug(f"Adding '{cross}', EE-EB-BB spectra as {data_type} {tracer1} {tracer2}")
 
-		if binned_mcm and spin == "spin2xspin2":
-			if tracer1 != tracer2:
-				# build an array with 4 x ell 
-				lbf = np.empty(4*len(lb))
-				for b in range(4):
-					lbf[b*len(lb):(b+1)*len(lb)] = lb
-			else:
-				# build an array with 3 x ell, BE = EB so not saved 
-				lbf = np.empty(3*len(lb))
-				for b in range(3):
-					lbf[b*len(lb):(b+1)*len(lb)] = lb
-		else:
-			lbf = lb
+        if binned_mcm and spin == "spin2xspin2":
+            if tracer1 != tracer2:
+                # build an array with 4 x ell 
+                lbf = np.empty(4*len(lb))
+                for b in range(4):
+                    lbf[b*len(lb):(b+1)*len(lb)] = lb
+            else:
+                # build an array with 3 x ell, BE = EB so not saved 
+                lbf = np.empty(3*len(lb))
+                for b in range(3):
+                    lbf[b*len(lb):(b+1)*len(lb)] = lb
+        else:
+            lbf = lb
 
-		if not binned_mcm or (binned_mcm and spec not in ["EB", "BE", "BB"]):
+        if not binned_mcm or (binned_mcm and spec not in ["EB", "BE", "BB"]):
             kwargs = dict(
             data_type=data_type, tracer1=tracer1, tracer2=tracer2, ell=lbf, x=Db, window=bp_window
             )
