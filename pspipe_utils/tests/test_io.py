@@ -10,7 +10,7 @@ class IOTest(unittest.TestCase):
     def test_port2sacc(self):
         cov_order = [("TT", "dr6_pa4_f220xdr6_pa4_f220"), ("TT", "dr6_pa4_f220xdr6_pa6_f090")]
         passbands = {"dr6_pa4_f220": [[220.0], [1.0]], "dr6_pa6_f090": [[90.0], [1.0]]}
-
+        spectra_order = ["TT"]
         size = 50
         data = np.random.rand(size * len(cov_order))
         cov = np.random.rand(len(data), len(data))
@@ -25,6 +25,7 @@ class IOTest(unittest.TestCase):
             data_vec=data,
             cov=cov,
             cov_order=cov_order,
+            spectra_order=spectra_order,
             binning_file=binning_file,
             lmax=np.inf,
             passbands=passbands,
