@@ -45,7 +45,7 @@ def read_beams(f_name_beam_T, f_name_beam_pol, lmax=None):
     bl["B"] = bl["E"]
     return l, bl
 
-def prep_beams(fn, norm=None):
+def prep_beams(fn, norm=None, return_err=True):
     """Read and normalize data from a beam file.
 
     Parameters
@@ -56,23 +56,38 @@ def prep_beams(fn, norm=None):
         Information to help scale the beam data, by default None. If 'mono',
         then normalize the beam and beam error modes by the beam monopole.
         Can also be an explicit scalar value.
+    return_err : bool, optional
+        If True (default), try to return beam error modes. 
 
     Returns
     -------
-    (nl) np.ndarray, (nmode, nl) np.ndarray
-        The beam and beam error modes.
+    (nl,) np.ndarry, (nl,) np.ndarray, (nmode, nl) np.ndarray
+        The ells, beam, and beam error modes.
+
+    Notes
+    -----
+    Normalizing beam errors by the monopole is done simply/naively, not 
+    accounting for correlations between the monopole and other harmonics as in
+    equation 16 of https://arxiv.org/pdf/astro-ph/0302214.
     """
     beam = np.loadtxt(fn).T
-    l, bl, bl_err = beam[0], beam[1], beam[2:]
+    l, bl = beam[0], beam[1]
+    if return_err:
+        bl_err = beam[2:]
     assert l[0] == 0, "the file is expected to start at l=0"
     
     if norm == 'mono':
         norm = bl[0]
+
     if norm is not None:
         bl /= norm
-        bl_err /= norm
-    
-    return bl, bl_err
+        if return_err:
+            bl_err /= norm
+
+    if return_err:
+        return l, bl, bl_err
+    else:
+        return l, bl
 
 def apply_beams(alms, bl):
     """
