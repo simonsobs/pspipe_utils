@@ -14,6 +14,7 @@ def port2sacc(
     data_vec,
     cov,
     cov_order,
+    spectra_order,
     binning_file,
     lmax,
     bbls=None,
@@ -100,12 +101,14 @@ def port2sacc(
         for i in spectra_order:
             dl[i] = {"cross" : [], "count": []}
         for count, (spec, cross, *_) in enumerate(cov_order):
-            for sp_ord in spectra_order:
-                if spec == sp_ord:
-                    # collect freq array names under cross and their indices in the cov_order list
-                    dl[sp_ord]["cross"].append(cross)
-                    dl[sp_ord]["count"].append(count)
-
+            # collect freq array names under cross and their indices in the cov_order list
+            dl[spec]["cross"].append(cross)
+            dl[spec]["count"].append(count)
+        
+    if cov is not None and binned_mcm:
+        # new order for the binned_mcm case, the spin2 block is grouped together for each cross spectrum  
+        # let's collect the indices of the cov blocks, to be reordered  
+        count_cov = []
     for count, (spec, cross, *_) in enumerate(cov_order):
 
         # Define tracer names and cl type
@@ -131,31 +134,42 @@ def port2sacc(
                 Dbee = data_vec[count * n_bins : (count + 1) * n_bins]
                 # select index corresponding to the cross spectra, and then select the corresponding EB and BB spectra
                 icross = np.where(np.array(dl["EE"]["cross"]) == cross)[0][0]
-                Dbeb = data_vec[dl["EB"]["count"][icross] * n_bins : (dl["EB"]["count"][icross] + 1) * n_bins]		
-                Dbbb = data_vec[dl["BB"]["count"][icross] * n_bins : (dl["BB"]["count"][icross] + 1) * n_bins]
+                count_eb = dl["EB"]["count"][icross]
+                count_bb = dl["BB"]["count"][icross]
+                Dbeb = data_vec[count_eb * n_bins : (count_eb + 1) * n_bins]		
+                Dbbb = data_vec[count_bb * n_bins : (count_bb + 1) * n_bins]
+                if cov is not None:
+                    # add indices for EE, EB and BE/BB below, to rearrange cov blocks
+                    count_cov.append(count)
+                    count_cov.append(count_eb)
                 if tracer1 == tracer2:
                     # for symmetric cross spectra, we don't save BE = EB
                     Db = np.zeros((3 * n_bins))
                     Db[:n_bins] = Dbee
                     Db[n_bins : 2 * n_bins] = Dbeb
                     Db[2 * n_bins : 3 * n_bins] = Dbbb
-                    #Dbbe = Dbeb
+                    if cov is not None:
+                        count_cov.append(count_bb)
                 else:
                     # different array index for BE, dl["BE"]["cross"] does not have symmetric freq arrays
                     Db = np.zeros((4 * n_bins))
                     icross = np.where(np.array(dl["BE"]["cross"]) == cross)[0][0]
-                    Dbbe = data_vec[dl["BE"]["count"][icross] * n_bins : (dl["BE"]["count"][icross] + 1) * n_bins]
-
+                    count_be = dl["BE"]["count"][icross]
+                    Dbbe = data_vec[count_be * n_bins : (count_be + 1) * n_bins]
                     Db[:n_bins] = Dbee
                     Db[n_bins : 2 * n_bins] = Dbeb
                     Db[2 * n_bins : 3 * n_bins] = Dbbe
                     Db[3 * n_bins : 4 * n_bins] = Dbbb
+                    if cov is not None:
+                        count_cov.append(count_be)
+                        count_cov.append(count_bb)
             else:
                 log.info(f"{spec}, skipping this")
                 pass
         else:
             Db = data_vec[count * n_bins : (count + 1) * n_bins]
-
+            if cov is not None and binned_mcm:
+                count_cov.append(count)
 
         # Add Bbl
         bp_window = None
@@ -181,7 +195,7 @@ def port2sacc(
         if not binned_mcm or (binned_mcm and spec not in ["EE", "EB", "BE", "BB"]):
             log.debug(f"Adding '{cross}', {spec} spectrum as {data_type} {tracer1} {tracer2}")
         if binned_mcm and spec == "EE":
-                log.debug(f"Adding '{cross}', EE-EB-BB spectra as {data_type} {tracer1} {tracer2}")
+            log.debug(f"Adding '{cross}', EE-EB-BB spectra as {data_type} {tracer1} {tracer2}")
 
         if binned_mcm and spin == "spin2xspin2":
             if tracer1 != tracer2:
@@ -205,6 +219,11 @@ def port2sacc(
 
     # Add metadata
     s.metadata = deepcopy(metadata)
+
+    if cov is not None and binned_mcm:
+        idx = np.concatenate([np.arange(i * n_bins, (i + 1) * n_bins) for i in count_cov])
+        # Reorder both rows and columns with new index order
+        cov = cov[np.ix_(idx, idx)]
 
     # Finally add covariance
     if cov is not None:
