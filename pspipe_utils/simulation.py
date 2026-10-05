@@ -180,9 +180,12 @@ class DataModel:
             signal_model_kwargs = {}
         if noise_model_kwargs is None:
             noise_model_kwargs = {}
+        
+        self.noise_model_args = noise_model_args
 
         self._signal_model = SignalModel(*signal_model_args, **signal_model_kwargs)
-        self._noise_model = NoiseModel(*noise_model_args, **noise_model_kwargs)
+        if self.noise_model_args is not None:
+            self._noise_model = NoiseModel(*noise_model_args, **noise_model_kwargs)
 
     def get_signal_sim(self, mapname, sim_num):
         """Get the signal sim for the given map and sim realization index. If
@@ -210,16 +213,17 @@ class DataModel:
         """
         out = self._signal_model.get_sim(mapname, sim_num)
 
-        tag = self._noise_model._mapnames2modeltags[mapname]
-        m_nm = self._noise_model._modeltags2modelinfos[tag]['noise_model']
-        mask_obs_dg1 = m_nm.get_from_cache('mask_obs', downgrade=1)
+        if self.noise_model_args is not None:
+            tag = self._noise_model._mapnames2modeltags[mapname]
+            m_nm = self._noise_model._modeltags2modelinfos[tag]['noise_model']
+            mask_obs_dg1 = m_nm.get_from_cache('mask_obs', downgrade=1)
 
-        # NOTE: extraction only works if full res nm data and geometry are
-        # compatible. this should be the case if people are careful
-        shape, wcs = out.data.geometry
-        mask_obs_dg1 = enmap.extract(mask_obs_dg1, shape, wcs)
-        
-        out.data *= mask_obs_dg1
+            # NOTE: extraction only works if full res nm data and geometry are
+            # compatible. this should be the case if people are careful
+            shape, wcs = out.data.geometry
+            mask_obs_dg1 = enmap.extract(mask_obs_dg1, shape, wcs)
+            
+            out.data *= mask_obs_dg1
 
         return out
     
@@ -270,7 +274,8 @@ class DataModel:
             A polarized realization for this signal + noise map.
         """
         out = self.get_signal_sim(mapname, sim_num)
-        out += self.get_noise_sim(mapname, split_num, sim_num)
+        if self.noise_model_args is not None:
+            out += self.get_noise_sim(mapname, split_num, sim_num)
         return out
 
 class SignalModel:
