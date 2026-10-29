@@ -293,6 +293,9 @@ class SignalModel:
             with keys:
             * 'geometry': shape, wcs for that map.
             * 'pixwin': the full 2d pixel window for that map.
+            * 'pixwin_ell': optional (nl,) harmonic pixel window for that map
+            (e.g. a HEALPIX map reprojected to CAR), applied to T and P like
+            a beam. If None or missing, not applied.
         lmax : int
             Max multipole of signal sims.
         cmb_mat : (3, 3, nl) or (4, 4, nl) array-like
@@ -406,6 +409,8 @@ class SignalModel:
             elly_things.append(gl)
         if simulate_leakage_err:
             elly_things.append(gl_err)
+        elly_things += [info['pixwin_ell'] for info in mapnames2minfos.values()
+                        if info.get('pixwin_ell') is not None]
         _lmax = get_minimal_lmax(elly_things)
 
         assert lmax <= _lmax, \
@@ -433,6 +438,14 @@ class SignalModel:
             if gl_includes_poleff:
                 gl_err = gl_err / pol_eff.reshape(nmap, 1, 1, 1) # new copy
             self._gl_err = gl_err[..., :lmax+1].astype(dtype, copy=False)
+
+        # harmonic pixwins (e.g. HEALPIX maps reprojected to CAR) act like a beam
+        self._pixwin_ell = None
+        if any(info.get('pixwin_ell') is not None for info in mapnames2minfos.values()):
+            self._pixwin_ell = np.ones((nmap, lmax+1), dtype=dtype)
+            for i, info in enumerate(mapnames2minfos.values()):
+                if info.get('pixwin_ell') is not None:
+                    self._pixwin_ell[i] = info['pixwin_ell'][:lmax+1]
 
         # hold current sims so that multiple calls to get_sim can consume maps
         # from one correlated signal sim
@@ -518,6 +531,10 @@ class SignalModel:
             if npol == 2:
                 bl_delta = np.repeat(bl_delta, [1, 2], axis=1) # (nmap, 3, nl)
             bl = bl + bl_delta # copy = (nmap, 3, nl) + (nmap, {1,3}, nl)
+
+        # harmonic pixwin is the same for T and P, so it commutes with leakage
+        if self._pixwin_ell is not None:
+            bl = bl * self._pixwin_ell[:, None] # copy = (nmap, 3, nl) * (nmap, 1, nl)
         curvedsky.almxfl(alms, bl, out=alms)
 
         # next apply leakage. if necessary, get leakage realization
