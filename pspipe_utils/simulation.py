@@ -765,6 +765,7 @@ class NoiseModel:
 
         # get the sim in map space
         sim = m_nm.get_sim(split_num, sim_num, lmax, alm=False,
+                           check_disk_for_map_and_alm=True,
                            calibrate=False, keep_model=self._keep_model)
         sim = sim.astype(self._dtype, copy=False)
         
