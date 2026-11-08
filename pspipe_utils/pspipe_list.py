@@ -6,6 +6,7 @@ from itertools import permutations, product
 import os
 import re
 import numpy as np
+import yaml
 
 def get_windownames_list(dict):
     """Get the unique window names from the paramdict."""
@@ -44,6 +45,92 @@ def get_arrays_list(dict):
             n_arrays += 1
     return n_arrays, sv_list, ar_list
 
+# to get around delimiters...
+def get_sv_and_m_from_sv_m(sv_m, sv_m_list, sv_list, m_list):
+    idx = sv_m_list.index(sv_m)
+    return sv_list[idx], m_list[idx]
+
+# given a dictionary of rules, test if a pair of two dicts of tags passes
+def eval_mpair_rules(t1, t2, rules):
+    if not rules:
+        return True
+
+    # 1. Require specific tags (strict list pools expected)
+    for tag_key, (pool1, pool2) in rules.get('require_tags', {}).items():
+        v1 = t1.get(tag_key)
+        v2 = t2.get(tag_key)
+        
+        # Check standard and flipped orientations using the pools
+        match_standard = (v1 in pool1) and (v2 in pool2)
+        match_flipped  = (v1 in pool2) and (v2 in pool1)
+        
+        if not (match_standard or match_flipped):
+            return False
+
+    # 2. Dynamic matching (must have the same value for these tags)
+    if 'match_any_tag' in rules:
+        if not any(t1.get(key) == t2.get(key) for key in rules['match_any_tag']):
+            return False
+            
+    if 'match_all_tags' in rules:
+        if not all(t1.get(key) == t2.get(key) for key in rules['match_all_tags']):
+            return False
+
+    return True
+
+def get_spec2nullgroup2nullflag_mpairs(d, return_spectra_list=False):
+    with open(d['spec2nullgroup2nullflag_mpairs_yaml'], 'r') as file:
+        inp = yaml.safe_load(file)
+
+    _, _sv_list, _m_list = get_arrays_list(d)
+    _sv_m_list = ['_'.join(_sv_m) for _sv_m in zip(_sv_list, _m_list)] # assume delimiter = '_' to match against tags dict
+    _full_mpairs_list = list(cwr(_sv_m_list, r=2))
+    _full_spec_name_list = [f'{m1}x{m2}' for m1, m2 in _full_mpairs_list]
+    _full_mpairs_list_with_reversed = list(product(_sv_m_list, repeat=2))
+
+    spec2nullgroup2nullflag_mpairs = {}
+    _spec_name_list = []
+    for spec, nullgroup2nullflag_mpairrules in inp.items():
+        if spec[0] == spec[1]:
+            mpairs_iter = _full_mpairs_list
+        else:
+            mpairs_iter = _full_mpairs_list_with_reversed
+
+        spec2nullgroup2nullflag_mpairs[spec] = {}
+        for nullgroup, nullflag_mpairrules in nullgroup2nullflag_mpairrules.items():
+            spec2nullgroup2nullflag_mpairs[spec][nullgroup] = [nullflag_mpairrules['nullflag']]
+        
+            mpairrules = nullflag_mpairrules.get('mpair_rules', {})
+            mpairs = [f'{m1}x{m2}' for m1, m2 in mpairs_iter if eval_mpair_rules(d[f'tags_{m1}'], d[f'tags_{m2}'], mpairrules)]
+            assert len(mpairs) == len(np.unique(mpairs)), \
+                f'mpairs from spec2nullgroup2nullflag_mpairs_yaml, {spec} not unique'
+            spec2nullgroup2nullflag_mpairs[spec][nullgroup].append(mpairs)
+            
+            for mpair in mpairs:
+                for _mpair in (mpair, 'x'.join(mpair.split('x')[::-1])):
+                    if _mpair in _full_spec_name_list and _mpair not in _spec_name_list:
+                        _spec_name_list.append(_mpair)
+
+    # from _spec_name_list to spectra list. 
+    # do this because "spectra_list" is more fundamental even though spec_name_list is used as
+    # an intermediary above because it's easier to test membership in
+    n_spec = 0
+    sv1_list, ar1_list, sv2_list, ar2_list = [], [], [], []
+    for _spec_name in _spec_name_list:
+        n1, n2 = _spec_name.split('x')
+        sv1, ar1 = get_sv_and_m_from_sv_m(n1, _sv_m_list, _sv_list, _m_list)
+        sv2, ar2 = get_sv_and_m_from_sv_m(n2, _sv_m_list, _sv_list, _m_list)
+        sv1_list += [sv1]
+        ar1_list += [ar1]
+        sv2_list += [sv2]
+        ar2_list += [ar2]
+        n_spec += 1
+
+    if return_spectra_list:
+        return spec2nullgroup2nullflag_mpairs, (n_spec, sv1_list, ar1_list, sv2_list, ar2_list)
+    else:
+        return spec2nullgroup2nullflag_mpairs
+
 def check_combination(sv1, ar1, sv2, ar2, dict):
     if 'combination_args' not in dict: return True
     comb_args = dict['combination_args']
@@ -59,7 +146,7 @@ def check_combination(sv1, ar1, sv2, ar2, dict):
 
     return any(tags_ar1[kw] == tags_ar2[kw] for kw in comb_list)
 
-def get_spectra_list(dict, ignore_combination_args=False):      # TODO: put example ?
+def get_spectra_list(dict, from_spec_nullgroups=False, ignore_combination_args=False):      # TODO: put example ?
     """This function creates the lists over which mpi is done
     when we parallelized over each spectra
     If combinations_infos appears in the paramfile, precompute the list of skipped computations
@@ -83,32 +170,38 @@ def get_spectra_list(dict, ignore_combination_args=False):      # TODO: put exam
         the global dictionnary file used in pspipe
 
     """
-    surveys = dict["surveys"]
+    if from_spec_nullgroups:
+        _, (n_spec, sv1_list, ar1_list, sv2_list, ar2_list) = get_spec2nullgroup2nullflag_mpairs(dict, return_spectra_list=True)
+        return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
-    sv1_list, ar1_list, sv2_list, ar2_list = [], [], [], []
-    n_spec = 0
-    for id_sv1, sv1 in enumerate(surveys):
-        arrays_1 = dict[f"arrays_{sv1}"]
-        for id_ar1, ar1 in enumerate(arrays_1):
-            for id_sv2, sv2 in enumerate(surveys):
-                arrays_2 = dict[f"arrays_{sv2}"]
-                for id_ar2, ar2 in enumerate(arrays_2):
-                    if  (id_sv1 > id_sv2) : continue
-                    if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
-                    if (
-                        ignore_combination_args 
-                        or check_combination(sv1, ar1, sv2, ar2, dict)
-                    ):
-                        # This ensures that we do not repeat redundant computations
-                        sv1_list += [sv1]
-                        ar1_list += [ar1]
-                        sv2_list += [sv2]
-                        ar2_list += [ar2]
-                        n_spec += 1
+    else:
+        surveys = dict["surveys"]
+    
 
-    return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
+        sv1_list, ar1_list, sv2_list, ar2_list = [], [], [], []
+        n_spec = 0
+        for id_sv1, sv1 in enumerate(surveys):
+            arrays_1 = dict[f"arrays_{sv1}"]
+            for id_ar1, ar1 in enumerate(arrays_1):
+                for id_sv2, sv2 in enumerate(surveys):
+                    arrays_2 = dict[f"arrays_{sv2}"]
+                    for id_ar2, ar2 in enumerate(arrays_2):
+                        if  (id_sv1 > id_sv2) : continue
+                        if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
+                        if (
+                            ignore_combination_args 
+                            or check_combination(sv1, ar1, sv2, ar2, dict)
+                        ):
+                            # This ensures that we do not repeat redundant computations
+                            sv1_list += [sv1]
+                            ar1_list += [ar1]
+                            sv2_list += [sv2]
+                            ar2_list += [ar2]
+                            n_spec += 1
 
-def get_covariances_list(dict, delimiter="&", ignore_combination_args=False):   # TODO: Still compute skipped blocks but assume 0 noise ? By modifying get_pseudonoise ?
+        return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
+
+def get_covariances_list(dict, delimiter="&", from_spec_nullgroups=False, ignore_combination_args=False):
     """This function creates the lists over which mpi is done
     when we parallelized over each covariance element
 
@@ -118,7 +211,7 @@ def get_covariances_list(dict, delimiter="&", ignore_combination_args=False):   
         the global dictionnary file used in pspipe
     """
 
-    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, ignore_combination_args)
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, from_spec_nullgroups=from_spec_nullgroups, ignore_combination_args=ignore_combination_args)
     na_list, nb_list, nc_list, nd_list = [], [], [], []
     ncovs = 0
 
@@ -150,7 +243,7 @@ def get_covariances_list(dict, delimiter="&", ignore_combination_args=False):   
 
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, delimiter="&", return_nu_tag=False, ignore_combination_args=False):
+def get_spec_name_list(dict, delimiter="&", from_spec_nullgroups=False, ignore_combination_args=False, return_nu_tag=False):
     """This function creates a list with the name of all spectra we consider
 
     Parameters
@@ -164,10 +257,8 @@ def get_spec_name_list(dict, delimiter="&", return_nu_tag=False, ignore_combinat
     """
 
     spec_name_list = []
-    
     nu_tag_list = []
-    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, ignore_combination_args=ignore_combination_args)
-
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, from_spec_nullgroups=from_spec_nullgroups, ignore_combination_args=ignore_combination_args)
     for sv1, ar1, sv2, ar2 in zip(sv1_list, ar1_list, sv2_list, ar2_list):
         spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
 

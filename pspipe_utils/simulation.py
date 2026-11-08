@@ -13,7 +13,6 @@ CMB_BASE_SEED = 0
 FG_BASE_SEED = 1 
 BEAM_BASE_SEED = 2
 LEAKAGE_BASE_SEED = 3
-WHITE_NOISE_BASE_SEED = 4
 
 def cmb_matrix_from_file(f_name, lmax, spectra, input_type="Dl"):
     """This function read the cmb power spectra from disk and return a
@@ -432,11 +431,11 @@ class SignalModel:
             self._bl_err = bl_err[..., :lmax+1].astype(dtype, copy=False)
         if simulate_leakage:
             if gl_includes_poleff:
-                gl = gl / pol_eff.reshape(nmap, 1, 1) # new copy
+                gl = gl / self._pol_eff.reshape(nmap, 1, 1) # new copy
             self._gl = gl[..., :lmax+1].astype(dtype, copy=False)
         if simulate_leakage_err:
             if gl_includes_poleff:
-                gl_err = gl_err / pol_eff.reshape(nmap, 1, 1, 1) # new copy
+                gl_err = gl_err / self._pol_eff.reshape(nmap, 1, 1, 1) # new copy
             self._gl_err = gl_err[..., :lmax+1].astype(dtype, copy=False)
 
         # harmonic pixwins (e.g. HEALPIX maps reprojected to CAR) act like a beam
@@ -612,8 +611,6 @@ class SignalModel:
 class NoiseModel:
 
     def __init__(self, mapnames2minfos, modeltags2modelinfos,
-                 add_white_noise_above_lmax=False,
-                 white_noise_ell_taper_width=500,
                  keep_model=True, dtype=np.float32):
         """Simulate a set of noise maps from mnms. This class handles the 
         mapping between mapnames and mnms noise models. The final noise 
@@ -642,14 +639,8 @@ class NoiseModel:
             * 'qids': argument of mnms.noise_models.BaseNoiseModel.from_config
             * 'subproduct_kwargs': argument of mnms.noise_models.BaseNoiseModel.from_config
             * 'lmax': The lmax that will be used for this noise model
-        add_white_noise_above_lmax : bool, optional
-            Add a white noise realization from ivar above the lmax of the noise
-            sims, by default False. Ivars are rescaled to match onto the level
-            of the noise model cov_ell at high ell.
-        white_noise_ell_taper_width : int, optional
-            Width in ell below the lmax of each noise model that will be used
-            to smoothly blend in the high-ell white noise realization (using
-            a cosine profile)
+            * 'add_white_noise_above_lmax': argument of mnms.noise_models.BaseNoiseModel.get_sim
+            * 'white_noise_ell_taper_width': optional argument of mnms.noise_models.BaseNoiseModel.get_sim
         keep_model : bool, optional
             Keep the noise model files in memory after loading the first time, 
             by default True. This spends memory to save execution time. 
@@ -662,8 +653,6 @@ class NoiseModel:
         self._mapnames2modeltags = dict_utils.get_mapnames_to_noise_model_tags(
              mapnames2minfos=mapnames2minfos, modeltags2modelinfos=modeltags2modelinfos
         )
-        self._add_white_noise_above_lmax = add_white_noise_above_lmax
-        self._white_noise_ell_taper_width = white_noise_ell_taper_width
         self._keep_model = keep_model
         self._dtype = dtype
 
@@ -675,7 +664,19 @@ class NoiseModel:
         self._current_sims = {}
         self._current_sim_num = {}
 
-        self._prep_noise_models()
+        # instantiate all the models
+        for tag, info in self._modeltags2modelinfos.items():
+            m_nm = self._get_noise_model_from_tag(tag)
+
+            # want to hold full-res mask_obs for projection and extraction
+            mask_obs_dg1 = m_nm.get_mask_obs(downgrade=1)
+            m_nm.cache_data('mask_obs', mask_obs_dg1, downgrade=1)
+
+            # set the current sim to a dummy value for each split
+            for s in range(m_nm._num_splits):
+                self._current_sim_num[tag, s] = -1 # start with dummy
+
+            info['noise_model'] = m_nm
 
     def _get_super_qid_from_mapname(self, mapname, key=False):
         noise_info = self._mapnames2minfos[mapname]['noise_info']
@@ -694,96 +695,22 @@ class NoiseModel:
         subproduct_kwargs = noise_model_info.get('subproduct_kwargs', {})
         return nm.BaseNoiseModel.from_config(config_name, noise_model_name, *qids, **subproduct_kwargs)
     
-    def _prep_noise_models(self):
-        # instantiate all the models
-        if self._add_white_noise_above_lmax:
-            # what to multiply white noise realizations by for each map, in T
-            # and pol, to match onto the high-ell noise ps
-            self._sigma_facs = {} 
-            
-        for tag, info in self._modeltags2modelinfos.items():
-            m_nm = self._get_noise_model_from_tag(tag)
-
-            # want to hold full-res mask_obs for projection and extraction
-            mask_obs_dg1 = m_nm.get_mask_obs(downgrade=1)
-            m_nm.cache_data('mask_obs', mask_obs_dg1, downgrade=1)
-
-            # may want to hold full-res sqrt_ivars for white noise (each
-            # split of each superqid in this noise model). also get the factors
-            # for T and P to match onto the sqrt_cov_ell (this depends on the
-            # mask used which should be close to mask_obs usually). also see the
-            # comments inside get_sim for more assumptions. also set the current
-            # sim to a dummy value for each split
-            for s in range(m_nm._num_splits):
-                if self._add_white_noise_above_lmax:
-                    sqrt_ivar = m_nm._empty(*mask_obs_dg1.geometry, ivar=True, num_splits=1)
-                    sqrt_ivar = sqrt_ivar.astype(self._dtype, copy=False)
-
-                    for i, (subproduct_kwargs, qid) in enumerate(m_nm._super_qids):
-                        ivar = utils.read_map(
-                            m_nm._data_model, qid, split_num=s, ivar=True,
-                            maps_subproduct=m_nm._maps_subproduct, srcfree=m_nm._srcfree,
-                            **subproduct_kwargs
-                            )
-                        ivar = enmap.extract(ivar, *mask_obs_dg1.geometry)
-                        sqrt_ivar[i, 0] = np.sqrt(ivar).astype(self._dtype, copy=False)
-                    
-                    # NOTE: super important to mask sqrt_ivar by mask_obs, since
-                    # we are high pass filtering it later, any crazy pixels at
-                    # the edge will ring like crazy. if mask_obs isn't good
-                    # enough, this will still happen, so it's always important
-                    # to look at the sims
-                    sqrt_ivar *= mask_obs_dg1
-                    m_nm.cache_data('sqrt_ivar', sqrt_ivar, split_num=s, downgrade=1)
-                
-                    # get cov_ell for model facs 
-                    lmax = info['lmax']
-                    model_dict = m_nm.get_model(s, lmax, generate=False,
-                                                keep_model=self._keep_model)
-                    sqrt_cov_ell = model_dict['sqrt_cov_ell']
-                    model_dict = None # save space
-
-                    nmap = len(m_nm._super_qids)
-                    sqrt_cov_ell = sqrt_cov_ell.reshape(nmap*3, nmap*3, -1)
-                    cov_ell = utils.eigpow(sqrt_cov_ell, 2, axes=[0, 1])
-                    sqrt_cov_ell = None # save space
-                    cov_ell = cov_ell.reshape(nmap, 3, nmap, 3, -1)
-
-                    # also need postfiltreldg to adjust sqrt_cov_ell back to
-                    # dg1, with lmax. for postfiltreldg, the cov_ell will be
-                    # (dg/postfiltreldg)**2 bigger than the dg1 ivars
-                    dg = utils.downgrade_from_lmaxs(m_nm._full_lmax, lmax)
-                    pfrd = m_nm._filter_kwargs['post_filt_rel_downgrade']
-                    cov_ell /= (dg/pfrd)**2
-
-                    # finally, compare to expected std normal white noise in the
-                    # mask_obs patch for T and pol
-                    nlw = np.sum(mask_obs_dg1**2 * mask_obs_dg1.pixsizemap()**2)/(4*np.pi) # std normal white noise pseudospectrum in patch
-                    nlw /= np.sum(mask_obs_dg1**2 * mask_obs_dg1.pixsizemap())/(4*np.pi) # w2 of patch
-
-                    for i, (subproduct_kwargs, qid) in enumerate(m_nm._super_qids):
-                        key = (frozenset(subproduct_kwargs.items()), qid)
-
-                        sigma_fac_T = (cov_ell[i, 0, i, 0, -100:].mean() / nlw)**0.5 # TT
-                        sigma_fac_pol = ((cov_ell[i, 1, i, 1, -100:].mean() + cov_ell[i, 2, i, 2, -100:].mean())/2 / nlw)**0.5 ## (EE + BB)/2
-
-                        self._sigma_facs[key, s] = np.array([sigma_fac_T,
-                                                             sigma_fac_pol,
-                                                             sigma_fac_pol],
-                                                             dtype=self._dtype)
-
-                self._current_sim_num[tag, s] = -1 # start with dummy
-
-            info['noise_model'] = m_nm
-
     def _get_all_sim(self, tag, split_num, sim_num):
         m_nm = self._modeltags2modelinfos[tag]['noise_model']
         lmax = self._modeltags2modelinfos[tag]['lmax']
+        add_white_noise_above_lmax = self._modeltags2modelinfos[tag]['add_white_noise_above_lmax']
+
+        # optional, otherwise use the mnms default
+        get_sim_kwargs = {}
+        if 'white_noise_ell_taper_width' in self._modeltags2modelinfos[tag]:
+            get_sim_kwargs['white_noise_ell_taper_width'] = self._modeltags2modelinfos[tag]['white_noise_ell_taper_width']
 
         # get the sim in map space
         sim = m_nm.get_sim(split_num, sim_num, lmax, alm=False,
                            check_disk_for_map_and_alm=True,
-                           calibrate=False, keep_model=self._keep_model)
+                           calibrate=False,
+                           add_white_noise_above_lmax=add_white_noise_above_lmax,
+                           keep_model=self._keep_model, **get_sim_kwargs)
         sim = sim.astype(self._dtype, copy=False)
         
         # for each super_qid in the sim, store it.
@@ -818,53 +745,26 @@ class NoiseModel:
             f"({list(self._mapnames2minfos.keys())})"
 
         tag = self._mapnames2modeltags[mapname]
+        key = self._get_super_qid_from_mapname(mapname, key=True)
 
-        if self._current_sim_num[tag, split_num] != sim_num:
+        # sims are popped once returned to save memory (each map, split is
+        # normally requested once per sim_num), so redraw if already popped
+        if self._current_sim_num[tag, split_num] != sim_num or \
+            (key, split_num) not in self._current_sims:
             self._get_all_sim(tag, split_num, sim_num)
 
         # finalize sim: project to mask_obs_dg1, extract to patch
-        key = self._get_super_qid_from_mapname(mapname, key=True)
-        omap = self._current_sims[key, split_num]
+        omap = self._current_sims.pop((key, split_num))
 
         m_nm = self._modeltags2modelinfos[tag]['noise_model']
         mask_obs_dg1 = m_nm.get_from_cache('mask_obs', downgrade=1)
-        omap = utils.fourier_resample(omap, shape=mask_obs_dg1.shape,
-                                      wcs=mask_obs_dg1.wcs)
 
-        # white noise? NOTE: matching assumes the tiled part of the 
-        # model returns noise with a power spectrum of ~1 (ie, ps~sqrt_cov_ell
-        # after filtering), which may not be true but should be close at high l
-        if self._add_white_noise_above_lmax:
-            sqrt_ivar = m_nm.get_from_cache('sqrt_ivar', split_num=split_num,
-                                            downgrade=1)
-            super_qid = self._get_super_qid_from_mapname(mapname, key=False)
-            i = m_nm._super_qids.index(super_qid)
-            
-            super_qid_str = m_nm._super_qid_strs[i]
-            sqrt_ivar = sqrt_ivar[i].squeeze()
+        # sims with white noise are already full-res
+        if omap.shape[-2:] != mask_obs_dg1.shape:
+            omap = utils.fourier_resample(omap, shape=mask_obs_dg1.shape,
+                                          wcs=mask_obs_dg1.wcs)
 
-            # get the ivar realization (indep in pol)
-            sigma_facs = self._sigma_facs[key, split_num][:, None, None]
-            seed = utils.get_seed(split_num, sim_num, m_nm._data_model_name,
-                                  m_nm._maps_product, m_nm._maps_subproduct,
-                                  m_nm.noise_model_name, *m_nm._super_qid_strs,
-                                  super_qid_str, str(WHITE_NOISE_BASE_SEED))
-            eta = utils.concurrent_normal(size=(3, *mask_obs_dg1.shape),
-                                          dtype=self._dtype, seed=seed)
-            eta *= sigma_facs
-            eta = enmap.samewcs(eta, sqrt_ivar)
-            np.divide(eta, sqrt_ivar, where=sqrt_ivar!=0, out=eta) * (sqrt_ivar!=0)
-
-            # blend the realizations
-            lmax = self._modeltags2modelinfos[tag]['lmax']
-            filt_low, filt_high = utils.get_ell_trans_profiles([lmax - self._white_noise_ell_taper_width],
-                                                               [lmax], lmax=lmax, exp=0.5)
-            utils.ell_filter(omap, filt_low, omap=omap, lmax=lmax)
-            eta -= utils.ell_filter(eta, 1 - filt_high, lmax=lmax)
-
-            omap += eta
-
-        omap *= mask_obs_dg1
+        utils.parallel_inplace_op(np.multiply, omap, mask_obs_dg1)
 
         # NOTE: extraction only works if full res nm data and geometry are
         # compatible. this should be the case if people are careful
