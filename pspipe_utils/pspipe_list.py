@@ -584,3 +584,36 @@ def canonize_connected_4pt(leg1, leg2, leg3, leg4):
     leg1, leg2, leg3, leg4 = sorted((leg1, leg2, leg3, leg4))
     
     return leg1, leg2, leg3, leg4
+
+def get_lmax_max(lmax: int | dict[str, dict[str, int]]):
+    if isinstance(lmax, dict):
+        lmax_max = max(v for per_array in lmax.values() for v in per_array.values())
+    elif isinstance(lmax, int):
+        lmax_max = lmax
+    else:
+        raise TypeError(f"lmax must be either int or dict, found {type(lmax)}")
+    return lmax_max
+
+def get_lmax_info(lmax: int | dict[str, dict[str, int]], sv1_list, ar1_list, sv2_list, ar2_list):
+    if isinstance(lmax, dict):
+        # lmax = {sv: (ar : {lmax_sv_ar} for ar in arrays} for sv in surveys}
+        lmax_per_spec = {
+            (sv1, ar1, sv2, ar2) : min(lmax[sv1][ar1], lmax[sv2][ar2])
+            for sv1, ar1, sv2, ar2 in zip(
+                sv1_list, ar1_list, sv2_list, ar2_list
+            )
+        }
+        
+    elif isinstance(lmax, int):
+        lmax_per_spec = {
+            (sv1, ar1, sv2, ar2) : lmax
+            for sv1, ar1, sv2, ar2 in zip(
+                sv1_list, ar1_list, sv2_list, ar2_list
+            )
+        }
+    else:
+        raise TypeError(f"lmax must be either int or dict, found {type(lmax)}")
+    
+    lmax_max = get_lmax_max(lmax)
+    
+    return lmax_max, lmax_per_spec
