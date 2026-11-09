@@ -131,9 +131,38 @@ def get_spec2nullgroup2nullflag_mpairs(d, return_spectra_list=False):
     else:
         return spec2nullgroup2nullflag_mpairs
 
-def get_spectra_list(dict, from_spec_nullgroups=False):
+def check_combination(sv1, ar1, sv2, ar2, dict):
+    if 'combination_args' not in dict: return True
+    comb_args = dict['combination_args']
+    if (sv1, sv2) not in comb_args.keys(): return True
+    comb_list = comb_args[(sv1, sv2)]
+    if comb_list is None: return True
+    elif 'SKIP' in comb_list: return False  # If SKIP, doesnot even need tags_
+    elif ('AUTO' in comb_list):             # If AUTO, keep only autos, skip everything else, so don't need tags_
+        if ar1 == ar2: return True
+        else: return False
+    tags_ar1 = dict[f'tags_{sv1}_{ar1}']
+    tags_ar2 = dict[f'tags_{sv2}_{ar2}']
+
+    return any(tags_ar1[kw] == tags_ar2[kw] for kw in comb_list)
+
+def get_spectra_list(dict, from_spec_nullgroups=False, ignore_combination_args=False):      # TODO: put example ?
     """This function creates the lists over which mpi is done
-    when we parallelized over each spectra.
+    when we parallelized over each spectra
+    If combinations_infos appears in the paramfile, precompute the list of skipped computations
+    It look at keys (sv1, sv2) in d["comibations_infos"] that should be a list of :
+    "tube": computes combinations with same tube (using tags_sv*_ar*)
+    "freq": computes combinations with same freq (using tags_sv*_ar*)
+    ["tube", "freq"]: computes combinations with same tube OR freq
+    "smthg": computes combinations with same tube OR freq
+    "tube" and "freq" are used by convention but you can put anything, 
+    as long as it appears in tags_sv*_ar*.
+    There are 2 keyword that will override all others:
+    "SKIP": skips all combinations of sv1 with sv2
+    "AUTO": only does combinations where ar1 == ar2 (so sv1 and sv2 need to have some arrays names in common)
+    If the list is empty, then it will skip everything (like "SKIP").
+    To still compute all combinations (default behavior),
+    do not put [sv1, sv2] in combiations_infos, or put it to None.
     
     Parameters
     ----------
@@ -143,9 +172,11 @@ def get_spectra_list(dict, from_spec_nullgroups=False):
     """
     if from_spec_nullgroups:
         _, (n_spec, sv1_list, ar1_list, sv2_list, ar2_list) = get_spec2nullgroup2nullflag_mpairs(dict, return_spectra_list=True)
+        return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
     else:
         surveys = dict["surveys"]
+    
 
         sv1_list, ar1_list, sv2_list, ar2_list = [], [], [], []
         n_spec = 0
@@ -157,15 +188,20 @@ def get_spectra_list(dict, from_spec_nullgroups=False):
                     for id_ar2, ar2 in enumerate(arrays_2):
                         if  (id_sv1 > id_sv2) : continue
                         if  (id_sv1 == id_sv2) & (id_ar1 > id_ar2) : continue
-                        sv1_list += [sv1]
-                        ar1_list += [ar1]
-                        sv2_list += [sv2]
-                        ar2_list += [ar2]
-                        n_spec += 1
+                        if (
+                            ignore_combination_args 
+                            or check_combination(sv1, ar1, sv2, ar2, dict)
+                        ):
+                            # This ensures that we do not repeat redundant computations
+                            sv1_list += [sv1]
+                            ar1_list += [ar1]
+                            sv2_list += [sv2]
+                            ar2_list += [ar2]
+                            n_spec += 1
 
-    return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
+        return n_spec, sv1_list, ar1_list, sv2_list, ar2_list
 
-def get_covariances_list(dict, delimiter="&", from_spec_nullgroups=False):
+def get_covariances_list(dict, delimiter="&", from_spec_nullgroups=False, ignore_combination_args=False):
     """This function creates the lists over which mpi is done
     when we parallelized over each covariance element
 
@@ -173,27 +209,41 @@ def get_covariances_list(dict, delimiter="&", from_spec_nullgroups=False):
     ----------
     dict : dict
         the global dictionnary file used in pspipe
-
     """
 
-    spec_name = get_spec_name_list(dict, delimiter=delimiter, from_spec_nullgroups=from_spec_nullgroups)
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, from_spec_nullgroups=from_spec_nullgroups, ignore_combination_args=ignore_combination_args)
     na_list, nb_list, nc_list, nd_list = [], [], [], []
     ncovs = 0
 
-    for sid1, spec1 in enumerate(spec_name):
-        for sid2, spec2 in enumerate(spec_name):
+    for sid1, (sva, ara, svb, arb) in enumerate(zip(sv1_list, ar1_list, sv2_list, ar2_list)):
+        for sid2, (svc, arc, svd, ard) in enumerate(zip(sv1_list, ar1_list, sv2_list, ar2_list)):
             if sid1 > sid2: continue
-            na, nb = spec1.split("x")
-            nc, nd = spec2.split("x")
-            na_list += [na]
-            nb_list += [nb]
-            nc_list += [nc]
-            nd_list += [nd]
-            ncovs += 1
+            if (
+                ignore_combination_args 
+                or (
+                    check_combination(sva, ara, svb, arb, dict)         # We have to put everything here in case (sv1, sv2) is in combination_args but (sv2, sv1) is not
+                    and check_combination(sva, ara, svc, arc, dict)
+                    and check_combination(sva, ara, svd, ard, dict)
+                    and check_combination(svb, arb, sva, ara, dict)
+                    and check_combination(svb, arb, svc, arc, dict)
+                    and check_combination(svb, arb, svd, ard, dict)
+                    and check_combination(svc, arc, sva, ara, dict)
+                    and check_combination(svc, arc, svb, arb, dict)
+                    and check_combination(svc, arc, svd, ard, dict)
+                    and check_combination(svd, ard, sva, ara, dict)
+                    and check_combination(svd, ard, svb, arb, dict)
+                    and check_combination(svd, ard, svc, arc, dict)
+                )
+            ):
+                na_list += [f"{sva}{delimiter}{ara}"]
+                nb_list += [f"{svb}{delimiter}{arb}"]
+                nc_list += [f"{svc}{delimiter}{arc}"]
+                nd_list += [f"{svd}{delimiter}{ard}"]
+                ncovs += 1
 
     return ncovs, na_list, nb_list, nc_list, nd_list
 
-def get_spec_name_list(dict, delimiter="&", from_spec_nullgroups=False, return_nu_tag=False):
+def get_spec_name_list(dict, delimiter="&", from_spec_nullgroups=False, ignore_combination_args=False, return_nu_tag=False):
     """This function creates a list with the name of all spectra we consider
 
     Parameters
@@ -207,8 +257,8 @@ def get_spec_name_list(dict, delimiter="&", from_spec_nullgroups=False, return_n
     """
 
     spec_name_list = []
-    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, from_spec_nullgroups=from_spec_nullgroups)
     nu_tag_list = []
+    n_spec, sv1_list, ar1_list, sv2_list, ar2_list = get_spectra_list(dict, from_spec_nullgroups=from_spec_nullgroups, ignore_combination_args=ignore_combination_args)
     for sv1, ar1, sv2, ar2 in zip(sv1_list, ar1_list, sv2_list, ar2_list):
         spec_name_list += [f"{sv1}{delimiter}{ar1}x{sv2}{delimiter}{ar2}"]
 
@@ -370,6 +420,34 @@ def get_null_list(d, spectra, remove_TT_diff_freq=True):
                     
     return null_list
 
+def get_null_list_from_cov_list(d, spectra, remove_TT_diff_freq=True, ignore_combination_args=False):
+    """
+    construct a list of all valid null test between the different map data set specified in the dictionnary
+    for that we use get_covariances_list because it's the same logic for arrays combinations (expect AA-AA ofc)
+    note that we exclude null test if they contains T at different frequency
+        
+    Parameters
+    ----------
+    dict : dict
+        the global dictionnary file used in pspipe
+    """
+    
+    ncov, na_list, nb_list, nc_list, nd_list = get_covariances_list(d, delimiter='_', ignore_combination_args=ignore_combination_args)
+    null_list = []
+    for ms1, ms2, ms3, ms4 in zip(na_list, nb_list, nc_list, nd_list):
+        if (ms1, ms2) == (ms3, ms4): continue
+        f1, f2 = d[f"freq_info_{ms1}"]["freq_tag"], d[f"freq_info_{ms2}"]["freq_tag"]
+        f3, f4 = d[f"freq_info_{ms3}"]["freq_tag"], d[f"freq_info_{ms4}"]["freq_tag"]
+
+        for m in spectra:
+            m0, m1 = m[0], m[1]
+            if remove_TT_diff_freq:
+                if (f1 != f3) and (m0 == "T"): continue
+                if (f2 != f4) and (m1 == "T"): continue
+            null_list += [[m, ms1, ms2, ms3, ms4]]
+
+    return null_list
+
 def get_splits_auto_iterator(svi, nspliti, svj, nsplitj):
     """List of the split pairs that enter the auto-spectrum of a given
     spectrum measurement. If the surveys are the same, then the pairs are like
@@ -506,3 +584,36 @@ def canonize_connected_4pt(leg1, leg2, leg3, leg4):
     leg1, leg2, leg3, leg4 = sorted((leg1, leg2, leg3, leg4))
     
     return leg1, leg2, leg3, leg4
+
+def get_lmax_max(lmax: int | dict[str, dict[str, int]]):
+    if isinstance(lmax, dict):
+        lmax_max = max(v for per_array in lmax.values() for v in per_array.values())
+    elif isinstance(lmax, int):
+        lmax_max = lmax
+    else:
+        raise TypeError(f"lmax must be either int or dict, found {type(lmax)}")
+    return lmax_max
+
+def get_lmax_info(lmax: int | dict[str, dict[str, int]], sv1_list, ar1_list, sv2_list, ar2_list):
+    if isinstance(lmax, dict):
+        # lmax = {sv: (ar : {lmax_sv_ar} for ar in arrays} for sv in surveys}
+        lmax_per_spec = {
+            (sv1, ar1, sv2, ar2) : min(lmax[sv1][ar1], lmax[sv2][ar2])
+            for sv1, ar1, sv2, ar2 in zip(
+                sv1_list, ar1_list, sv2_list, ar2_list
+            )
+        }
+        
+    elif isinstance(lmax, int):
+        lmax_per_spec = {
+            (sv1, ar1, sv2, ar2) : lmax
+            for sv1, ar1, sv2, ar2 in zip(
+                sv1_list, ar1_list, sv2_list, ar2_list
+            )
+        }
+    else:
+        raise TypeError(f"lmax must be either int or dict, found {type(lmax)}")
+    
+    lmax_max = get_lmax_max(lmax)
+    
+    return lmax_max, lmax_per_spec
